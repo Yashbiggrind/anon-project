@@ -1,0 +1,29 @@
+{
+  "name": "ANON",
+  "short_name": "ANON",
+  "description": "Anonymous, ephemeral chat. No signup. No tracking.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#040203",
+  "theme_color": "#040203",
+  "categories": ["social", "communication"],
+  "lang": "en",
+  "dir": "auto",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}
