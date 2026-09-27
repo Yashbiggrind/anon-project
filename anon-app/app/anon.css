@@ -2317,3 +2317,47 @@
   .profileActions button{
     flex:1;min-width:0;padding:10px 12px;font-size:11px;
   }
+    /* ============================================================
+     v22.1 — cleanup + profile upgrades
+     ============================================================ */
+
+  /* clickable sender name */
+  .msgNameLink{
+    cursor:pointer;
+    transition:color .15s;
+    padding:1px 3px;
+    margin:-1px -3px;
+    border-radius:4px;
+  }
+  .msgNameLink:hover{
+    color:#ff5875;
+    background:rgba(42,7,16,.5);
+  }
+
+  /* blocked badge on profile */
+  .profileBlockedTag{
+    display:inline-block;
+    font-family:'Courier New',monospace;
+    font-size:10px;
+    letter-spacing:2px;
+    font-weight:700;
+    color:#ff5875;
+    background:rgba(122,10,28,.2);
+    border:1px solid #7a0a1c;
+    border-radius:6px;
+    padding:5px 12px;
+    margin-bottom:14px;
+    text-transform:uppercase;
+    box-shadow:0 0 15px -4px rgba(255,45,85,.6);
+  }
+
+  /* subtle popup backdrop — dims everything except the popup */
+  .msgMenu,
+  .reactionPicker,
+  .settingsMenu,
+  .emojiPicker,
+  .langMenu,
+  .memberMenu{
+    backdrop-filter:blur(6px);
+    -webkit-backdrop-filter:blur(6px);
+  }

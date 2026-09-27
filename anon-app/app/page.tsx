@@ -1,6 +1,6 @@
 "use client";
 import "./anon.css";
-import { useEffect, useRef, useState, useCallback, startTransition } from "react"
+import { useEffect, useRef, useState, useCallback, startTransition, memo } from "react"
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -762,7 +762,28 @@ export default function Home() {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
     setTimeout(() => { privScrollingRef.current = false; }, 600);
   }, []);
-
+  /* v22.1 — close any open popup when clicking outside */
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    const handler = (e: Event) => {
+      const t = e.target as HTMLElement | null;
+      if (!t) return;
+      if (t.closest(".msgMenu, .reactionPicker, .settingsMenu, .emojiPicker, .langMenu, .memberMenu")) return;
+      if (t.closest(".menuBtn, .reactionAdd, .settingsToggle, .emojiBtn, .langBtn, .memberRow, .msgNameLink")) return;
+      setMessageMenuFor(null);
+      setReactionPickerFor(null);
+      setSettingsOpen(false);
+      setEmojiOpen(false);
+      setLangOpen(false);
+      setMemberMenuFor(null);
+    };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler, { passive: true });
+    return () => {
+      document.removeEventListener("mousedown", handler);
+      document.removeEventListener("touchstart", handler);
+    };
+  }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     const tryReconnect = () => {
@@ -2293,33 +2314,67 @@ export default function Home() {
 
       {toast && <div className={`toast show toast-${toastKind}`}>{toast}</div>}
 
-      {profileOpen && (
-        <div className="modalbg show" onClick={() => setProfileOpen(null)}>
-          <div className="modal profileCard" onClick={(e) => e.stopPropagation()}>
-            <div className="profileAvatar">◇</div>
-            <h2 className="profileName">{profileOpen.username}</h2>
-            <div className="profileMeta">anonymous session</div>
-            <div className="profileMeta dim">{profileOpen.sessionId.slice(0, 12)}…</div>
-            <div className="profileActions">
-              <button
-                className="primary"
-                onClick={() => { openDm(profileOpen.sessionId, profileOpen.username); setProfileOpen(null); }}
-              >💬 Message</button>
-              <button
-                className="cancel"
-                onClick={() => { blockUser(profileOpen.sessionId, profileOpen.username); setProfileOpen(null); }}
-              >Block</button>
-              <button
-                className="cancel"
-                onClick={() => { setReportOpen({ sessionId: profileOpen.sessionId, username: profileOpen.username }); setProfileOpen(null); }}
-              >Report</button>
-            </div>
-            <div className="actions">
-              <button className="cancel" onClick={() => setProfileOpen(null)}>Close</button>
+      {profileOpen && (() => {
+        const isBlockedUser = blockedList.some((b) => b.sessionId === profileOpen.sessionId);
+        const isSelf = profileOpen.sessionId === identity?.sessionId;
+        return (
+          <div className="modalbg show" onClick={() => setProfileOpen(null)}>
+            <div className="modal profileCard" onClick={(e) => e.stopPropagation()}>
+              <div className="profileAvatar">◇</div>
+              <h2 className="profileName">{profileOpen.username}</h2>
+              <div className="profileMeta">anonymous session</div>
+              <div className="profileMeta dim">{profileOpen.sessionId.slice(0, 12)}…</div>
+
+              {isBlockedUser && (
+                <div className="profileBlockedTag">🚫 BLOCKED</div>
+              )}
+
+              {!isSelf && (
+                <div className="profileActions">
+                  {!isBlockedUser && (
+                    <button
+                      className="primary"
+                      onClick={() => { openDm(profileOpen.sessionId, profileOpen.username); setProfileOpen(null); }}
+                    >💬 Message</button>
+                  )}
+                  {isBlockedUser ? (
+                    <button
+                      className="primary"
+                      onClick={() => {
+                        unblockUser(profileOpen.sessionId, profileOpen.username);
+                        setProfileOpen(null);
+                      }}
+                    >↺ Unblock</button>
+                  ) : (
+                    <button
+                      className="cancel"
+                      onClick={() => {
+                        blockUser(profileOpen.sessionId, profileOpen.username);
+                        setProfileOpen(null);
+                      }}
+                    >Block</button>
+                  )}
+                  <button
+                    className="cancel"
+                    onClick={() => {
+                      setReportOpen({ sessionId: profileOpen.sessionId, username: profileOpen.username });
+                      setProfileOpen(null);
+                    }}
+                  >Report</button>
+                </div>
+              )}
+
+              {isSelf && (
+                <div className="profileMeta dim" style={{ marginTop: 12 }}>This is you</div>
+              )}
+
+              <div className="actions">
+                <button className="cancel" onClick={() => setProfileOpen(null)}>Close</button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {dmPanel && (
         <div className="dmPanel">
@@ -2405,7 +2460,7 @@ export default function Home() {
    v20.7 — Adds onOpenDm + click-to-DM on avatar.
    v22 — Adds onOpenProfile.
    ============================================================ */
-const MessageBubble = require("react").memo(
+const MessageBubble = memo(
   function MessageBubble({
     m,
     mine,
@@ -2458,18 +2513,19 @@ const MessageBubble = require("react").memo(
             </div>
           )}
           <div className="meta">
-            <b>{m.senderName}</b>
+            {mine ? (
+              <b>{m.senderName}</b>
+            ) : (
+              <b
+                className="msgNameLink"
+                onClick={() => onOpenProfile?.(m.senderSessionId, m.senderName)}
+                title="View profile"
+              >{m.senderName}</b>
+            )}
             <button type="button" className="timeChip" title={timeFull(m.createdAt)} onClick={() => onToggleTime(m.id)}>
               {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
             </button>
             {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
-            {!mine && (
-              <>
-                <button className="miniAct" onClick={() => onOpenProfile?.(m.senderSessionId, m.senderName)}>profile</button>
-                <button className="miniAct" onClick={() => onSetReportOpen({ sessionId: m.senderSessionId, username: m.senderName })}>{t("report")}</button>
-                <button className="miniAct" onClick={() => onBlockUser(m.senderSessionId, m.senderName)}>{t("block")}</button>
-              </>
-            )}
             {!m.deleted && (
               <button className="menuBtn" onClick={() => onSetMessageMenuFor(messageMenuFor === m.id ? null : m.id)} title="More">⋯</button>
             )}
