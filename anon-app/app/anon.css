@@ -2361,3 +2361,86 @@
     backdrop-filter:blur(6px);
     -webkit-backdrop-filter:blur(6px);
   }
+  /* ============================================================
+     v23 — swipe-to-reply + action sheet (replaces ⋯ menu)
+     ============================================================ */
+  .msg{
+    position:relative;
+    touch-action:pan-y;
+    will-change:transform;
+  }
+  .msg.swiping{transition:none}
+  .msg:not(.swiping){transition:transform .22s cubic-bezier(.16,1,.3,1)}
+
+  .swipeHint{
+    position:absolute;
+    top:50%;
+    left:8px;
+    transform:translateY(-50%) scale(.8);
+    width:44px;height:44px;
+    border-radius:50%;
+    display:grid;place-items:center;
+    background:linear-gradient(180deg,#3a0510,#1a0207);
+    border:1px solid #ff2d55;
+    color:#ff5875;font-size:20px;
+    box-shadow:0 0 22px -4px rgba(255,45,85,.9);
+    pointer-events:none;
+    z-index:1;
+  }
+  .msg.mine .swipeHint{left:auto;right:8px}
+
+  /* Bottom sheet */
+  .msgSheetBg{
+    position:fixed;inset:0;z-index:900;
+    background:rgba(0,0,0,.78);
+    backdrop-filter:blur(10px);
+    -webkit-backdrop-filter:blur(10px);
+    display:flex;align-items:flex-end;justify-content:center;
+    padding:14px;
+    animation:sheetFade .2s ease;
+  }
+  @keyframes sheetFade{from{opacity:0}to{opacity:1}}
+
+  .msgSheet{
+    width:min(440px,100%);
+    background:linear-gradient(180deg,#150408,#080103);
+    border:1px solid #3a0a14;
+    border-radius:18px;
+    padding:8px 8px 10px;
+    box-shadow:
+      0 20px 60px -10px #000,
+      0 0 70px -14px rgba(225,29,72,.7),
+      0 0 0 1px rgba(255,45,85,.1) inset;
+    animation:sheetUp .26s cubic-bezier(.16,1,.3,1);
+    max-height:80vh;
+    overflow-y:auto;
+  }
+  @keyframes sheetUp{
+    from{opacity:0;transform:translateY(30px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+  .msgSheetHandle{
+    width:44px;height:4px;
+    margin:4px auto 10px;
+    border-radius:2px;
+    background:#3a0a14;
+  }
+  .msgSheet button{
+    display:flex;align-items:center;gap:14px;
+    width:100%;padding:14px 16px;
+    border:0;border-radius:12px;
+    background:transparent;
+    color:#e8dde2;
+    font-family:'Courier New',monospace;
+    font-size:14px;letter-spacing:.4px;
+    text-align:left;cursor:pointer;
+    transition:background .15s,color .15s;
+  }
+  .msgSheet button:hover,
+  .msgSheet button:active{background:#22060d;color:#fff}
+  .msgSheet button.danger{color:#ff5875}
+  .msgSheet button.danger:hover{background:#3a0510;color:#ff5875}
+
+  /* Remove old menu button if any remains */
+  .menuBtn{display:none !important}
+  .msgMenu{display:none !important}

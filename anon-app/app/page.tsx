@@ -2462,160 +2462,217 @@ export default function Home() {
    ============================================================ */
 const MessageBubble = memo(
   function MessageBubble({
-    m,
-    mine,
-    isEditing,
-    editingText,
-    openTime,
-    reactions,
-    reactionPickerFor,
-    messageMenuFor,
-    roomId,
-    onToggleTime,
-    onToggleReaction,
-    onSetReactionPickerFor,
-    onSetMessageMenuFor,
-    onStartReply,
-    onCopyMessage,
-    onStartEdit,
-    onDeleteMessage,
-    onSubmitEdit,
-    onCancelEdit,
-    onSetEditingText,
-    onBlockUser,
-    onSetReportOpen,
-    onOpenLightbox,
-    onOpenDm,
-    onOpenProfile,
-    t,
-    timeShort,
-    timeFull,
-    identity,
-    REACTION_EMOJIS,
+    m, mine, isEditing, editingText, openTime, reactions,
+    reactionPickerFor, roomId,
+    onToggleTime, onToggleReaction, onSetReactionPickerFor,
+    onStartReply, onCopyMessage,
+    onStartEdit, onDeleteMessage, onSubmitEdit, onCancelEdit,
+    onSetEditingText, onSetReportOpen,
+    onOpenLightbox, onOpenDm, onOpenProfile,
+    t, timeShort, timeFull, identity, REACTION_EMOJIS,
   }: any) {
+    const [swipeX, setSwipeX] = useState(0);
+    const [showSheet, setShowSheet] = useState(false);
+    const startX = useRef(0);
+    const startY = useRef(0);
+    const dragging = useRef(false);
+    const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const SWIPE_THRESHOLD = 60;
+    const MAX_SWIPE = 88;
+
+    const onTouchStart = (e: React.TouchEvent) => {
+      if (isEditing || m.deleted) return;
+      startX.current = e.touches[0].clientX;
+      startY.current = e.touches[0].clientY;
+      dragging.current = false;
+      lpTimer.current = setTimeout(() => {
+        if (!dragging.current) {
+          setShowSheet(true);
+          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(12);
+        }
+      }, 450);
+    };
+
+    const onTouchMove = (e: React.TouchEvent) => {
+      if (isEditing || m.deleted) return;
+      const dx = e.touches[0].clientX - startX.current;
+      const dy = e.touches[0].clientY - startY.current;
+
+      if (!dragging.current) {
+        if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) {
+          dragging.current = true;
+          if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+        } else if (Math.abs(dy) > 8) {
+          if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+          return;
+        }
+      }
+      if (dragging.current) {
+        const resist = dx > 0 ? Math.min(dx, MAX_SWIPE) : dx * 0.12;
+        setSwipeX(resist);
+      }
+    };
+
+    const finishSwipe = () => {
+      if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+      if (dragging.current) {
+        if (swipeX >= SWIPE_THRESHOLD) {
+          onStartReply(m);
+          if (typeof navigator !== "undefined" && navigator.vibrate) navigator.vibrate(8);
+        }
+        setSwipeX(0);
+      }
+      dragging.current = false;
+    };
+
+    const closeSheet = () => setShowSheet(false);
+    const act = (fn: () => void) => { fn(); closeSheet(); };
+
     return (
-      <div className={`msg ${mine ? "mine" : ""}`} data-mid={m.id}>
-        {!mine && (
-          <div
-            className="mini clickable"
-            onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
-            title="Private message"
-          >◇</div>
-        )}
-        <div className="bubble">
-          {m.replyTo && (
-            <div className="quoteBlock" onClick={() => {
-              const el = document.querySelector(`[data-mid="${m.replyTo!.id}"]`);
-              el?.scrollIntoView({ behavior: "smooth", block: "center" });
-            }}>
-              <div className="quoteName">{m.replyTo.senderName}</div>
-              <div className="quoteText">{m.replyTo.content}</div>
-            </div>
+      <>
+        <div
+          className={`msg ${mine ? "mine" : ""} ${swipeX ? "swiping" : ""}`}
+          data-mid={m.id}
+          style={{ transform: swipeX ? `translateX(${swipeX}px)` : undefined }}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={finishSwipe}
+          onTouchCancel={finishSwipe}
+          onContextMenu={(e) => { e.preventDefault(); if (!m.deleted) setShowSheet(true); }}
+        >
+          {swipeX > 4 && (
+            <div className="swipeHint" style={{ opacity: Math.min(swipeX / SWIPE_THRESHOLD, 1) }}>↩</div>
           )}
-          <div className="meta">
-            {mine ? (
-              <b>{m.senderName}</b>
-            ) : (
-              <b
-                className="msgNameLink"
-                onClick={() => onOpenProfile?.(m.senderSessionId, m.senderName)}
-                title="View profile"
-              >{m.senderName}</b>
-            )}
-            <button type="button" className="timeChip" title={timeFull(m.createdAt)} onClick={() => onToggleTime(m.id)}>
-              {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
-            </button>
-            {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
-            {!m.deleted && (
-              <button className="menuBtn" onClick={() => onSetMessageMenuFor(messageMenuFor === m.id ? null : m.id)} title="More">⋯</button>
-            )}
-            {messageMenuFor === m.id && (
-              <div className="msgMenu">
-                <button onClick={() => onStartReply(m)}>↩ Reply</button>
-                {m.content && <button onClick={() => onCopyMessage(m.content)}>📋 Copy</button>}
-                {!mine && (
-                  <button onClick={() => onOpenDm(m.senderSessionId, m.senderName)}>💬 Private message</button>
-                )}
-                {mine && !m.image && <button onClick={() => roomId ? onStartEdit(m, roomId) : onStartEdit(m)}>✎ Edit</button>}
-                {mine && <button className="danger" onClick={() => roomId ? onDeleteMessage(m, roomId) : onDeleteMessage(m)}>🗑 Delete</button>}
+
+          {!mine && (
+            <div
+              className="mini clickable"
+              onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
+              title="Private message"
+            >◇</div>
+          )}
+
+          <div className="bubble">
+            {m.replyTo && (
+              <div className="quoteBlock" onClick={() => {
+                const el = document.querySelector(`[data-mid="${m.replyTo!.id}"]`);
+                el?.scrollIntoView({ behavior: "smooth", block: "center" });
+              }}>
+                <div className="quoteName">{m.replyTo.senderName}</div>
+                <div className="quoteText">{m.replyTo.content}</div>
               </div>
             )}
-          </div>
-          {isEditing ? (
-            <div className="editInline">
-              <input
-                autoFocus
-                value={editingText}
-                onChange={(e) => onSetEditingText(e.target.value)}
-                onKeyDown={(e: any) => {
-                  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmitEdit(); }
-                  if (e.key === "Escape") { e.preventDefault(); onCancelEdit(); }
-                }}
-              />
-              <button className="send sm" onClick={onSubmitEdit}>{t("send")}</button>
-              <button className="cancel sm" onClick={onCancelEdit}>{t("cancel")}</button>
-            </div>
-          ) : m.deleted ? (
-            <div className="text deletedText"><i>This message was deleted</i></div>
-          ) : (
-            <>
-              {m.image && (
-                <div className="imageBubble" onClick={() => onOpenLightbox(m.image!)}>
-                  <img src={m.image} alt="shared" loading="lazy" />
-                  <div className="imageMeta">🎞️ RAM only · 60 min</div>
-                </div>
+
+            <div className="meta">
+              {mine ? (
+                <b>{m.senderName}</b>
+              ) : (
+                <b
+                  className="msgNameLink"
+                  onClick={() => onOpenProfile?.(m.senderSessionId, m.senderName)}
+                  title="View profile"
+                >{m.senderName}</b>
               )}
-              {m.content && <div className="text">{m.content}</div>}
-            </>
-          )}
-          {!isEditing && (
-            <div className="msgFoot">
-              <div className="reactionRow">
-                {(reactions[m.id] ?? []).map((r: any) => (
-                  <button
-                    key={r.emoji}
-                    className={`reactionPill ${r.mine ? "mine" : ""}`}
-                    onClick={() => roomId ? onToggleReaction(m.id, r.emoji, roomId) : onToggleReaction(m.id, r.emoji)}
-                  >
-                    <span className="rEmoji">{r.emoji}</span>
-                    <span className="rCount">{r.count}</span>
-                  </button>
-                ))}
-                {!m.deleted && (
-                  <button
-                    type="button"
-                    className="reactionAdd"
-                    onClick={(ev) => {
-                      ev.preventDefault();
-                      ev.stopPropagation();
-                      onSetReactionPickerFor(reactionPickerFor === m.id ? null : m.id);
-                    }}
-                    title="Add reaction"
-                  >＋</button>
-                )}
+              <button type="button" className="timeChip" title={timeFull(m.createdAt)} onClick={() => onToggleTime(m.id)}>
+                {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
+              </button>
+              {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
+            </div>
+
+            {isEditing ? (
+              <div className="editInline">
+                <input
+                  autoFocus
+                  value={editingText}
+                  onChange={(e) => onSetEditingText(e.target.value)}
+                  onKeyDown={(e: any) => {
+                    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmitEdit(); }
+                    if (e.key === "Escape") { e.preventDefault(); onCancelEdit(); }
+                  }}
+                />
+                <button className="send sm" onClick={onSubmitEdit}>{t("send")}</button>
+                <button className="cancel sm" onClick={onCancelEdit}>{t("cancel")}</button>
               </div>
-              {reactionPickerFor === m.id && (
-                <div className="reactionPicker" onClick={(ev) => ev.stopPropagation()}>
-                  {REACTION_EMOJIS.map((e: string) => (
+            ) : m.deleted ? (
+              <div className="text deletedText"><i>This message was deleted</i></div>
+            ) : (
+              <>
+                {m.image && (
+                  <div className="imageBubble" onClick={() => onOpenLightbox(m.image!)}>
+                    <img src={m.image} alt="shared" loading="lazy" />
+                    <div className="imageMeta">🎞️ RAM only · 60 min</div>
+                  </div>
+                )}
+                {m.content && <div className="text">{m.content}</div>}
+              </>
+            )}
+
+            {!isEditing && (
+              <div className="msgFoot">
+                <div className="reactionRow">
+                  {(reactions[m.id] ?? []).map((r: any) => (
                     <button
-                      key={e}
+                      key={r.emoji}
+                      className={`reactionPill ${r.mine ? "mine" : ""}`}
+                      onClick={() => roomId ? onToggleReaction(m.id, r.emoji, roomId) : onToggleReaction(m.id, r.emoji)}
+                    >
+                      <span className="rEmoji">{r.emoji}</span>
+                      <span className="rCount">{r.count}</span>
+                    </button>
+                  ))}
+                  {!m.deleted && (
+                    <button
                       type="button"
-                      className="reactionChoice"
+                      className="reactionAdd"
                       onClick={(ev) => {
                         ev.preventDefault();
                         ev.stopPropagation();
-                        if (roomId) onToggleReaction(m.id, e, roomId);
-                        else onToggleReaction(m.id, e);
+                        onSetReactionPickerFor(reactionPickerFor === m.id ? null : m.id);
                       }}
-                    >{e}</button>
-                  ))}
+                      title="Add reaction"
+                    >＋</button>
+                  )}
                 </div>
-              )}
-            </div>
-          )}
+                {reactionPickerFor === m.id && (
+                  <div className="reactionPicker" onClick={(ev) => ev.stopPropagation()}>
+                    {REACTION_EMOJIS.map((e: string) => (
+                      <button
+                        key={e}
+                        type="button"
+                        className="reactionChoice"
+                        onClick={(ev) => {
+                          ev.preventDefault();
+                          ev.stopPropagation();
+                          if (roomId) onToggleReaction(m.id, e, roomId);
+                          else onToggleReaction(m.id, e);
+                        }}
+                      >{e}</button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {mine && <div className="mini" style={{ background: identity?.accent ?? "#160409" }}>◈</div>}
         </div>
-        {mine && <div className="mini" style={{ background: identity?.accent ?? "#160409" }}>◈</div>}
-      </div>
+
+        {showSheet && typeof document !== "undefined" && createPortal(
+          <div className="msgSheetBg" onClick={closeSheet}>
+            <div className="msgSheet" onClick={(e) => e.stopPropagation()}>
+              <div className="msgSheetHandle" />
+              <button onClick={() => act(() => onStartReply(m))}>↩  Reply</button>
+              {m.content && <button onClick={() => act(() => onCopyMessage(m.content))}>📋  Copy</button>}
+              {!mine && <button onClick={() => act(() => onOpenDm(m.senderSessionId, m.senderName))}>💬  Private message</button>}
+              {!mine && <button onClick={() => act(() => onOpenProfile?.(m.senderSessionId, m.senderName))}>👤  View profile</button>}
+              {mine && !m.image && <button onClick={() => act(() => roomId ? onStartEdit(m, roomId) : onStartEdit(m))}>✎  Edit</button>}
+              {mine && <button className="danger" onClick={() => act(() => roomId ? onDeleteMessage(m, roomId) : onDeleteMessage(m))}>🗑  Delete</button>}
+              <button onClick={closeSheet}>✕  Cancel</button>
+            </div>
+          </div>,
+          document.body
+        )}
+      </>
     );
   },
   (prev: any, next: any) => {
@@ -2623,7 +2680,6 @@ const MessageBubble = memo(
     if (prev.mine !== next.mine) return false;
     if (prev.isEditing !== next.isEditing) return false;
     if (prev.isEditing && prev.editingText !== next.editingText) return false;
-    if (prev.messageMenuFor !== next.messageMenuFor) return false;
     if (prev.reactionPickerFor !== next.reactionPickerFor) return false;
     if (prev.roomId !== next.roomId) return false;
     if (prev.openTime !== next.openTime) return false;
