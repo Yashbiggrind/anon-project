@@ -2232,3 +2232,88 @@
     position:relative;
     z-index:10;
   }
+  
+  /* ============================================================
+     v22 — upgrade pack
+     ============================================================ */
+  .discoverRow.clickable{cursor:pointer}
+  .discoverRow.clickable:active{transform:scale(.995)}
+  .discoverForget{
+    width:22px;height:22px;flex:none;
+    background:transparent;border:1px solid #2a0a12;
+    color:#5a4048;border-radius:5px;cursor:pointer;
+    font-size:11px;display:grid;place-items:center;padding:0;
+    transition:all .15s;
+  }
+  .discoverForget:hover{border-color:#7a0a1c;color:#ff5875}
+
+  .skeleton{
+    background:linear-gradient(90deg,#160409 0%,#22060d 50%,#160409 100%);
+    background-size:200% 100%;
+    animation:skeletonShimmer 1.6s ease-in-out infinite;
+    border-radius:8px;
+  }
+  @keyframes skeletonShimmer{
+    0%{background-position:200% 0}
+    100%{background-position:-200% 0}
+  }
+  .skeletonMsg{
+    height:52px;
+    margin:0 0 16px;
+    width:70%;
+  }
+  .skeletonMsg.short{width:45%}
+
+  .toast.toast-info{border-left-color:#ff2d55}
+  .toast.toast-success{border-left-color:#35d27c;color:#c9ffd9}
+  .toast.toast-success::before{
+    content:'✓';
+    color:#35d27c;
+    margin-right:8px;
+    font-weight:700;
+  }
+  .toast.toast-error{
+    border-left-color:#ff2d55;
+    color:#ffd6dd;
+    background:#2a0510;
+  }
+  .toast.toast-error::before{
+    content:'⚠';
+    color:#ff2d55;
+    margin-right:8px;
+    font-weight:700;
+  }
+
+  .modal.profileCard{
+    width:min(360px,100%);
+    text-align:center;
+    padding:28px 22px 22px;
+  }
+  .profileAvatar{
+    width:70px;height:70px;margin:0 auto 12px;
+    border-radius:18px;
+    background:linear-gradient(180deg,#2a0710,#160409);
+    border:1px solid #4a0a14;
+    color:#ffd700;font-size:32px;
+    display:grid;place-items:center;
+    box-shadow:0 0 30px -6px rgba(255,45,85,.6);
+  }
+  .profileName{
+    font-family:'Times New Roman',serif;
+    font-size:22px;color:#f4e8e8;
+    margin:0 0 4px;letter-spacing:-.3px;
+  }
+  .profileMeta{
+    font-family:'Courier New',monospace;
+    font-size:10px;letter-spacing:1.6px;
+    color:#7c5a63;text-transform:uppercase;
+    margin-bottom:4px;
+  }
+  .profileMeta.dim{opacity:.6;font-size:9px;margin-bottom:18px}
+  .profileActions{
+    display:flex;gap:8px;justify-content:center;
+    flex-wrap:wrap;margin-bottom:8px;
+  }
+  .profileActions button{
+    flex:1;min-width:0;padding:10px 12px;font-size:11px;
+  }

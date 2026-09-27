@@ -1014,6 +1014,32 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, admin: target });
   });
 
+  
+  // ---------- v22 — join room directly (from discovery list) ----------
+  socket.on("room:join", ({ roomId } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (sessionRooms.has(s.sessionId)) return ack?.({ ok: false, error: "You are already in a room" });
+
+    const room = rooms.get(roomId);
+    if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
+    if (room.participants.length >= room.capacity) return ack?.({ ok: false, error: "Room is full" });
+
+    for (const p of room.participants) {
+      if (isMutuallyBlocked(p.sessionId, s.sessionId)) {
+        return ack?.({ ok: false, error: "Unable to join this room" });
+      }
+    }
+
+    room.participants.push({ sessionId: s.sessionId, username: s.username });
+    sessionRooms.set(s.sessionId, room.roomId);
+    s.status = "in-room";
+    socket.join(room.roomId);
+    broadcastRoomSystem(room, { type: "join", username: s.username });
+    broadcastRoomUpdate(room);
+    broadcastOnline();
+    ack?.({ ok: true, room: publicRoom(room) });
+  });
   // ---------- invite ----------
   socket.on("room:invite", ({ roomId, recipientUsername, message } = {}, ack) => {
     const s = sessions.get(socket.id);

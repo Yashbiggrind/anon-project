@@ -96,7 +96,7 @@ type DMPanel = {
   loading?: boolean;
 };
 
-/* v18 — distance from bottom (px) that still counts as "at the bottom" */
+/* v18 — distance from bottom (px) */
 const NEAR_BOTTOM_PX = 100;
 
 export default function Home() {
@@ -120,6 +120,7 @@ export default function Home() {
 
   const [invites, setInvites] = useState<Invite[]>([]);
   const [room, setRoom] = useState<PrivateRoom | null>(null);
+  const isAdmin = room ? room.admin === identity?.sessionId : false;
   const [privateMessages, setPrivateMessages] = useState<ChatMessage[]>([]);
   const privateInputRef = useRef<HTMLInputElement>(null);
 
@@ -136,7 +137,8 @@ export default function Home() {
   const [memberListOpen, setMemberListOpen] = useState(true);
   const [memberMenuFor, setMemberMenuFor] = useState<string | null>(null);
   const [roomSystemLines, setRoomSystemLines] = useState<RoomSystemLine[]>([]);
-    /* v20.8 — topic editor + slow mode UI */
+
+  /* v20.8 — topic editor + slow mode UI */
   const [topicEditing, setTopicEditing] = useState(false);
   const [topicDraft, setTopicDraft] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -148,6 +150,11 @@ export default function Home() {
     slowMode: number; createdAt: number;
   }>>([]);
   const [roomListLoading, setRoomListLoading] = useState(false);
+
+  /* v22 — new feature state */
+  const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
+  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string } | null>(null);
+  const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
 
   /* v20.7 — DM state */
   const [dmPanel, setDmPanel] = useState<DMPanel | null>(null);
@@ -195,9 +202,8 @@ export default function Home() {
   const lastTypingRef = useRef(0);
   const langBtnRef = useRef<HTMLButtonElement>(null);
   const [langMenuPos, setLangMenuPos] = useState<{ top: number; right: number } | null>(null);
-  /* ==================================================================
-     v18 — Scroll-to-bottom arrow (Instagram-style)
-     ================================================================== */
+
+  /* v18 — Scroll-to-bottom arrow */
   const [showScrollBtn, setShowScrollBtn] = useState(false);
   const [scrollBadge, setScrollBadge] = useState(0);
   const [showPrivateScrollBtn, setShowPrivateScrollBtn] = useState(false);
@@ -209,9 +215,6 @@ export default function Home() {
   const privPrevLenRef = useRef(0);
   const pubInitRef = useRef(false);
   const privInitRef = useRef(false);
-  /* ==================================================================
-     v16 — Stable callbacks. CRITICAL for MessageBubble's memo to work.
-     ================================================================== */
 
   const t = useCallback((key: string, vars?: Record<string, string | number>): string => {
     const pack = EXTRA[key];
@@ -247,8 +250,9 @@ export default function Home() {
     setOpenTime((p) => ({ ...p, [id]: !p[id] }));
   }, []);
 
-  const showToast = useCallback((msg: string, ms = 2500) => {
+  const showToast = useCallback((msg: string, ms = 2500, kind: "info" | "success" | "error" = "info") => {
     setToast(msg);
+    setToastKind(kind);
     setTimeout(() => setToast(null), ms);
   }, []);
 
@@ -320,6 +324,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => { setQueued(listQueue()); }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("anon_recent_rooms");
+      if (raw) setRecentRooms(JSON.parse(raw));
+    } catch {}
+  }, []);
 
   useEffect(() => {
     if (!connected && typeof window !== "undefined") {
@@ -516,7 +528,6 @@ export default function Home() {
       showToast(libTranslate(lang, key), 3000);
     });
 
-    /* v20.7 — DM listeners */
     socket.on("dm:message", (m: DMMessage) => {
       if (!m.mine) { playSound("message"); bumpSeen(); }
       setDmPanel((p) => {
@@ -625,14 +636,12 @@ export default function Home() {
     }
   }, [privateMessages]);
 
-  /* v20.7 — DM auto-scroll */
   useEffect(() => {
     const el = dmMsgsRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [dmMessages, dmPanel?.threadId]);
 
-  /* v20.7 — typing indicator auto-clear */
   useEffect(() => {
     const tmr = setInterval(() => {
       setDmTypingFrom((p) => {
@@ -802,7 +811,6 @@ export default function Home() {
       s.emit("reaction:toggle", payload, (ack: any) => {
         if (ack && ack.ok === false) {
           console.warn("[reaction] server rejected:", ack.error);
-          // rollback the optimistic local change
           setReactions((prev) => {
             const list = prev[messageId] ? [...prev[messageId]] : [];
             const idx = list.findIndex((r) => r.emoji === emoji);
@@ -883,7 +891,6 @@ export default function Home() {
     }
   }, []);
 
-  /* v20.7 — DM functions */
   const openDm = useCallback((targetSessionId: string, targetUsername: string) => {
     const s = socketRef.current;
     if (!s) { showToast("Not connected"); return; }
@@ -1070,6 +1077,7 @@ export default function Home() {
     }
     setReplyTo(null);
   }
+
   function sendPrivate() {
     const el = privateInputRef.current;
     const text = (el?.value ?? "").trim();
@@ -1090,6 +1098,42 @@ export default function Home() {
     socketRef.current.emit("room:message", { roomId: room.roomId, content: text, replyTo: replyPayload }, () => {});
     setReplyTo(null);
   }
+
+  /* v22 — recent rooms + join + profile helpers */
+  function rememberRoom(room: { roomId: string; topic?: string }) {
+    try {
+      const entry = { roomId: room.roomId, topic: room.topic || "Untitled", at: Date.now() };
+      const next = [entry, ...recentRooms.filter((r) => r.roomId !== room.roomId)].slice(0, 5);
+      setRecentRooms(next);
+      localStorage.setItem("anon_recent_rooms", JSON.stringify(next));
+    } catch {}
+  }
+
+  function forgetRecentRoom(roomId: string) {
+    const next = recentRooms.filter((r) => r.roomId !== roomId);
+    setRecentRooms(next);
+    try { localStorage.setItem("anon_recent_rooms", JSON.stringify(next)); } catch {}
+  }
+
+  function joinRoomById(roomId: string) {
+    socketRef.current?.emit("room:join", { roomId }, (res: any) => {
+      if (!res?.ok) {
+        showToast(res?.error || "Could not join room", 2500, "error");
+        return;
+      }
+      setRoom(res.room);
+      setPrivateMessages([]);
+      setRoomSystemLines([]);
+      rememberRoom({ roomId: res.room.roomId, topic: res.room.topic });
+      setSection("private");
+      showToast("Joined room", 1500, "success");
+    });
+  }
+
+  function openProfile(sessionId: string, username: string) {
+    setProfileOpen({ sessionId, username });
+  }
+
   function createRoom(capacity: number) {
     const cap = Math.max(2, Math.min(10, Number(capacity) || 5));
     const topic = createTopic.trim().slice(0, 40);
@@ -1098,6 +1142,7 @@ export default function Home() {
       setRoom(res.room);
       setPrivateMessages([]);
       setRoomSystemLines([]);
+      rememberRoom({ roomId: res.room.roomId, topic: res.room.topic });
       setCreateOpen(false);
       setCreateCapacity(5);
       setCreateTopic("");
@@ -1119,7 +1164,13 @@ export default function Home() {
   function acceptInvite(inv: Invite) {
     socketRef.current?.emit("invite:accept", { inviteId: inv.inviteId }, (res: any) => {
       if (!res?.ok) { showToast(res?.error || t("couldNotAccept")); }
-      else { setRoom(res.room); setPrivateMessages([]); setRoomSystemLines([]); setSection("private"); }
+      else {
+        setRoom(res.room);
+        setPrivateMessages([]);
+        setRoomSystemLines([]);
+        rememberRoom({ roomId: res.room.roomId, topic: res.room.topic });
+        setSection("private");
+      }
     });
     setInvites((p) => p.filter((i) => i.inviteId !== inv.inviteId));
   }
@@ -1172,7 +1223,7 @@ export default function Home() {
     });
     setMemberMenuFor(null);
   }
-  /* v20.8 — topic editor */
+
   function startTopicEdit() {
     if (!room || !isAdmin) return;
     setTopicDraft(room.topic || "");
@@ -1195,7 +1246,6 @@ export default function Home() {
     setTopicDraft("");
   }
 
-  /* v20.8 — slow mode */
   function setSlowMode(sec: number) {
     if (!room) return;
     socketRef.current?.emit("room:set-slowmode", { roomId: room.roomId, seconds: sec }, (res: any) => {
@@ -1205,7 +1255,6 @@ export default function Home() {
     setSettingsOpen(false);
   }
 
-  /* v20.8 — room discovery */
   const refreshRoomList = useCallback(() => {
     const s = socketRef.current;
     if (!s) return;
@@ -1234,6 +1283,7 @@ export default function Home() {
     setReportOpen(null);
     showToast(t("reportSubmitted"));
   }
+
   function unblockUser(sessionId: string, username: string) {
     socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: any) => {
       if (res?.ok) {
@@ -1252,7 +1302,6 @@ export default function Home() {
   const availableOthers = others.filter((u) => u.status !== "in-room");
   const isFull = room ? room.participants.length >= room.capacity : false;
   const isHost = room ? room.host === identity?.sessionId : false;
-  const isAdmin = room ? room.admin === identity?.sessionId : false;
 
   const visibleMessages = searchQuery.trim()
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.trim().toLowerCase()) || m.senderName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
@@ -1261,7 +1310,8 @@ export default function Home() {
     ? privateMessages.filter((m) => m.content.toLowerCase().includes(searchQuery.trim().toLowerCase()) || m.senderName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : privateMessages;
 
-  return (    <>
+  return (
+    <>
       {!connected && <div className="reconnectBar">{t("connectionLost")}</div>}
 
       <div className="marquee">
@@ -1523,6 +1573,13 @@ export default function Home() {
                 )}
                 <div className="msgsWrap">
                 <div className="msgs" ref={msgsRef}>
+                  {!connected && messages.length === 0 && (
+                    <>
+                      <div className="skeleton skeletonMsg" />
+                      <div className="skeleton skeletonMsg short" />
+                      <div className="skeleton skeletonMsg" />
+                    </>
+                  )}
                   {welcomeBack && (
                     <div className="welcomeBack">
                       <div className="wbText">
@@ -1606,6 +1663,7 @@ export default function Home() {
                         onSetReportOpen={setReportOpen}
                         onOpenLightbox={setImageLightbox}
                         onOpenDm={openDm}
+                        onOpenProfile={openProfile}
                         t={t}
                         timeShort={timeShort}
                         timeFull={timeFull}
@@ -1665,7 +1723,6 @@ export default function Home() {
                 </div>
               </div>
             </section>
-
             <section className={`app-view ${section === "private" ? "active" : ""}`}>
               <div className="hero">
                 <div>
@@ -1824,6 +1881,7 @@ export default function Home() {
                               onSetReportOpen={setReportOpen}
                               onOpenLightbox={setImageLightbox}
                               onOpenDm={openDm}
+                              onOpenProfile={openProfile}
                               t={t}
                               timeShort={timeShort}
                               timeFull={timeFull}
@@ -2013,7 +2071,12 @@ export default function Home() {
 
                       <div className="discoverList">
                         {roomList.map((r) => (
-                          <div key={r.roomId} className={`discoverRow ${r.full ? "full" : ""}`}>
+                          <div
+                            key={r.roomId}
+                            className={`discoverRow ${r.full ? "full" : ""} ${!r.full ? "clickable" : ""}`}
+                            onClick={() => { if (!r.full) joinRoomById(r.roomId); }}
+                            title={r.full ? "Room is full" : "Click to join"}
+                          >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
                               <div className="discoverTopic">{r.topic || "Untitled room"}</div>
@@ -2030,8 +2093,33 @@ export default function Home() {
                       </div>
 
                       <p className="discoverHint">
-                        Ask a room admin to invite you — you can't join a room on your own yet.
+                        Click any open room to join instantly. Or ask an admin to invite you.
                       </p>
+
+                      {recentRooms.length > 0 && (
+                        <>
+                          <div className="discoverListHeader" style={{ marginTop: 20 }}>
+                            <span>RECENT ROOMS</span>
+                            <span className="discoverCount">{recentRooms.length}</span>
+                          </div>
+                          <div className="discoverList">
+                            {recentRooms.map((r) => (
+                              <div key={r.roomId} className="discoverRow clickable" onClick={() => joinRoomById(r.roomId)}>
+                                <span className="discoverIcon">↺</span>
+                                <div className="discoverInfo">
+                                  <div className="discoverTopic">{r.topic}</div>
+                                  <div className="discoverMeta">joined {timeShort(r.at)}</div>
+                                </div>
+                                <button
+                                  className="discoverForget"
+                                  onClick={(e) => { e.stopPropagation(); forgetRecentRoom(r.roomId); }}
+                                  title="Remove"
+                                >✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -2203,7 +2291,35 @@ export default function Home() {
         </div>
       )}
 
-      {toast && <div className="toast show">{toast}</div>}
+      {toast && <div className={`toast show toast-${toastKind}`}>{toast}</div>}
+
+      {profileOpen && (
+        <div className="modalbg show" onClick={() => setProfileOpen(null)}>
+          <div className="modal profileCard" onClick={(e) => e.stopPropagation()}>
+            <div className="profileAvatar">◇</div>
+            <h2 className="profileName">{profileOpen.username}</h2>
+            <div className="profileMeta">anonymous session</div>
+            <div className="profileMeta dim">{profileOpen.sessionId.slice(0, 12)}…</div>
+            <div className="profileActions">
+              <button
+                className="primary"
+                onClick={() => { openDm(profileOpen.sessionId, profileOpen.username); setProfileOpen(null); }}
+              >💬 Message</button>
+              <button
+                className="cancel"
+                onClick={() => { blockUser(profileOpen.sessionId, profileOpen.username); setProfileOpen(null); }}
+              >Block</button>
+              <button
+                className="cancel"
+                onClick={() => { setReportOpen({ sessionId: profileOpen.sessionId, username: profileOpen.username }); setProfileOpen(null); }}
+              >Report</button>
+            </div>
+            <div className="actions">
+              <button className="cancel" onClick={() => setProfileOpen(null)}>Close</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {dmPanel && (
         <div className="dmPanel">
@@ -2287,6 +2403,7 @@ export default function Home() {
 /* ============================================================
    v16 — MessageBubble with CUSTOM memo comparator.
    v20.7 — Adds onOpenDm + click-to-DM on avatar.
+   v22 — Adds onOpenProfile.
    ============================================================ */
 const MessageBubble = require("react").memo(
   function MessageBubble({
@@ -2314,6 +2431,7 @@ const MessageBubble = require("react").memo(
     onSetReportOpen,
     onOpenLightbox,
     onOpenDm,
+    onOpenProfile,
     t,
     timeShort,
     timeFull,
@@ -2347,6 +2465,7 @@ const MessageBubble = require("react").memo(
             {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
             {!mine && (
               <>
+                <button className="miniAct" onClick={() => onOpenProfile?.(m.senderSessionId, m.senderName)}>profile</button>
                 <button className="miniAct" onClick={() => onSetReportOpen({ sessionId: m.senderSessionId, username: m.senderName })}>{t("report")}</button>
                 <button className="miniAct" onClick={() => onBlockUser(m.senderSessionId, m.senderName)}>{t("block")}</button>
               </>
