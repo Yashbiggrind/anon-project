@@ -2518,3 +2518,85 @@
   .emojiPicker{
     border: 1px solid #7a0a1c !important;
   }
+
+  /* ============================================================
+     v23.4 — FINAL popup fix: solid bg, no blur, fast on mobile
+     ============================================================ */
+
+  /* Force opaque backgrounds on every popup */
+  .reactionPicker,
+  .emojiPicker,
+  .msgMenu,
+  .settingsMenu,
+  .memberMenu,
+  .langMenu{
+    background: #0a0205 !important;
+    background-image: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    opacity: 1 !important;
+    isolation: isolate;
+  }
+
+  .reactionPicker,
+  .emojiPicker{
+    border: 1px solid #7a0a1c !important;
+    box-shadow:
+      0 14px 40px -8px #000,
+      0 0 0 1px rgba(255,45,85,.18) inset,
+      0 0 50px -10px rgba(225,29,72,.55) !important;
+  }
+
+  /* Emoji grid + tabs area get same solid bg so no bleed-through */
+  .emojiTabs{
+    background: #0a0205 !important;
+    border-bottom: 1px solid #2a0a12 !important;
+  }
+  .emojiGrid{
+    background: #0a0205 !important;
+  }
+
+  /* Reaction picker on mobile: full-width row under message, solid */
+  @media (max-width: 768px){
+    .reactionPicker{
+      background: #0a0205 !important;
+      border: 1px solid #7a0a1c !important;
+      box-shadow:
+        0 8px 26px -6px #000,
+        0 0 0 1px rgba(255,45,85,.18) inset !important;
+      padding: 8px !important;
+      gap: 2px !important;
+    }
+    .emojiPicker{
+      background: #0a0205 !important;
+      border: 1px solid #7a0a1c !important;
+    }
+
+    /* Kill expensive animations on mobile */
+    .reactionPicker,
+    .emojiPicker,
+    .msgMenu,
+    .settingsMenu,
+    .memberMenu{
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+
+  /* Nuclear: nothing behind these should ever show */
+  @media (hover: none){
+    .reactionPicker,
+    .emojiPicker,
+    .msgMenu,
+    .settingsMenu,
+    .memberMenu{
+      background: #0a0205 !important;
+      background-image: none !important;
+      backdrop-filter: none !important;
+      -webkit-backdrop-filter: none !important;
+    }
+  }
+
+  /* Remove old paint-containment that could clip popups */
+  .chat{ contain: layout style !important; }
+  .msgs{ contain: none !important; }
