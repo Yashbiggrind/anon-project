@@ -1323,6 +1323,7 @@ export default function Home() {
   const availableOthers = others.filter((u) => u.status !== "in-room");
   const isFull = room ? room.participants.length >= room.capacity : false;
   const isHost = room ? room.host === identity?.sessionId : false;
+  const anyPopupOpen = section !== null && (!!reactionPickerFor || emojiOpen || settingsOpen || !!memberMenuFor);
 
   const visibleMessages = searchQuery.trim()
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.trim().toLowerCase()) || m.senderName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
@@ -1564,7 +1565,8 @@ export default function Home() {
             </div>
           </header>
 
-          <main className="app-main">
+          <main className={`app-main ${anyPopupOpen ? "popup-open" : ""}`}>
+          {anyPopupOpen && <div className="popupBackdrop" aria-hidden="true" />}
             <section className={`app-view ${section === "chat" ? "active" : ""}`}>
               <div className="hero">
                 <div>

@@ -2444,3 +2444,53 @@
   /* Remove old menu button if any remains */
   .menuBtn{display:none !important}
   .msgMenu{display:none !important}
+
+  /* ============================================================
+     v23.2 — popup backdrop polish
+     ============================================================ */
+
+  /* Remove paint containment so popups can escape for the blur backdrop */
+  .chat{ contain: layout style; }
+
+  /* When any in-content popup is open, raise app-main so backdrop covers topbar too */
+  .app-main.popup-open{ z-index: 100; }
+
+  /* Full-screen blurred backdrop behind any popup */
+  .popupBackdrop{
+    position: fixed;
+    inset: 0;
+    z-index: 150;
+    background: rgba(4,1,3,.55);
+    backdrop-filter: blur(10px) saturate(.85);
+    -webkit-backdrop-filter: blur(10px) saturate(.85);
+    animation: popupBgIn .22s ease both;
+  }
+  @keyframes popupBgIn{from{opacity:0}to{opacity:1}}
+
+  /* Popups must float ABOVE the backdrop */
+  .emojiPicker   { z-index: 300 !important; }
+  .reactionPicker{ z-index: 320 !important; }
+  .memberMenu    { z-index: 300 !important; }
+  .settingsMenu  { z-index: 300 !important; }
+
+  /* Richer entrance animations */
+  .emojiPicker, .reactionPicker{
+    animation: popupPop .22s cubic-bezier(.16,1,.3,1) both !important;
+  }
+  @keyframes popupPop{
+    0%{opacity:0;transform:translateY(12px) scale(.92)}
+    100%{opacity:1;transform:translateY(0) scale(1)}
+  }
+  .settingsMenu, .memberMenu{
+    animation: popupDrop .18s cubic-bezier(.16,1,.3,1) both !important;
+  }
+  @keyframes popupDrop{
+    0%{opacity:0;transform:translateY(-8px) scale(.96)}
+    100%{opacity:1;transform:translateY(0) scale(1)}
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .popupBackdrop, .emojiPicker, .reactionPicker, .settingsMenu, .memberMenu{
+      animation: none !important;
+    }
+  }
