@@ -2494,3 +2494,27 @@
       animation: none !important;
     }
   }
+
+  /* ============================================================
+     v23.3 — solid popup backgrounds (no full-screen backdrop)
+     ============================================================ */
+
+  .reactionPicker,
+  .emojiPicker,
+  .settingsMenu,
+  .memberMenu{
+    background: #0a0205 !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    box-shadow:
+      0 10px 34px -6px #000,
+      0 0 0 1px rgba(255,45,85,.12) inset,
+      0 0 40px -10px rgba(225,29,72,.55) !important;
+  }
+
+  .reactionPicker{
+    border: 1px solid #7a0a1c !important;
+  }
+  .emojiPicker{
+    border: 1px solid #7a0a1c !important;
+  }
