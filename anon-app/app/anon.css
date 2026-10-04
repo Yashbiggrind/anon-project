@@ -2860,3 +2860,215 @@
   /* Give the message extra breathing room so the picker never clips */
   .msg{ padding-top: 4px; }
   .msg .reactionPicker ~ *{ margin-top: 0; }
+
+  /* ============================================================
+     v24 — ephemeral room chats
+     ============================================================ */
+
+  /* Countdown pill under each message */
+  .msgTimer{
+    display:inline-flex;
+    align-items:center;
+    gap:4px;
+    padding:1px 7px;
+    margin-left:6px;
+    border-radius:10px;
+    background:rgba(255,215,0,.10);
+    border:1px solid rgba(255,215,0,.30);
+    color:#ffd700;
+    font-family:'Courier New',monospace;
+    font-size:9px;
+    letter-spacing:.8px;
+    transition:all .3s ease;
+  }
+  .msgTimer.warn{
+    background:rgba(255,115,0,.14);
+    border-color:rgba(255,115,0,.45);
+    color:#ff9d3d;
+    animation:timerPulse 2s ease-in-out infinite;
+  }
+  .msgTimer.critical{
+    background:rgba(255,45,85,.16);
+    border-color:#ff2d55;
+    color:#ff5875;
+    animation:timerPulse .9s ease-in-out infinite;
+  }
+  @keyframes timerPulse{
+    0%,100%{opacity:.85;transform:scale(1)}
+    50%{opacity:1;transform:scale(1.06)}
+  }
+
+  /* Message dissolve when timer hits 0 */
+  .msg.expiring{
+    animation:msgDissolve .8s cubic-bezier(.4,0,.2,1) forwards;
+  }
+  @keyframes msgDissolve{
+    0%{opacity:1;transform:translateX(0) scale(1);filter:blur(0)}
+    40%{opacity:.6;transform:translateX(6px) scale(.98);filter:blur(1px)}
+    100%{opacity:0;transform:translateX(20px) scale(.92);filter:blur(4px);max-height:0;margin:0;padding:0;overflow:hidden}
+  }
+
+  /* Lifetime menu (room settings) */
+  .lifetimeMenu{
+    padding:8px;
+  }
+  .lifetimeLabel{
+    font-family:'Courier New',monospace;
+    font-size:9px;
+    letter-spacing:2px;
+    color:#7c5a63;
+    padding:6px 8px 8px;
+    text-transform:uppercase;
+  }
+
+  /* Purge button — big red, scary but classy */
+  .purgeBtn{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+    width:100%;
+    padding:12px 14px;
+    margin-top:6px;
+    border:1px solid #7a0a1c;
+    border-radius:8px;
+    background:linear-gradient(180deg,rgba(122,10,28,.25),rgba(58,5,16,.4));
+    color:#ff5875;
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    cursor:pointer;
+    transition:all .2s ease;
+    position:relative;
+    overflow:hidden;
+  }
+  .purgeBtn::before{
+    content:'';
+    position:absolute;
+    inset:0;
+    background:linear-gradient(90deg,transparent,rgba(255,45,85,.25),transparent);
+    transform:translateX(-100%);
+    transition:transform .6s ease;
+  }
+  .purgeBtn:hover{
+    border-color:#ff2d55;
+    color:#fff;
+    background:linear-gradient(180deg,rgba(255,45,85,.35),rgba(122,10,28,.5));
+    box-shadow:0 0 26px -6px rgba(255,45,85,.85);
+  }
+  .purgeBtn:hover::before{
+    transform:translateX(100%);
+  }
+  .purgeBtn:active{transform:scale(.98)}
+
+  /* Purge confirmation modal — dramatic */
+  .purgeModal{
+    text-align:center;
+  }
+  .purgeIcon{
+    width:64px;height:64px;
+    margin:0 auto 12px;
+    border-radius:50%;
+    background:radial-gradient(circle,rgba(255,45,85,.25),transparent 70%);
+    border:1px solid #7a0a1c;
+    color:#ff5875;
+    font-size:28px;
+    display:grid;
+    place-items:center;
+    animation:purgeIconPulse 1.8s ease-in-out infinite;
+  }
+  @keyframes purgeIconPulse{
+    0%,100%{box-shadow:0 0 22px -6px rgba(255,45,85,.6)}
+    50%{box-shadow:0 0 40px -4px rgba(255,45,85,1)}
+  }
+  .purgeModal h2{
+    font-family:'Times New Roman',serif;
+    color:#ff5875;
+    font-size:22px;
+    margin:0 0 8px;
+  }
+  .purgeModal p{
+    color:#c9a3ad;
+    font-size:13px;
+    line-height:1.6;
+    margin:0 0 18px;
+  }
+  .purgeModal p b{color:#ff5875}
+  .purgeConfirm{
+    background:linear-gradient(180deg,#ff2d55,#7a0a1c);
+    border:0;
+    border-radius:8px;
+    color:#fff;
+    font-family:'Courier New',monospace;
+    font-size:12px;
+    font-weight:700;
+    letter-spacing:2px;
+    text-transform:uppercase;
+    padding:12px 20px;
+    cursor:pointer;
+    transition:all .2s ease;
+    width:100%;
+  }
+  .purgeConfirm:hover{
+    box-shadow:0 0 30px -4px rgba(255,45,85,1);
+    transform:translateY(-1px);
+  }
+  .purgeConfirm:active{transform:translateY(0) scale(.98)}
+
+  /* Burn animation — full-screen flash when purge happens */
+  .burnFlash{
+    position:fixed;
+    inset:0;
+    z-index:9999;
+    pointer-events:none;
+    background:radial-gradient(circle at 50% 50%, rgba(255,45,85,.8), rgba(122,10,28,.6) 40%, transparent 75%);
+    opacity:0;
+    animation:burnFlashAnim 1.2s ease-out forwards;
+  }
+  @keyframes burnFlashAnim{
+    0%{opacity:0;transform:scale(.6)}
+    20%{opacity:1;transform:scale(1)}
+    100%{opacity:0;transform:scale(1.3)}
+  }
+
+  /* Lifetime settings submenu row */
+  .settingsRow{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    padding:10px 10px 6px;
+    border-top:1px solid #20060c;
+    margin-top:6px;
+  }
+  .settingsRow .label{
+    font-family:'Courier New',monospace;
+    font-size:10px;
+    letter-spacing:1.6px;
+    color:#8a7276;
+    text-transform:uppercase;
+  }
+  .settingsRow .value{
+    font-family:'Courier New',monospace;
+    font-size:11px;
+    color:#ff5875;
+    font-weight:700;
+  }
+
+  /* ============================================================
+     v24.6 — favourite star button visibility
+     ============================================================ */
+  .roomActions .ghostBtn.sm {
+    min-width: 34px;
+    font-size: 15px !important;
+    line-height: 1;
+    letter-spacing: 0 !important;
+    padding: 6px 8px !important;
+  }
+  .roomActions .ghostBtn.sm.active {
+    color: #ffd700 !important;
+    border-color: #ffd700 !important;
+    background: rgba(255,215,0,.10) !important;
+    box-shadow: 0 0 14px -2px rgba(255,215,0,.85) !important;
+  }

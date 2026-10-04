@@ -150,9 +150,13 @@ export default function Home() {
     slowMode: number; createdAt: number;
   }>>([]);
   const [roomListLoading, setRoomListLoading] = useState(false);
-
+  const [messageLifetime, setMessageLifetime] = useState(0);
+  const [purgeOpen, setPurgeOpen] = useState(false);
+  const [burnFlash, setBurnFlash] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
   /* v22 — new feature state */
   const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
+    const [favoriteRooms, setFavoriteRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
   const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string } | null>(null);
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
 
@@ -208,9 +212,10 @@ export default function Home() {
   const [scrollBadge, setScrollBadge] = useState(0);
   const [showPrivateScrollBtn, setShowPrivateScrollBtn] = useState(false);
   const [privateScrollBadge, setPrivateScrollBadge] = useState(0);
-
+  const roomRef = useRef<PrivateRoom | null>(null);
   const pubScrollingRef = useRef(false);
   const privScrollingRef = useRef(false);
+   const [roomLoadKey, setRoomLoadKey] = useState(0);
   const pubPrevLenRef = useRef(0);
   const privPrevLenRef = useRef(0);
   const pubInitRef = useRef(false);
@@ -332,7 +337,13 @@ export default function Home() {
       if (raw) setRecentRooms(JSON.parse(raw));
     } catch {}
   }, []);
-
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("anon_favorite_rooms");
+      if (raw) setFavoriteRooms(JSON.parse(raw));
+    } catch {}
+  }, []);
   useEffect(() => {
     if (!connected && typeof window !== "undefined") {
       localStorage.setItem(LS_LAST_SEEN_PUBLIC, String(Date.now()));
@@ -516,11 +527,28 @@ export default function Home() {
         }
         return [...p.slice(-499), { ...m, localSent: isMine }];
       }));
-      if (room) persistSave({ ...m, localSent: isMine, scope: "room", roomId: room.roomId });
+         if (roomRef.current) persistSave({ ...m, localSent: isMine, scope: "room", roomId: roomRef.current.roomId });
+    });
+    socket.on("room:lifetime-update", ({ seconds }: { seconds: number }) => {
+      setMessageLifetime(seconds * 1000);
+      setRoom((r) => (r ? { ...r, messageLifetime: seconds } : r));
+      showToast(seconds === 0 ? "Chat stays forever" : `Messages delete after ${seconds >= 3600 ? `${Math.floor(seconds/3600)}h` : seconds >= 60 ? `${Math.floor(seconds/60)}m` : `${seconds}s`}`, 1800, "success");
+    });
+
+    socket.on("room:purged", ({ by }: { by: string }) => {
+      setBurnFlash(true);
+      setTimeout(() => setBurnFlash(false), 1300);
+      setPrivateMessages([]);
+      if (roomRef.current) persistClearScope("room", roomRef.current.roomId);
+      setRoomSystemLines((p) => [
+        ...p.slice(-9),
+        { id: Math.random().toString(36).slice(2), type: "purge", by, at: Date.now() },
+      ]);
+      showToast(`Chat purged by ${by}`, 2500, "info");
     });
 
     socket.on("room:ended", (e: { reason: string }) => {
-      if (room) persistClearScope("room", room.roomId);
+      // v24.5 — messages persist in localStorage; only admin purge or lifetime will remove them
       setRoom(null); setPrivateMessages([]); setInviteOpen(false);
       setRoomSystemLines([]);
       setMemberMenuFor(null);
@@ -582,7 +610,7 @@ export default function Home() {
       } catch { /* ignore */ }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [room?.roomId]);
+  }, [room?.roomId, roomLoadKey]);
 
   useEffect(() => {
     const el = msgsRef.current;
@@ -635,7 +663,38 @@ export default function Home() {
       setShowPrivateScrollBtn(true);
     }
   }, [privateMessages]);
+  useEffect(() => {
+    if (!room) return;
+    const t = setInterval(() => setNowTick(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [room]);
 
+  // Auto-remove expired messages when lifetime is on
+  useEffect(() => {
+    if (!room || !messageLifetime) return;
+    const cut = Date.now() - messageLifetime;
+    setPrivateMessages((prev) => {
+      const expired = prev.filter((m) => m.createdAt < cut);
+      if (expired.length === 0) return prev;
+      expired.forEach((m) => {
+        const el = document.querySelector(`[data-mid="${m.id}"]`);
+        if (el) el.classList.add("expiring");
+      });
+      setTimeout(() => {
+        setPrivateMessages((p) => p.filter((m) => m.createdAt >= cut));
+      }, 800);
+      return prev;
+    });
+  }, [nowTick, messageLifetime, room]);
+
+  // Sync local messageLifetime from room object
+  useEffect(() => {
+    if (room && typeof (room as any).messageLifetime === "number") {
+      setMessageLifetime((room as any).messageLifetime * 1000);
+    }
+  }, [room]);
+  
+  useEffect(() => { roomRef.current = room; }, [room]);
   useEffect(() => {
     const el = dmMsgsRef.current;
     if (!el) return;
@@ -1135,7 +1194,19 @@ export default function Home() {
     setRecentRooms(next);
     try { localStorage.setItem("anon_recent_rooms", JSON.stringify(next)); } catch {}
   }
+  function toggleFavoriteRoom(room: { roomId: string; topic?: string }) {
+    const exists = favoriteRooms.some((r) => r.roomId === room.roomId);
+    const next = exists
+      ? favoriteRooms.filter((r) => r.roomId !== room.roomId)
+      : [{ roomId: room.roomId, topic: room.topic || "Untitled", at: Date.now() }, ...favoriteRooms].slice(0, 20);
+    setFavoriteRooms(next);
+    try { localStorage.setItem("anon_favorite_rooms", JSON.stringify(next)); } catch {}
+    showToast(exists ? "Removed from favourites" : "⭐ Added to favourites", 1500, exists ? "info" : "success");
+  }
 
+  function isFavorite(roomId: string) {
+    return favoriteRooms.some((r) => r.roomId === roomId);
+  }
   function joinRoomById(roomId: string) {
     socketRef.current?.emit("room:join", { roomId }, (res: any) => {
       if (!res?.ok) {
@@ -1145,6 +1216,7 @@ export default function Home() {
       setRoom(res.room);
       setPrivateMessages([]);
       setRoomSystemLines([]);
+      setRoomLoadKey((k) => k + 1);
       rememberRoom({ roomId: res.room.roomId, topic: res.room.topic });
       setSection("private");
       showToast("Joined room", 1500, "success");
@@ -1275,6 +1347,22 @@ export default function Home() {
     });
     setSettingsOpen(false);
   }
+    function setRoomLifetime(seconds: number) {
+    if (!room) return;
+    socketRef.current?.emit("room:set-lifetime", { roomId: room.roomId, seconds }, (res: any) => {
+      if (res?.ok) setSettingsOpen(false);
+      else showToast(res?.error || "Could not set lifetime", 2000, "error");
+    });
+  }
+
+  function purgeChat() {
+    if (!room) return;
+    socketRef.current?.emit("room:purge", { roomId: room.roomId }, (res: any) => {
+      if (res?.ok) setPurgeOpen(false);
+      else showToast(res?.error || "Could not purge", 2000, "error");
+    });
+  }
+
 
   const refreshRoomList = useCallback(() => {
     const s = socketRef.current;
@@ -1690,6 +1778,8 @@ export default function Home() {
                         timeFull={timeFull}
                         identity={identity}
                         REACTION_EMOJIS={REACTION_EMOJIS}
+                        messageLifetime={messageLifetime}
+                        nowTick={nowTick}
                       />
                     );
                   })}
@@ -1796,10 +1886,16 @@ export default function Home() {
                       <button
                         className="ghostBtn sm"
                         onClick={() => setMemberListOpen(!memberListOpen)}
+                        
                         title="Toggle member list"
                       >
                         👥 {room.participants.length}
                       </button>
+                                            <button
+                        className={`ghostBtn sm ${isFavorite(room.roomId) ? "active" : ""}`}
+                        onClick={() => toggleFavoriteRoom({ roomId: room.roomId, topic: room.topic })}
+                        title={isFavorite(room.roomId) ? "Remove from favourites" : "Add to favourites"}
+                      >{isFavorite(room.roomId) ? "★" : "☆"}</button>
                       {isAdmin && (
                         <div className="settingsWrap">
                           <button
@@ -1820,6 +1916,27 @@ export default function Home() {
                                   {room.slowMode === sec && <span className="settingsCheck">✓</span>}
                                 </button>
                               ))}
+                              <div className="settingsLabel" style={{ marginTop: 8 }}>MESSAGE LIFETIME</div>
+{[
+  { s: 0, label: "Off (forever)" },
+  { s: 300, label: "5 min" },
+  { s: 1800, label: "30 min" },
+  { s: 3600, label: "1 hour" },
+  { s: 21600, label: "6 hours" },
+  { s: 86400, label: "24 hours" },
+].map(({ s, label }) => (
+  <button
+    key={s}
+    className={`settingsOpt ${(room as any)?.messageLifetime === s ? "active" : ""}`}
+    onClick={() => setRoomLifetime(s)}
+  >
+    <span>{label}</span>
+    {(room as any)?.messageLifetime === s && <span className="settingsCheck">✓</span>}
+  </button>
+))}
+<button className="purgeBtn" onClick={() => { setSettingsOpen(false); setPurgeOpen(true); }}>
+  🗑 Purge chat
+</button>
                             </div>
                           )}
                         </div>
@@ -1908,6 +2025,8 @@ export default function Home() {
                               timeFull={timeFull}
                               identity={identity}
                               REACTION_EMOJIS={REACTION_EMOJIS}
+                              messageLifetime={messageLifetime}
+                              nowTick={nowTick}
                             />
                           );
                         })}
@@ -2116,6 +2235,30 @@ export default function Home() {
                       <p className="discoverHint">
                         Click any open room to join instantly. Or ask an admin to invite you.
                       </p>
+                      {favoriteRooms.length > 0 && (
+                        <>
+                          <div className="discoverListHeader" style={{ marginTop: 20 }}>
+                            <span>⭐ FAVOURITES</span>
+                            <span className="discoverCount">{favoriteRooms.length}</span>
+                          </div>
+                          <div className="discoverList">
+                            {favoriteRooms.map((r) => (
+                              <div key={r.roomId} className="discoverRow clickable" onClick={() => joinRoomById(r.roomId)}>
+                                <span className="discoverIcon">★</span>
+                                <div className="discoverInfo">
+                                  <div className="discoverTopic">{r.topic}</div>
+                                  <div className="discoverMeta">saved {timeShort(r.at)}</div>
+                                </div>
+                                <button
+                                  className="discoverForget"
+                                  onClick={(e) => { e.stopPropagation(); toggleFavoriteRoom(r); }}
+                                  title="Remove from favourites"
+                                >✕</button>
+                              </div>
+                            ))}
+                          </div>
+                        </>
+                      )}
 
                       {recentRooms.length > 0 && (
                         <>
@@ -2304,6 +2447,23 @@ export default function Home() {
         style={{ display: "none" }}
         onChange={handleImageSelect}
       />
+      {purgeOpen && (
+        <div className="modalbg show" onClick={() => setPurgeOpen(false)}>
+          <div className="modal purgeModal" onClick={(e) => e.stopPropagation()}>
+            <div className="purgeIcon">🗑</div>
+            <h2>Purge entire chat?</h2>
+            <p>
+              This will <b>permanently delete</b> every message in this room for all members. It cannot be undone.
+            </p>
+            <div className="actions" style={{ flexDirection: "column-reverse", gap: 8 }}>
+              <button className="cancel" onClick={() => setPurgeOpen(false)}>Cancel</button>
+              <button className="purgeConfirm" onClick={purgeChat}>Yes, purge everything</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {burnFlash && <div className="burnFlash" />}
 
       {imageLightbox && (
         <div className="lightbox" onClick={() => setImageLightbox(null)}>
@@ -2455,6 +2615,7 @@ export default function Home() {
   );
 }
 
+// ─────── END PART 1 ──────
 /* ============================================================
    v16 — MessageBubble with CUSTOM memo comparator.
    v20.7 — Adds onOpenDm + click-to-DM on avatar.
@@ -2463,7 +2624,7 @@ export default function Home() {
 const MessageBubble = memo(
   function MessageBubble({
     m, mine, isEditing, editingText, openTime, reactions,
-    reactionPickerFor, roomId,
+    reactionPickerFor, roomId, messageLifetime, nowTick,
     onToggleTime, onToggleReaction, onSetReactionPickerFor,
     onStartReply, onCopyMessage,
     onStartEdit, onDeleteMessage, onSubmitEdit, onCancelEdit,
@@ -2577,6 +2738,14 @@ const MessageBubble = memo(
                 {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
               </button>
               {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
+              {roomId && messageLifetime > 0 && m.createdAt && !m.deleted && (() => {
+                const remaining = Math.max(0, m.createdAt + messageLifetime - (nowTick || Date.now()));
+                if (remaining <= 0) return null;
+                const sec = Math.floor(remaining / 1000);
+                const cls = remaining < 30000 ? "critical" : remaining < 300000 ? "warn" : "";
+                const label = sec < 60 ? `${sec}s` : sec < 3600 ? `${Math.floor(sec/60)}m` : `${Math.floor(sec/3600)}h`;
+                return <span className={`msgTimer ${cls}`} title="Auto-deletes in">⏱ {label}</span>;
+              })()}
             </div>
 
             {isEditing ? (
@@ -2677,6 +2846,8 @@ const MessageBubble = memo(
   },
   (prev: any, next: any) => {
     if (prev.m !== next.m) return false;
+    if (prev.messageLifetime !== next.messageLifetime) return false;
+    if (prev.nowTick !== next.nowTick) return false;
     if (prev.mine !== next.mine) return false;
     if (prev.isEditing !== next.isEditing) return false;
     if (prev.isEditing && prev.editingText !== next.editingText) return false;
