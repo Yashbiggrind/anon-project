@@ -173,6 +173,20 @@ const app = express();
 app.use(cors({ origin: corsOrigin, credentials: false }));
 app.use(express.json({ limit: "200kb" }));
 app.get("/", (req, res) => res.json({ ok: true, online: sessions.size, rooms: rooms.size }));
+app.get("/api/stats", (req, res) => {
+  let persistent = 0;
+  try { persistent = db.countAll ? db.countAll() : 0; } catch { persistent = 0; }
+  res.json({
+    online: sessions.size,
+    away: 0,
+    rooms: rooms.size,
+    recent: publicHistory.length,
+    recent_max: PUBLIC_HISTORY_MAX,
+    uptime_ms: Math.round(process.uptime() * 1000),
+    databases: 1,
+    persistent_rows: persistent,
+  });
+});
 
 registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN });
 
@@ -193,6 +207,7 @@ const publicRoom = (r) => ({
   topic: r.topic,
   capacity: r.capacity,
   slowMode: r.slowMode,
+    messageLifetime: r.messageLifetime || 0,
   participants: r.participants.map((p) => ({
     sessionId: p.sessionId,
     username: p.username,
@@ -886,6 +901,7 @@ io.on("connection", (socket) => {
       topic: cleanTopic,
       capacity: cap,
       slowMode: 0,
+            messageLifetime: 0,
       participants: [{ sessionId: s.sessionId, username: s.username }],
       timeouts: new Map(),
       lastMessageAt: new Map(),
@@ -929,6 +945,50 @@ io.on("connection", (socket) => {
     broadcastRoomUpdate(room);
     broadcastRoomSystem(room, { type: "slowmode", username: s.username, seconds: sec });
     ack?.({ ok: true, slowMode: sec });
+  });
+  // ---------- v24: message lifetime ----------
+  socket.on("room:set-lifetime", ({ roomId, seconds } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    const room = rooms.get(roomId);
+    if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
+    if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
+
+    const allowed = [0, 300, 1800, 3600, 21600, 86400];
+    const sec = Number(seconds);
+    if (!allowed.includes(sec)) return ack?.({ ok: false, error: "Invalid lifetime" });
+
+    room.messageLifetime = sec;
+    broadcastRoomUpdate(room);
+    broadcastRoomSystem(room, { type: "lifetime", username: s.username, seconds: sec });
+
+    for (const p of room.participants) {
+      const sid = findSocketBySession(p.sessionId);
+      if (sid) io.to(sid).emit("room:lifetime-update", { roomId: room.roomId, seconds: sec });
+    }
+    ack?.({ ok: true, seconds: sec });
+  });
+
+  // ---------- v24: purge room chat ----------
+  socket.on("room:purge", ({ roomId } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    const room = rooms.get(roomId);
+    if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
+    if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
+
+    for (const [mid, meta] of messageOwners) {
+      if (meta.roomId === roomId) messageOwners.delete(mid);
+    }
+
+    for (const p of room.participants) {
+      const sid = findSocketBySession(p.sessionId);
+      if (sid) io.to(sid).emit("room:purged", { roomId: room.roomId, by: s.username });
+    }
+
+    broadcastRoomSystem(room, { type: "purge", username: s.username, by: s.username });
+    console.log(`[v24] room ${roomId} purged by ${s.username}`);
+    ack?.({ ok: true });
   });
 
   // ---------- admin: kick ----------
