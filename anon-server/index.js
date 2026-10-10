@@ -1722,7 +1722,8 @@ function getLanIps() {
 }
 
 // ---------- listen on ALL interfaces ----------
-server.listen(PORT, "0.0.0.0", () => {
+const port = process.env.PORT || 4000;
+server.listen(port, "0.0.0.0", () => {
   const ips = getLanIps();
   console.log("");
   console.log("  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
