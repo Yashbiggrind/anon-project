@@ -1,10 +1,12 @@
-  :root{
+﻿  :root{
     --red:#e11d48; --red-hi:#ff2d55; --red-soft:#ff5b7c;
     --ink-0:#020104; --ink-1:#050207; --ink-2:#0a0409; --ink-3:#10060f;
     --text:#e8dde2; --text-dim:#8a7276;
     --line:#24080f; --line-2:#3a0a14;
     --green:#35d27c;
-    --ease-out:cubic-bezier(.2,.8,.2,1);
+    --disp:'Bodoni Moda','Times New Roman',Georgia,serif;
+  --mono:'IBM Plex Mono','Courier New',monospace;
+  --ease-out:cubic-bezier(.2,.8,.2,1);
     --ease-spring:cubic-bezier(.16,1,.3,1);
   }
   *{box-sizing:border-box}
@@ -12,7 +14,7 @@
   html{overflow-y:auto}
   body{
     background:var(--ink-0);color:var(--text);
-    font-family:'Times New Roman',Georgia,serif,'Noto Sans Devanagari','Noto Naskh Arabic','Noto Sans CJK SC',sans-serif;
+    font-family:var(--mono),'Noto Sans Devanagari','Noto Naskh Arabic','Noto Sans CJK SC',sans-serif;
     overflow-x:hidden;-webkit-tap-highlight-color:transparent;
   }
   html[lang="hi"] body,html[lang="hi"] .brandLogo,html[lang="hi"] .bigLogo,html[lang="hi"] .doorName,html[lang="hi"] .hero h1,html[lang="hi"] .article h2{font-family:'Noto Sans Devanagari','Mangal','Nirmala UI',serif}
@@ -1235,11 +1237,11 @@
   }
 
   /* ============================================================
-     v14 — PERFORMANCE SMOOTHNESS
+     v14 â€” PERFORMANCE SMOOTHNESS
      ============================================================ */
 
   /* ============================================================
-     v18 — Scroll-to-bottom arrow
+     v18 â€” Scroll-to-bottom arrow
      ============================================================ */
   .msgsWrap{
     flex:1;
@@ -1413,7 +1415,7 @@
   }
   
   /* ============================================================
-     v20.4 — Room creation UI
+     v20.4 â€” Room creation UI
      ============================================================ */
   .modalCreateRoom{
     width:min(520px,100%);
@@ -1516,7 +1518,7 @@
   }
   
   /* ============================================================
-     v20.5 — Member list + admin actions
+     v20.5 â€” Member list + admin actions
      ============================================================ */
   .adminCrown{
     color:#ffd700;
@@ -1697,7 +1699,7 @@
   }
   
   /* ============================================================
-     v20.7 — DM (private messaging) panel
+     v20.7 â€” DM (private messaging) panel
      ============================================================ */
   .dmPanel{
     position:fixed;
@@ -1935,7 +1937,7 @@
   }
   
   /* ============================================================
-     v20.8 — topic editor + slow mode
+     v20.8 â€” topic editor + slow mode
      ============================================================ */
   .roomTopicName.editable{
     cursor:pointer;
@@ -2047,7 +2049,7 @@
   .settingsCheck{color:#ff5875;font-weight:700;font-size:11px}
   
   /* ============================================================
-     v20.8 — room discovery
+     v20.8 â€” room discovery
      ============================================================ */
   .empty .discover{
     width:100%;
@@ -2181,7 +2183,7 @@
     line-height:1.5;
   }
     /* ============================================================
-     v20.9 — visible slow mode cooldown
+     v20.9 â€” visible slow mode cooldown
      ============================================================ */
   .slowCooldownBar{
     flex-basis:100%;
@@ -2219,7 +2221,7 @@
     background:#3a0510;
   }
     /* ============================================================
-     v20.10 — reaction picker stacking fix
+     v20.10 â€” reaction picker stacking fix
      ============================================================ */
   .reactionPicker{
     z-index:200 !important;
@@ -2234,7 +2236,7 @@
   }
   
   /* ============================================================
-     v22 — upgrade pack
+     v22 â€” upgrade pack
      ============================================================ */
   .discoverRow.clickable{cursor:pointer}
   .discoverRow.clickable:active{transform:scale(.995)}
@@ -2267,7 +2269,7 @@
   .toast.toast-info{border-left-color:#ff2d55}
   .toast.toast-success{border-left-color:#35d27c;color:#c9ffd9}
   .toast.toast-success::before{
-    content:'✓';
+    content:'âœ“';
     color:#35d27c;
     margin-right:8px;
     font-weight:700;
@@ -2278,7 +2280,7 @@
     background:#2a0510;
   }
   .toast.toast-error::before{
-    content:'⚠';
+    content:'âš ';
     color:#ff2d55;
     margin-right:8px;
     font-weight:700;
@@ -2318,7 +2320,7 @@
     flex:1;min-width:0;padding:10px 12px;font-size:11px;
   }
     /* ============================================================
-     v22.1 — cleanup + profile upgrades
+     v22.1 â€” cleanup + profile upgrades
      ============================================================ */
 
   /* clickable sender name */
@@ -2351,7 +2353,7 @@
     box-shadow:0 0 15px -4px rgba(255,45,85,.6);
   }
 
-  /* subtle popup backdrop — dims everything except the popup */
+  /* subtle popup backdrop â€” dims everything except the popup */
   .msgMenu,
   .reactionPicker,
   .settingsMenu,
@@ -2362,7 +2364,7 @@
     -webkit-backdrop-filter:blur(6px);
   }
   /* ============================================================
-     v23 — swipe-to-reply + action sheet (replaces ⋯ menu)
+     v23 â€” swipe-to-reply + action sheet (replaces â‹¯ menu)
      ============================================================ */
   .msg{
     position:relative;
@@ -2446,7 +2448,7 @@
   .msgMenu{display:none !important}
 
   /* ============================================================
-     v23.2 — popup backdrop polish
+     v23.2 â€” popup backdrop polish
      ============================================================ */
 
   /* Remove paint containment so popups can escape for the blur backdrop */
@@ -2496,7 +2498,7 @@
   }
 
   /* ============================================================
-     v23.3 — solid popup backgrounds (no full-screen backdrop)
+     v23.3 â€” solid popup backgrounds (no full-screen backdrop)
      ============================================================ */
 
   .reactionPicker,
@@ -2520,7 +2522,7 @@
   }
 
   /* ============================================================
-     v23.4 — FINAL popup fix: solid bg, no blur, fast on mobile
+     v23.4 â€” FINAL popup fix: solid bg, no blur, fast on mobile
      ============================================================ */
 
   /* Force opaque backgrounds on every popup */
@@ -2602,7 +2604,7 @@
   .msgs{ contain: none !important; }
 
   /* ============================================================
-     v23.5 — WhatsApp-style reaction picker (horizontal pill)
+     v23.5 â€” WhatsApp-style reaction picker (horizontal pill)
      ============================================================ */
 
   .reactionPicker{
@@ -2688,7 +2690,7 @@
     transform:scale(1.22) !important;
   }
 
-  /* Mobile tuning — pill stays compact, emojis slightly smaller */
+  /* Mobile tuning â€” pill stays compact, emojis slightly smaller */
   @media (max-width: 768px){
     .reactionPicker{
       gap:0 !important;
@@ -2713,7 +2715,7 @@
   .reactionPicker .rEmoji,
   .reactionPicker .rCount{ display:none !important; }
 
-  /* v23.5 — hard overrides */
+  /* v23.5 â€” hard overrides */
   .reactionPicker{
     flex-wrap:nowrap !important;
     max-width:none !important;
@@ -2731,7 +2733,7 @@
   }
 
   /* ============================================================
-     v23.7 — reaction picker anchored above message (WhatsApp style)
+     v23.7 â€” reaction picker anchored above message (WhatsApp style)
      ============================================================ */
 
   /* Anchor picker to the whole message, not the footer */
@@ -2810,7 +2812,7 @@
     right: 22px !important;
   }
 
-  /* Emoji cell — compact */
+  /* Emoji cell â€” compact */
   .reactionPicker .reactionChoice{
     width: 36px !important;
     height: 36px !important;
@@ -2838,7 +2840,7 @@
     100%{ opacity: 1; transform: translateY(0) scale(1); }
   }
 
-  /* Mobile — slightly smaller */
+  /* Mobile â€” slightly smaller */
   @media (max-width: 768px){
     .reactionPicker{
       top: -42px !important;
@@ -2862,7 +2864,7 @@
   .msg .reactionPicker ~ *{ margin-top: 0; }
 
   /* ============================================================
-     v24 — ephemeral room chats
+     v24 â€” ephemeral room chats
      ============================================================ */
 
   /* Countdown pill under each message */
@@ -2921,7 +2923,7 @@
     text-transform:uppercase;
   }
 
-  /* Purge button — big red, scary but classy */
+  /* Purge button â€” big red, scary but classy */
   .purgeBtn{
     display:flex;
     align-items:center;
@@ -2963,7 +2965,7 @@
   }
   .purgeBtn:active{transform:scale(.98)}
 
-  /* Purge confirmation modal — dramatic */
+  /* Purge confirmation modal â€” dramatic */
   .purgeModal{
     text-align:center;
   }
@@ -3017,7 +3019,7 @@
   }
   .purgeConfirm:active{transform:translateY(0) scale(.98)}
 
-  /* Burn animation — full-screen flash when purge happens */
+  /* Burn animation â€” full-screen flash when purge happens */
   .burnFlash{
     position:fixed;
     inset:0;
@@ -3057,7 +3059,7 @@
   }
 
   /* ============================================================
-     v24.6 — favourite star button visibility
+     v24.6 â€” favourite star button visibility
      ============================================================ */
   .roomActions .ghostBtn.sm {
     min-width: 34px;
@@ -3072,3 +3074,179 @@
     background: rgba(255,215,0,.10) !important;
     box-shadow: 0 0 14px -2px rgba(255,215,0,.85) !important;
   }
+
+/* ============================================================
+   v25 — Typography override (Bodoni Moda + IBM Plex Mono)
+   ============================================================ */
+
+/* Display font — logo, headings, room names, modal titles */
+.brandLogo,
+.bigLogo,
+.hero h1,
+.doorName,
+.empty h2,
+.modal h2,
+.nameOffer h2,
+.nameOption,
+.article h2,
+.roomTopicName,
+.roomWrap h2,
+h1,h2,h3{
+  font-family:var(--disp) !important;
+  letter-spacing:-.02em;
+}
+
+/* Mono font — everything else that used Courier */
+.marquee-track,
+.navItem,
+.brandTag,
+.pulseIcon + div,
+.topbar small,
+.onlinePillTop,
+.onlinePillBot,
+.langBtn,
+.langMenu button,
+.eyebrow,
+.bar,
+.cbar,
+.meta,
+.timeChip,
+.editedTag,
+.sysLine,
+.empty-msg,
+.miniAct,
+.footLink,
+.foot,
+.pickRow,
+.pickRow .name,
+.pickRow .pick,
+.reportBtn,
+.discoverListHeader,
+.discoverMeta,
+.discoverCap,
+.discoverHint,
+.settingsLabel,
+.settingsOpt,
+.topicEditInput,
+.topicEditSave,
+.topicEditCancel,
+.manualInvite input,
+.manualInvite button,
+.send,
+.cancel,
+.primary,
+.btn,
+button,
+input,
+textarea,
+select,
+.memberHeader,
+.memberCount,
+.memberName,
+.youTag,
+.memberMenu button,
+.roomCap,
+.roomSlowPill,
+.discoverRefresh,
+.discoverCount,
+.discoverEmpty,
+.anonPanelH,
+.anonPanelList li,
+.anonPanelFooter,
+.graffitiRight,
+.sectionItem,
+.legalSubtitle,
+.legalUpdated,
+.legalDocNavLink,
+.storageLabel,
+.storageValue,
+.dtitle,
+.dsub,
+.dsec h3,
+.met small,
+.met b,
+.met i,
+.met span,
+.mets small,
+.tank .pc,
+.tank small,
+.tank .nx,
+.cr,
+.rules li,
+.sb small,
+.sb b,
+.steps li,
+.receipt,
+.receipt small,
+.verdict,
+.lgl p,
+.lgl h3,
+.lgl h2,
+.toast,
+.reconnectBar,
+.dmTitle b,
+.dmTitle small,
+.dmMeta,
+.dmBubble,
+.dmComposer input,
+.dmSend,
+.msgTimer,
+.lifetimeLabel,
+.purgeBtn,
+.purgeModal h2,
+.purgeModal p,
+.purgeConfirm,
+.settingsRow .label,
+.settingsRow .value,
+.header,
+.nav,
+.topbar,
+nav,
+.footer,
+.bar,
+input,
+button{
+  font-family:var(--mono) !important;
+}
+
+/* Preserve display font on elements that should stay serif */
+.brandLogo,
+.bigLogo,
+.hero h1,
+.doorName,
+.modal h2,
+.nameOffer h2,
+.article h2,
+h1,h2,h3{
+  font-family:var(--disp) !important;
+}
+
+/* Home hero — bigger, tighter, editorial */
+.bigLogo{
+  font-size:clamp(56px,11vw,96px) !important;
+  letter-spacing:-.05em !important;
+  line-height:.92 !important;
+}
+
+/* Brand logo in topbar */
+.brandLogo{
+  font-size:22px !important;
+  letter-spacing:-.04em !important;
+}
+
+/* Door names — wider tracking */
+.doorName{
+  letter-spacing:.2em !important;
+}
+
+/* Marquee — smaller, tighter */
+.marquee-track{
+  font-size:10px !important;
+  letter-spacing:.24em !important;
+}
+
+/* Nav items */
+.navItem{
+  letter-spacing:.2em !important;
+}
+
