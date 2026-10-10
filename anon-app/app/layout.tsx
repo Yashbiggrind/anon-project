@@ -1,10 +1,11 @@
-import type { Metadata, Viewport } from "next";
+﻿import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ServiceWorkerRegister from "./sw-register";
 import ConsentBanner from "./consent-banner";
+import ErrorBoundary from "./error-boundary";
 
 export const metadata: Metadata = {
-  title: "ANON// — Anonymous Chat",
+  title: "ANON// â€” Anonymous Chat",
   description: "Anonymous chat. No account. No profile.",
   manifest: "/manifest.json",
   applicationName: "ANON",
@@ -38,7 +39,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
-        {children}
+        <ErrorBoundary>{children}</ErrorBoundary>
         <ConsentBanner />
         <ServiceWorkerRegister />
       </body>

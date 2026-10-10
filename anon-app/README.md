@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+﻿# ANON// — Frontend
 
-## Getting Started
+Next.js frontend for the ANON anonymous chat app.
 
-First, run the development server:
+## Live
+https://anon-project-tau.vercel.app
 
-```bash
+## Stack
+- Next.js 16 (App Router, Turbopack)
+- React 19
+- TypeScript
+- Socket.io client
+- IndexedDB (local message history)
+
+## Environment Variables
+Create `.env.local`:
+
+NEXT_PUBLIC_SERVER_URL=http://localhost:4000
+
+For production, set this to your deployed backend URL.
+
+## Run locally
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+Open http://localhost:3000
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Build
+npm run build
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Deploy
+Deployed on Vercel. Auto-deploys on every push to main.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
-
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Key files
+- app/page.tsx          — main chat UI (public, private, content)
+- app/anon.css          — all styles
+- app/data/page.tsx     — footprint log
+- app/legal/[page]/     — privacy, terms, rules, grievance, transparency
+- lib/anonConstants.tsx — emojis, translations, doors config
+- lib/i18n.ts           — language strings (EN/HI/AR/ES/FR/ZH)
+- lib/messageStore.ts   — IndexedDB message persistence
+- lib/footprint.ts      — decaying footprint logic
