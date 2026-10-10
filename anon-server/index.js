@@ -1723,6 +1723,192 @@ function getLanIps() {
 
 // ---------- listen on ALL interfaces ----------
 const port = process.env.PORT || 4000;
+// ---------- v25: AI BOT FLEET ----------
+const { BOT_PROFILES, generateBotMessage, getBotByName } = require("./bots");
+
+const BOT_ACTIVITY = {
+  enabled: process.env.ENABLE_BOTS !== "false",
+  intervalMs: 15000,
+  activeBots: new Map(),
+  lastCall: 0,
+  minInterval: 6000
+};
+
+function initBots() {
+  if (!BOT_ACTIVITY.enabled) {
+    console.log("[bots] disabled via ENABLE_BOTS=false");
+    return;
+  }
+  for (const profile of BOT_PROFILES) {
+    const sessionId = "bot_" + profile.name;
+    const spamKey = "bot:" + profile.name;
+    sessions.set(sessionId, {
+      sessionId,
+      spamKey,
+      ip: "bot",
+      username: profile.name,
+      accent: "#ff2d55",
+      status: "available",
+      blocked: new Map(),
+      isBot: true
+    });
+    socketBySession.set(sessionId, null);
+    BOT_ACTIVITY.activeBots.set(sessionId, profile);
+  }
+  console.log("[bots] " + BOT_ACTIVITY.activeBots.size + " bots initialized");
+  setInterval(botTick, BOT_ACTIVITY.intervalMs);
+  setTimeout(botPublicChat, 4000);
+}
+
+async function botTick() {
+  if (!BOT_ACTIVITY.enabled) return;
+  await botPublicChat();
+
+  for (const room of rooms.values()) {
+    if (room.status !== "active") continue;
+    const botMembers = room.participants.filter(p => p.sessionId.startsWith("bot_"));
+    if (botMembers.length === 0) continue;
+    if (Math.random() > 0.3) continue;
+
+    const bot = botMembers[Math.floor(Math.random() * botMembers.length)];
+    const profile = getBotByName(bot.username);
+    if (!profile) continue;
+
+    const lastMsg = (room.messages || []).slice().reverse().find(m => !m.isBot);
+    const lastContent = lastMsg ? lastMsg.content : null;
+
+    try {
+      const content = await generateBotMessage(profile, {
+        topic: room.topic,
+        lastMessage: lastContent,
+        roomType: "public"
+      });
+      const msg = {
+        id: "bot_" + Math.random().toString(36).slice(2, 10),
+        senderSessionId: bot.sessionId,
+        senderSpamKey: bot.spamKey,
+        senderName: bot.username,
+        content,
+        createdAt: Date.now(),
+        isBot: true
+      };
+      if (!room.messages) room.messages = [];
+      room.messages.push(msg);
+      if (room.messages.length > 200) room.messages.shift();
+      broadcastRoomMessage(room, msg);
+    } catch (e) {
+      console.error("[bots] private reply failed:", e.message);
+    }
+  }
+
+  if (Math.random() < 0.15) botJoinRoom();
+  if (Math.random() < 0.05) botCreateRoom();
+}
+
+async function botPublicChat() {
+  const now = Date.now();
+  if (now - BOT_ACTIVITY.lastCall < BOT_ACTIVITY.minInterval) return;
+  if (Math.random() > 0.4) return;
+
+  const activeBots = Array.from(BOT_ACTIVITY.activeBots.values());
+  if (activeBots.length === 0) return;
+
+  const n = Math.min(2, 1 + Math.floor(Math.random() * 2));
+
+  for (let i = 0; i < n; i++) {
+    const profile = activeBots[Math.floor(Math.random() * activeBots.length)];
+    try {
+      const content = await generateBotMessage(profile, {
+        roomType: "public",
+        lastMessage: publicHistory.length > 0
+          ? publicHistory[publicHistory.length - 1].content
+          : null
+      });
+      const msg = {
+        id: "bot_" + Math.random().toString(36).slice(2, 10),
+        senderSessionId: "bot_" + profile.name,
+        senderSpamKey: "bot:" + profile.name,
+        senderName: profile.name,
+        content,
+        createdAt: Date.now(),
+        isBot: true
+      };
+      publicHistory.push(msg);
+      if (publicHistory.length > PUBLIC_HISTORY_MAX) publicHistory.shift();
+
+      for (const [socketId, session] of sessions) {
+        if (!session.isBot) io.to(socketId).emit("chat:public:message", msg);
+      }
+      BOT_ACTIVITY.lastCall = Date.now();
+    } catch (e) {
+      console.error("[bots] public chat failed:", e.message);
+    }
+  }
+}
+
+function botJoinRoom() {
+  const openRooms = Array.from(rooms.values()).filter(r =>
+    r.status === "active" &&
+    r.participants.length < r.capacity &&
+    r.participants.filter(p => p.sessionId.startsWith("bot_")).length < 2
+  );
+  if (openRooms.length === 0) return;
+
+  const room = openRooms[Math.floor(Math.random() * openRooms.length)];
+  const botsNotIn = Array.from(BOT_ACTIVITY.activeBots.values()).filter(
+    p => !room.participants.some(x => x.sessionId === "bot_" + p.name)
+  );
+  if (botsNotIn.length === 0) return;
+
+  const profile = botsNotIn[Math.floor(Math.random() * botsNotIn.length)];
+  const botSession = sessions.get("bot_" + profile.name);
+  if (!botSession) return;
+
+  room.participants.push({ sessionId: botSession.sessionId, username: botSession.username });
+  broadcastRoomSystem(room, { type: "join", username: botSession.username });
+  broadcastRoomUpdate(room);
+  console.log("[bots] " + botSession.username + " joined " + room.roomId);
+}
+
+function botCreateRoom() {
+  const openRooms = Array.from(rooms.values()).filter(r => r.status === "active");
+  if (openRooms.length > 8) return;
+
+  const profile = BOT_PROFILES[Math.floor(Math.random() * BOT_PROFILES.length)];
+  const sessionId = "bot_" + profile.name;
+  const session = sessions.get(sessionId);
+  if (!session) return;
+
+  for (const r of rooms.values()) {
+    if (r.participants.some(p => p.sessionId === sessionId)) return;
+  }
+
+  const topics = ["3AM Thoughts", "Midnight Confessions", "Late Night Lounge", "Code Cave", "The Vent Room", "Quiet Corner", "Insomnia Club", "Dream Journal", "Random Chats"];
+  const roomId = "botroom_" + Math.random().toString(36).slice(2, 8);
+  const room = {
+    roomId,
+    host: sessionId,
+    admin: sessionId,
+    topic: topics[Math.floor(Math.random() * topics.length)],
+    capacity: 6 + Math.floor(Math.random() * 4),
+    slowMode: 0,
+    messageLifetime: 3600,
+    participants: [{ sessionId, username: profile.name }],
+    timeouts: new Map(),
+    lastMessageAt: new Map(),
+    messages: [],
+    createdAt: Date.now(),
+    status: "active",
+    isBotRoom: true
+  };
+  rooms.set(roomId, room);
+  sessionRooms.set(sessionId, roomId);
+  session.status = "in-room";
+  console.log("[bots] " + profile.name + " created room: " + room.topic);
+}
+
+initBots();
+
 server.listen(port, "0.0.0.0", () => {
   const ips = getLanIps();
   console.log("");
