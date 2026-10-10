@@ -1,4 +1,4 @@
-// ANON// backend — Node + Express + Socket.IO
+﻿// ANON// backend â€” Node + Express + Socket.IO
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
@@ -52,7 +52,7 @@ const messageOwners = new Map();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
 
 // ============================================================
-// v17 — ANTI-SPAM ENGINE
+// v17 â€” ANTI-SPAM ENGINE
 // ============================================================
 const SPAM_CONFIG = {
   DUPLICATE_WINDOW_MS: 60000,
@@ -161,7 +161,7 @@ setInterval(() => {
     }
   }
   decayStrikes();
-  // v21.3 — purge session log entries older than 180 days
+  // v21.3 â€” purge session log entries older than 180 days
   {
     const purged = db.purgeOldSessions();
     if (purged > 0) console.log(`[db] purged ${purged} expired session log(s)`);
@@ -660,10 +660,30 @@ io.on("connection", (socket) => {
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
 
-  // v21.3 — log connection for 180-day retention (Rule 3(1)(h))
+  // v21.3 â€” log connection for 180-day retention (Rule 3(1)(h))
   db.logConnect(clientIp, session.sessionId, socket.handshake.headers["user-agent"] || "");
 
   socket.emit("session:ready", session);
+  // v24.7 — global rate limit for sensitive actions
+  const SENSITIVE_EVENTS = new Set([
+    "room:kick", "room:purge", "room:set-lifetime", "room:set-topic",
+    "room:set-slowmode", "room:clear-timeout", "room:transfer-admin",
+    "room:timeout", "report:user", "block:user", "unblock:user", "user:rename"
+  ]);
+  socket.use((event, next) => {
+    if (!Array.isArray(event)) return next();
+    const name = event[0];
+    if (!SENSITIVE_EVENTS.has(name)) return next();
+    const s = sessions.get(socket.id);
+    if (!s) return next();
+    const limit = name === "report:user" ? 10 : 30;
+    if (!rateLimit(`sens:${name}:${s.spamKey}`, limit, 60000)) {
+      const ack = event[event.length - 1];
+      if (typeof ack === "function") ack({ ok: false, error: "Slow down — too many requests." });
+      return;
+    }
+    next();
+  });
   broadcastOnline();
   broadcastSystemFor(session.sessionId, { type: "join", username: session.username });
 
@@ -746,7 +766,7 @@ io.on("connection", (socket) => {
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Message too long" });
 
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
-      return ack?.({ ok: false, error: "Slow down — too many messages." });
+      return ack?.({ ok: false, error: "Slow down â€” too many messages." });
     }
 
     const msg = {
@@ -771,8 +791,8 @@ io.on("connection", (socket) => {
         return ack?.({ ok: false, error: `Wait ${Math.ceil((spam.cooldownMs || 0) / 1000)}s.` });
       }
       const errors = {
-        duplicate: "Duplicate message — please don't repeat.",
-        burst: "Too fast — slow down.",
+        duplicate: "Duplicate message â€” please don't repeat.",
+        burst: "Too fast â€” slow down.",
         links: "Too many links.",
         repetition: "Repetitive content detected.",
       };
@@ -817,8 +837,8 @@ io.on("connection", (socket) => {
         return ack?.({ ok: false, error: `Wait ${Math.ceil((spam.cooldownMs || 0) / 1000)}s.` });
       }
       const errors = {
-        duplicate: "Duplicate image — please don't repeat.",
-        burst: "Too many images — slow down.",
+        duplicate: "Duplicate image â€” please don't repeat.",
+        burst: "Too many images â€” slow down.",
         links: "Too many links.",
         repetition: "Repetitive image detected.",
       };
@@ -1075,7 +1095,7 @@ io.on("connection", (socket) => {
   });
 
   
-  // ---------- v22 — join room directly (from discovery list) ----------
+  // ---------- v22 â€” join room directly (from discovery list) ----------
   socket.on("room:join", ({ roomId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
@@ -1657,7 +1677,7 @@ io.on("connection", (socket) => {
     sessions.delete(socket.id);
     socketBySession.delete(s.sessionId);
 
-    // v21.3 — mark session as disconnected in retention log
+    // v21.3 â€” mark session as disconnected in retention log
     db.logDisconnect(s.sessionId);
 
     const removedInvites = [];
@@ -1705,16 +1725,16 @@ function getLanIps() {
 server.listen(PORT, "0.0.0.0", () => {
   const ips = getLanIps();
   console.log("");
-  console.log("  ╔══════════════════════════════════════════════════╗");
-  console.log("  ║  ANON// backend v21.2 — image spam + SQLite      ║");
-  console.log("  ╚══════════════════════════════════════════════════╝");
+  console.log("  â•”â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•—");
+  console.log("  â•‘  ANON// backend v21.2 â€” image spam + SQLite      â•‘");
+  console.log("  â•šâ•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•");
   console.log("");
-  console.log(`  Laptop    → http://localhost:${PORT}`);
+  console.log(`  Laptop    â†’ http://localhost:${PORT}`);
   if (ips.length === 0) {
-    console.log(`  Mobile    → (no LAN IP detected — are you on Wi-Fi?)`);
+    console.log(`  Mobile    â†’ (no LAN IP detected â€” are you on Wi-Fi?)`);
   } else {
     for (const ip of ips) {
-      console.log(`  Mobile    → http://${ip.address}:${PORT}    (${ip.name})`);
+      console.log(`  Mobile    â†’ http://${ip.address}:${PORT}    (${ip.name})`);
     }
   }
   console.log("");
