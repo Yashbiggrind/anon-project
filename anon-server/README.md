@@ -1,4 +1,4 @@
-# ANON// — Backend
+ï»¿# ANON// - Backend
 
 Node.js + Express + Socket.io backend for the ANON anonymous chat app.
 
@@ -6,11 +6,10 @@ Node.js + Express + Socket.io backend for the ANON anonymous chat app.
 - Node.js
 - Express
 - Socket.io
-- SQLite (via node:sqlite)
+- SQLite (node:sqlite)
 
 ## Environment Variables
-Create `.env` in this folder:
-
+Create .env in this folder with:
 PORT=4000
 CLIENT_ORIGIN=*
 ADMIN_TOKEN=your-secret-token
