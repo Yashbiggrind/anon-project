@@ -16,7 +16,10 @@ export const metadata: Metadata = {
   },
   icons: {
     icon: "/icons/icon.svg",
-    apple: "/icons/icon.svg",
+    shortcut: "/icons/icon.svg",
+    apple: [
+      { url: "/icons/icon.svg", sizes: "180x180", type: "image/svg+xml" },
+    ],
   },
   formatDetection: {
     telephone: false,
@@ -46,4 +49,5 @@ export default function RootLayout({
     </html>
   );
 }
+
 

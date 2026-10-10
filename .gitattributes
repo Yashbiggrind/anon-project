@@ -1,0 +1,27 @@
+﻿# Normalize line endings
+* text=auto eol=lf
+
+# Windows scripts keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Binary files — don't touch
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.webp binary
+*.woff binary
+*.woff2 binary
+
+# Lock files — don't diff
+package-lock.json -diff
+yarn.lock -diff
+
+# SQLite — binary
+*.db binary
+*.db-shm binary
+*.db-wal binary
