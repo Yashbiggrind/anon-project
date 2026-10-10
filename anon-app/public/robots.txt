@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://anon-project-tau.vercel.app/sitemap.xml
