@@ -3422,3 +3422,160 @@ a:focus-visible {
   }
   .doorArch:hover { transform: none !important; }
 }
+
+/* ============================================================
+   v26 — Identicon avatar styling
+   ============================================================ */
+
+/* Message bubble avatars — cleaner, no old bg */
+.msg .mini,
+.msg .mini.clickable {
+  padding: 0 !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  transition: transform .15s, box-shadow .15s;
+}
+
+.msg .mini.clickable:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 15px -4px rgba(255, 45, 85, .8);
+}
+
+.msg .mini svg {
+  display: block;
+  border-radius: 7px;
+}
+
+/* Topbar identity badge */
+.app-ava {
+  padding: 2px !important;
+  background: transparent !important;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.app-ava svg {
+  border-radius: 7px;
+  display: block;
+}
+
+/* Member list avatar */
+.memberAvatar {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+}
+.memberAvatar svg {
+  border-radius: 6px;
+  display: block;
+}
+
+/* DM header avatar */
+.dmAvatar {
+  padding: 2px !important;
+  background: transparent !important;
+}
+.dmAvatar svg {
+  border-radius: 7px;
+  display: block;
+}
+
+/* Profile card big avatar */
+.profileAvatar {
+  padding: 6px !important;
+  background: linear-gradient(180deg, #2a0710, #160409) !important;
+}
+.profileAvatar svg {
+  border-radius: 12px;
+  display: block;
+}
+
+/* Name offer option cards */
+.nameOption svg {
+  display: block;
+  margin: 0 auto 6px;
+  border-radius: 10px;
+}
+
+/* Online list identicons */
+.online-row svg,
+.pickRow svg {
+  border-radius: 5px;
+  display: block;
+}
+
+/* ============================================================
+   v26.1 — Identicon avatar cleanup
+   ============================================================ */
+
+.msg .mini,
+.msg .mini.clickable,
+.mini,
+.mini.clickable {
+  background: transparent !important;
+  background-image: none !important;
+  border: 0 !important;
+  padding: 0 !important;
+  box-shadow: none !important;
+  border-radius: 8px;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  transition: transform .15s, box-shadow .15s;
+}
+
+.msg .mini.clickable:hover,
+.mini.clickable:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 15px -4px rgba(255, 45, 85, .8) !important;
+}
+
+.mini svg,
+.app-ava svg,
+.memberAvatar svg,
+.dmAvatar svg,
+.profileAvatar svg {
+  display: block;
+  border-radius: 7px;
+}
+
+.app-ava {
+  padding: 2px !important;
+  background: transparent !important;
+  overflow: hidden;
+}
+
+.memberAvatar {
+  background: transparent !important;
+  border: 0 !important;
+  padding: 0 !important;
+  overflow: visible !important;
+  position: relative;
+}
+
+.dmAvatar {
+  padding: 2px !important;
+  background: transparent !important;
+}
+
+.profileAvatar {
+  padding: 6px !important;
+  background: linear-gradient(180deg, #2a0710, #160409) !important;
+}
+
+.nameOption svg {
+  display: block;
+  margin: 0 auto 6px;
+  border-radius: 10px;
+}
+
+.online-row svg,
+.pickRow svg {
+  border-radius: 5px;
+  display: block;
+}

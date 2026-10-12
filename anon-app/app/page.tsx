@@ -2,6 +2,7 @@
 import "./anon.css";
 import { useEffect, useRef, useState, useCallback, startTransition, memo } from "react"
 import { createPortal } from "react-dom";
+import Identicon from "@/components/Identicon";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 import { LANGUAGES, Lang, translate as libTranslate, isRTL } from "@/lib/i18n";
@@ -1644,7 +1645,7 @@ export default function Home() {
               ))}
             </nav>
             <div className="app-id">
-              <div className="app-ava" style={{ background: identity?.accent ?? "#360d18" }}>◈</div>
+              <div className="app-ava" style={{ padding: 2 }}><Identicon name={identity?.username ?? "anon"} size={32} /></div>
               <div className="txt">
                 <small>{t("anonymousIdentity")}</small>
                 <b>{identity?.username ?? "…"}</b>
@@ -1706,7 +1707,7 @@ export default function Home() {
 
                   {missed.map((m) => (
                     <div className="msg missed" key={`missed-${m.id}`}>
-                      <div className="mini">◇</div>
+                      <div className="mini"><Identicon name={m.senderName} size={30} /></div>
                       <div className="bubble">
                         <div className="meta">
                           <b>{m.senderName}</b>
@@ -1727,7 +1728,7 @@ export default function Home() {
                         </div>
                         <div className="text">{q.content}</div>
                       </div>
-                      <div className="mini" style={{ background: identity?.accent ?? "#160409" }}>◈</div>
+                      <div className="mini"><Identicon name={identity?.username ?? "you"} size={30} /></div>
                     </div>
                   ))}
 
@@ -2480,7 +2481,7 @@ export default function Home() {
         return (
           <div className="modalbg show" onClick={() => setProfileOpen(null)}>
             <div className="modal profileCard" onClick={(e) => e.stopPropagation()}>
-              <div className="profileAvatar">◇</div>
+              <div className="profileAvatar" style={{ padding: 6 }}><Identicon name={profileOpen.username} size={58} /></div>
               <h2 className="profileName">{profileOpen.username}</h2>
               <div className="profileMeta">anonymous session</div>
               <div className="profileMeta dim">{profileOpen.sessionId.slice(0, 12)}…</div>
@@ -2539,7 +2540,7 @@ export default function Home() {
       {dmPanel && (
         <div className="dmPanel">
           <div className="dmHeader">
-            <div className="dmAvatar">◇</div>
+            <div className="dmAvatar" style={{ padding: 2 }}><Identicon name={dmPanel.target.username} size={30} /></div>
             <div className="dmTitle">
               <b>{dmPanel.target.username}</b>
               {dmTypingFrom
@@ -2710,7 +2711,7 @@ const MessageBubble = memo(
               className="mini clickable"
               onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
               title="Private message"
-            >◇</div>
+            ><Identicon name={m.senderName} size={30} /></div>
           )}
 
           <div className="bubble">
@@ -2823,7 +2824,7 @@ const MessageBubble = memo(
             )}
           </div>
 
-          {mine && <div className="mini" style={{ background: identity?.accent ?? "#160409" }}>◈</div>}
+          {mine && <div className="mini"><Identicon name={m.senderName} size={30} /></div>}
         </div>
 
         {showSheet && typeof document !== "undefined" && createPortal(
