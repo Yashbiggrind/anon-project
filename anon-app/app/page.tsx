@@ -114,6 +114,8 @@ export default function Home() {
 
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [connected, setConnected] = useState(false);
+  const [codeInput, setCodeInput] = useState("");
+  const [codeError, setCodeError] = useState("");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -2197,6 +2199,10 @@ export default function Home() {
                           <div className="big">⌁</div>
                           <h2>{t("createAPrivateRoom")}</h2>
                           <p>{t("createPrivateRoomSub")}</p>
+                          <div className="codeJoinRow">
+                            <input className="codeJoinInput" placeholder="JOIN BY CODE" value={codeInput} onChange={(e) => setCodeInput(e.target.value.toUpperCase())} onKeyDown={(e) => { if (e.key === "Enter" && codeInput.trim()) { joinRoomById(codeInput.trim()); setCodeInput(""); } }} />
+                            <button className="codeJoinBtn" disabled={!codeInput.trim()} onClick={() => { joinRoomById(codeInput.trim()); setCodeInput(""); }}>JOIN</button>
+                          </div>
                         </div>
                         <button
                           className="discoverRefresh"
@@ -2227,7 +2233,7 @@ export default function Home() {
                           >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
-                              <div className="discoverTopic">{r.topic || "Untitled room"}</div>
+                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${(r as any).mode === "ask" ? "ask" : "open"}`}>{(r as any).mode === "ask" ? "ASK" : "OPEN"}</span></div>
                               <div className="discoverMeta">
                                 by {r.adminName}
                                 {r.slowMode > 0 && <span className="discoverSlow"> · ⏱ {r.slowMode}s</span>}

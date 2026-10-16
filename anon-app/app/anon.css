@@ -3579,3 +3579,94 @@ a:focus-visible {
   border-radius: 5px;
   display: block;
 }
+/* ============================================================
+   v27 — JOIN BY CODE + OPEN/ASK badges
+   ============================================================ */
+
+.codeJoinInput {
+  flex: 1;
+  padding: 10px 12px;
+  background: #0a0205;
+  border: 1px solid #2a0a12;
+  border-radius: 6px;
+  color: #f4e8e8;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 12px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  outline: 0;
+  transition: border-color .2s, box-shadow .2s;
+  min-width: 0;
+}
+.codeJoinInput::placeholder {
+  color: #5a4048;
+  letter-spacing: 1.5px;
+  font-size: 10.5px;
+}
+.codeJoinInput:focus {
+  border-color: #7a0a1c;
+  box-shadow: 0 0 15px -6px #e11d48;
+}
+
+.codeJoinBtn {
+  padding: 10px 16px;
+  background: linear-gradient(180deg, #6a0a18, #3a0510);
+  border: 1px solid #ff2d55;
+  border-radius: 6px;
+  color: #fff;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 1.8px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+  flex: none;
+}
+.codeJoinBtn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #8a0a1e, #4a0612);
+  box-shadow: 0 0 20px -6px #e11d48;
+}
+.codeJoinBtn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.codeError {
+  margin-top: 8px;
+  color: #ff5875;
+  font-size: 11px;
+  letter-spacing: 1px;
+}
+
+.modeBadge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 7px;
+  font-size: 9px;
+  letter-spacing: 1.6px;
+  font-weight: 700;
+  border-radius: 4px;
+  vertical-align: middle;
+  border: 1px solid;
+}
+.modeBadge.open {
+  color: #35d27c;
+  border-color: rgba(53,210,124,.5);
+  background: rgba(53,210,124,.08);
+}
+.modeBadge.ask {
+  color: #ffb352;
+  border-color: rgba(255,179,82,.5);
+  background: rgba(255,179,82,.08);
+}
+/* v27.1 — JOIN BY CODE + OPEN/ASK badges */
+.codeJoinRow { display: flex; gap: 8px; margin-top: 14px; }
+.codeJoinInput { flex: 1; padding: 10px 12px; background: #0a0205; border: 1px solid #2a0a12; border-radius: 6px; color: #f4e8e8; font-family: 'IBM Plex Mono', monospace; font-size: 12px; letter-spacing: 2px; text-transform: uppercase; outline: 0; min-width: 0; transition: border-color .2s, box-shadow .2s; }
+.codeJoinInput::placeholder { color: #5a4048; letter-spacing: 1.5px; font-size: 10.5px; }
+.codeJoinInput:focus { border-color: #7a0a1c; box-shadow: 0 0 15px -6px #e11d48; }
+.codeJoinBtn { padding: 10px 16px; background: linear-gradient(180deg, #6a0a18, #3a0510); border: 1px solid #ff2d55; border-radius: 6px; color: #fff; font-family: 'IBM Plex Mono', monospace; font-size: 10.5px; letter-spacing: 1.8px; font-weight: 700; cursor: pointer; transition: all .2s; flex: none; }
+.codeJoinBtn:hover:not(:disabled) { box-shadow: 0 0 20px -6px #e11d48; }
+.codeJoinBtn:disabled { opacity: .35; cursor: not-allowed; }
+.modeBadge { display: inline-block; margin-left: 8px; padding: 2px 7px; font-size: 9px; letter-spacing: 1.6px; font-weight: 700; border-radius: 4px; vertical-align: middle; border: 1px solid; }
+.modeBadge.open { color: #35d27c; border-color: rgba(53,210,124,.5); background: rgba(53,210,124,.08); }
+.modeBadge.ask { color: #ffb352; border-color: rgba(255,179,82,.5); background: rgba(255,179,82,.08); }

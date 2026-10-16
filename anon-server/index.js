@@ -1,4 +1,4 @@
-﻿// ANON// backend â€” Node + Express + Socket.IO
+// ANON// backend â€” Node + Express + Socket.IO
 require("dotenv").config();
 const express = require("express");
 const http = require("http");
@@ -704,6 +704,7 @@ io.on("connection", (socket) => {
         occupancy: room.participants.length,
         full: room.participants.length >= room.capacity,
         slowMode: room.slowMode,
+        mode: room.mode || "open",
         createdAt: room.createdAt,
       });
     }
@@ -900,7 +901,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------- create room ----------
-  socket.on("room:create", ({ capacity, topic } = {}, ack) => {
+  socket.on("room:create", ({ capacity, topic, mode } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
     if (sessionRooms.has(s.sessionId)) return ack?.({ ok: false, error: "You are already in a room" });
@@ -920,6 +921,7 @@ io.on("connection", (socket) => {
       admin: s.sessionId,
       topic: cleanTopic,
       capacity: cap,
+      mode: (mode === "ask" ? "ask" : "open"),
       slowMode: 0,
             messageLifetime: 0,
       participants: [{ sessionId: s.sessionId, username: s.username }],
