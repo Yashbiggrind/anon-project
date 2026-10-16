@@ -1623,7 +1623,11 @@ export default function Home() {
             <div className="footRight">
               <Link className="footLink accent" href="/data">◉ {t("dataLogTitle")}</Link>
               <span className="sep">/</span>
+              <a className="footLink accent" href="/content">◉ CONTENT</a>
+              <span className="sep">/</span>
               <a className="footLink accent" href="/trust">◉ TRUST</a>
+              <span className="sep">/</span>
+              <a className="footLink accent" href="/confession">◉ CONFESSION</a>
               <span className="sep">/</span>
               <a className="footLink" href="/legal/privacy">{t("privacy")}</a>
               <span className="sep">/</span>
