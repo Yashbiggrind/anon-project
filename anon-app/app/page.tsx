@@ -1504,6 +1504,7 @@ export default function Home() {
               <button className="navItem" onClick={() => openDoor("content")}>{t("navExplore")}</button>
               <button className="navItem" onClick={() => openDoor("content")}>{t("navLearn")}</button>
               <Link className="navItem" href="/data">DATA</Link>
+              <Link className="navItem" href="/trust">TRUST</Link>
             </nav>
 
             <div className="rightBar">
@@ -1621,6 +1622,8 @@ export default function Home() {
             <div className="footLeft">ANON// v10 · cyber</div>
             <div className="footRight">
               <Link className="footLink accent" href="/data">◉ {t("dataLogTitle")}</Link>
+              <span className="sep">/</span>
+              <a className="footLink accent" href="/trust">◉ TRUST</a>
               <span className="sep">/</span>
               <a className="footLink" href="/legal/privacy">{t("privacy")}</a>
               <span className="sep">/</span>
