@@ -3670,3 +3670,32 @@ a:focus-visible {
 .modeBadge { display: inline-block; margin-left: 8px; padding: 2px 7px; font-size: 9px; letter-spacing: 1.6px; font-weight: 700; border-radius: 4px; vertical-align: middle; border: 1px solid; }
 .modeBadge.open { color: #35d27c; border-color: rgba(53,210,124,.5); background: rgba(53,210,124,.08); }
 .modeBadge.ask { color: #ffb352; border-color: rgba(255,179,82,.5); background: rgba(255,179,82,.08); }
+/* ==========================================
+   CONFESSION TAB & ELECTION
+   ========================================== */
+.confessionWrap { max-width: 800px; margin: 0 auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+.cfComposer { background: #0c0407; border: 1px solid #25080f; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.cfComposer textarea { background: #0a0205; border: 1px solid #2a0a12; color: #f4e8e8; border-radius: 8px; padding: 12px; min-height: 80px; resize: vertical; font-family: inherit; }
+.cfComposer button { background: #6a0a18; border: 1px solid #ff2d55; color: #fff; padding: 10px; border-radius: 6px; cursor: pointer; font-weight: bold; align-self: flex-end; }
+.cfFeed { display: flex; flex-direction: column; gap: 12px; }
+.cfPost { background: linear-gradient(180deg,#0c0407,#060103); border: 1px solid #25080f; border-radius: 10px; padding: 16px; }
+.cfHead { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; font-size: 12px; color: #c9a8b1; }
+.cfText { color: #f4e8e8; font-size: 15px; line-height: 1.5; margin-bottom: 12px; }
+.cfActions { display: flex; gap: 12px; border-top: 1px solid #2a0a12; padding-top: 10px; }
+.cfActions button { background: transparent; border: 0; color: #8a7276; font-size: 12px; cursor: pointer; display: flex; gap: 4px; align-items: center; }
+.cfActions button:hover { color: #ff2d55; }
+.cfReplies { margin-top: 12px; padding-left: 16px; border-left: 2px solid #2a0a12; display: flex; flex-direction: column; gap: 6px; }
+.cfReply { font-size: 12.5px; color: #c9a8b1; display: flex; align-items: center; gap: 6px; }
+.cfReplyBox { display: flex; gap: 8px; margin-top: 8px; }
+.cfReplyBox input { flex: 1; background: #0a0205; border: 1px solid #2a0a12; color: #fff; border-radius: 6px; padding: 6px 10px; font-size: 12px; }
+.cfReplyBox button { background: #25080f; border: 1px solid #4a0a14; color: #ff5875; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 11px; }
+
+/* ELECTION CARD */
+.electionCard { border: 1px solid #ff2d55; border-radius: 10px; padding: 16px; text-align: center; background: radial-gradient(circle, #2a0710 0%, #060103 100%); box-shadow: 0 0 30px rgba(255,45,85,0.2); }
+.elHead { color: #ff2d55; font-weight: bold; letter-spacing: 2px; font-size: 11px; margin-bottom: 8px; }
+.elMsg { color: #8a7276; font-size: 13px; }
+.elCandidates { display: flex; gap: 10px; justify-content: center; margin-top: 12px; }
+.elCand { background: #160409; border: 1px solid #4a0a14; padding: 10px; border-radius: 8px; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; color: #f4e8e8; font-size: 12px; transition: 0.2s; }
+.elCand:hover { border-color: #ff2d55; transform: scale(1.05); }
+.elWinner { font-size: 15px; color: #fff; margin-top: 8px; }
+.elWinner b { color: #35d27c; font-size: 18px; }

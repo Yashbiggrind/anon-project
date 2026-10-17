@@ -1387,6 +1387,66 @@ io.on("connection", (socket) => {
   });
 
   // ---------- reactions ----------
+
+// ==========================================
+// CONFESSION WALL & ELECTION HANDLERS
+// ==========================================
+socket.on("confession:list", (_, ack) => {
+  const now = Date.now();
+  // Cleanup expired
+  db.prepare("DELETE FROM confessions WHERE expires_at < ?").run(now);
+  db.prepare("DELETE FROM confession_replies WHERE confession_id NOT IN (SELECT id FROM confessions)").run();
+  
+  const rows = db.prepare("SELECT * FROM confessions ORDER BY created_at DESC").all();
+  const replies = db.prepare("SELECT * FROM confession_replies ORDER BY created_at ASC").all();
+  
+  const confessions = rows.map(c => ({
+    ...c,
+    replies: replies.filter(r => r.confession_id === c.id)
+  }));
+  
+  const election = db.prepare("SELECT * FROM election WHERE id = 1").get();
+  ack?.({ ok: true, confessions, election });
+});
+
+socket.on("confession:create", ({ text, author }, ack) => {
+  const id = "cf_" + Date.now();
+  const now = Date.now();
+  const expiresAt = now + (7 * 24 * 60 * 60 * 1000); // 7 days
+  db.prepare("INSERT INTO confessions (id, text, author, created_at, expires_at) VALUES (?, ?, ?, ?, ?)").run(id, text, author, now, expiresAt);
+  ack?.({ ok: true });
+  io.emit("confession:update"); // Tell all clients to refresh
+});
+
+socket.on("confession:reply", ({ confessionId, text, author }, ack) => {
+  const id = "rep_" + Date.now();
+  db.prepare("INSERT INTO confession_replies (id, confession_id, text, author, created_at) VALUES (?, ?, ?, ?, ?)").run(id, confessionId, text, author, Date.now());
+  ack?.({ ok: true });
+  io.emit("confession:update");
+});
+
+socket.on("confession:vote", ({ confessionId, dir }, ack) => {
+  const col = dir === 1 ? "upvotes" : "downvotes";
+  db.prepare(`UPDATE confessions SET ${col} = ${col} + 1 WHERE id = ?`).run(confessionId);
+  io.emit("confession:update");
+});
+
+// Election logic
+socket.on("election:start", (_, ack) => {
+  db.prepare("UPDATE election SET status = 'voting', winner = NULL, started_at = ? WHERE id = 1").run(Date.now());
+  io.emit("confession:update");
+  ack?.({ ok: true });
+});
+
+socket.on("election:vote", ({ candidate }, ack) => {
+  const el = db.prepare("SELECT * FROM election WHERE id = 1").get();
+  if (el.status !== 'voting') return ack?.({ ok: false, error: "Voting is closed" });
+  
+  // Winner becomes the person with the most votes
+  db.prepare("UPDATE election SET status = 'finished', winner = ? WHERE id = 1").run(candidate);
+  io.emit("confession:update");
+  ack?.({ ok: true });
+});
   socket.on("reaction:toggle", ({ messageId, emoji, roomId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });

@@ -3,6 +3,7 @@ import "./anon.css";
 import { useEffect, useRef, useState, useCallback, startTransition, memo } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
+import ConfessionTab from "@/components/ConfessionTab";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
 import { LANGUAGES, Lang, translate as libTranslate, isRTL } from "@/lib/i18n";
@@ -34,7 +35,7 @@ import {
 } from "@/lib/anonConstants";
 import { serverUrl, makeRandomName } from "@/lib/anonUtils";
 
-type Section = "chat" | "private" | "content";
+type Section = "chat" | "private" | "content" | "confession";
 type Identity = { sessionId: string; username: string; accent: string; status?: string };
 type ChatMessage = {
   id: string;
@@ -1504,9 +1505,10 @@ export default function Home() {
               <button className="navItem active">{t("navHome")}</button>
               <button className="navItem" onClick={() => openDoor("chat")}>{t("navConnect")}</button>
               <button className="navItem" onClick={() => openDoor("content")}>{t("navExplore")}</button>
+              <button className="navItem" onClick={() => openDoor("confession")}>CONFESS</button>
               <button className="navItem" onClick={() => openDoor("content")}>{t("navLearn")}</button>
               <Link className="navItem" href="/data">DATA</Link>
-              <Link className="navItem" href="/trust">TRUST</Link>
+              
             </nav>
 
             <div className="rightBar">
@@ -1624,10 +1626,6 @@ export default function Home() {
             <div className="footLeft">ANON// v10 · cyber</div>
             <div className="footRight">
               <Link className="footLink accent" href="/data">◉ {t("dataLogTitle")}</Link>
-              <span className="sep">/</span>
-              <a className="footLink accent" href="/content">◉ CONTENT</a>
-              <span className="sep">/</span>
-              <a className="footLink accent" href="/trust">◉ TRUST</a>
               <span className="sep">/</span>
               <a className="footLink accent" href="/confession">◉ CONFESSION</a>
               <span className="sep">/</span>
@@ -2304,6 +2302,9 @@ export default function Home() {
               )}
             </section>
 
+            <section className={`app-view ${section === "confession" ? "active" : ""}`}>
+              <ConfessionTab socket={socketRef.current} identity={identity} />
+            </section>
             <section className={`app-view ${section === "content" ? "active" : ""}`}>
               <div className="hero">
                 <div>
