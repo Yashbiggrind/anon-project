@@ -1,11 +1,26 @@
+/* Global fallback styles; the app-specific design lives in anon.css. */
 * { box-sizing: border-box; }
 html, body {
   margin: 0;
   padding: 0;
-  background: #040203;
-  color: #d8c9c9;
+  min-height: 100%;
+  background: #08090c;
+  color: #eee9eb;
 }
 body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+:focus-visible {
+  outline: 2px solid #f04461;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
