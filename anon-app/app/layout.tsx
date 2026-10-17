@@ -5,8 +5,8 @@ import ConsentBanner from "./consent-banner";
 import ErrorBoundary from "./error-boundary";
 
 export const metadata: Metadata = {
-  title: "ANON// â€” Anonymous Chat",
-  description: "Anonymous chat. No account. No profile.",
+  title: "ANON — Anonymous Chat",
+  description: "A quieter space to talk anonymously. No account or public profile required.",
   manifest: "/manifest.json",
   applicationName: "ANON",
   appleWebApp: {
@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: "#040203",
+  themeColor: "#08090c",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
