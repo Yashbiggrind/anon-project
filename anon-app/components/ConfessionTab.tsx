@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import Identicon from "@/components/Identicon";
 
-export default function ConfessionTab({ socket, identity }: { socket: any, identity: any }) {
+export default function ConfessionTab({ socket, identity, connected }: { socket: any, identity: any, connected: boolean }) {
   const [posts, setPosts] = useState<any[]>([]);
   const [election, setElection] = useState<any>(null);
   const [draft, setDraft] = useState("");
@@ -17,7 +17,7 @@ export default function ConfessionTab({ socket, identity }: { socket: any, ident
     fetchList();
     socket.on("confession:update", fetchList);
     return () => socket.off("confession:update", fetchList);
-  }, [socket]);
+  }, [socket, connected]);
 
   const post = () => {
     if (!draft.trim()) return;

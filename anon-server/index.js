@@ -6,6 +6,15 @@ const os = require("os");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const db = require("./db");
+
+// --- CONFESSION + ELECTION TABLES ---
+db.exec(`
+  CREATE TABLE IF NOT EXISTS confessions (id TEXT PRIMARY KEY, text TEXT, author TEXT, created_at INTEGER, expires_at INTEGER, upvotes INTEGER DEFAULT 0, downvotes INTEGER DEFAULT 0);
+  CREATE TABLE IF NOT EXISTS confession_replies (id TEXT PRIMARY KEY, confession_id TEXT, text TEXT, author TEXT, created_at INTEGER);
+  CREATE TABLE IF NOT EXISTS election (id INTEGER PRIMARY KEY CHECK (id = 1), status TEXT DEFAULT 'closed', winner TEXT, started_at INTEGER);
+  INSERT OR IGNORE INTO election (id, status) VALUES (1, 'closed');
+`);
+
 const { registerAdmin } = require("./admin");
 const PORT = parseInt(process.env.PORT || "4000", 10);
 const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
