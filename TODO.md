@@ -1,10 +1,10 @@
 ﻿# ANON// — Project To-Do List
 
 ## 🔴 Tier 1 — Must Fix Before Launch
-- [ ] 1. Re-add /api/stats route on server (5 min)
+- [x] 1. `/api/stats` route is present on server
 - [ ] 2. Persistent database PostgreSQL (1-2 hrs)
 - [ ] 3. Fix "Off (forever)" message persistence (20 min)
-- [ ] 4. CORS lockdown on backend (5 min)
+- [x] 4. Backend CORS origin allowlist added; configure `CLIENT_ORIGIN` for production
 - [ ] 5. Rate limit all Socket.io events (30 min)
 - [ ] 6. HTTPS check on backend URL (2 min)
 - [ ] 7. Error tracking with Sentry (20 min)
