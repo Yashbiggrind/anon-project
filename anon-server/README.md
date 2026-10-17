@@ -11,13 +11,15 @@ Node.js + Express + Socket.io backend for the ANON anonymous chat app.
 ## Environment Variables
 Create .env in this folder with:
 PORT=4000
-CLIENT_ORIGIN=*
+CLIENT_ORIGIN=http://localhost:3000
 ADMIN_TOKEN=your-secret-token
 IP_HASH_SECRET=your-hmac-secret
 MAX_MSG_LENGTH=1000
 RATE_MSG_PER_10S=15
 RATE_INVITE_PER_MIN=5
 RATE_ROOM_CREATE_PER_MIN=3
+
+For production, set `CLIENT_ORIGIN` to the exact public frontend origin (or a comma-separated allowlist). Do not use `*`. The admin dashboard accepts its initial token at `/admin?token=...`; keep that URL private.
 
 ## Run locally
 npm install
