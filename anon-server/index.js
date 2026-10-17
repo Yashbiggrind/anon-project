@@ -8,7 +8,10 @@ const { Server } = require("socket.io");
 const db = require("./db");
 const { registerAdmin } = require("./admin");
 const PORT = parseInt(process.env.PORT || "4000", 10);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || "http://localhost:3000")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
 const MAX_MSG = parseInt(process.env.MAX_MSG_LENGTH || "1000", 10);
 const RATE_MSG = parseInt(process.env.RATE_MSG_PER_10S || "15", 10);
 const RATE_INV = parseInt(process.env.RATE_INVITE_PER_MIN || "5", 10);
@@ -25,11 +28,12 @@ const ROOM_TOPIC_MAX = 40;
 // ---------- CORS origin checker ----------
 const PRIVATE_IP = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/;
 function corsOrigin(origin, cb) {
+  // Requests without an Origin header are server-to-server or same-origin.
   if (!origin) return cb(null, true);
-  if (CLIENT_ORIGIN === "*") return cb(null, true);
-  if (origin === CLIENT_ORIGIN) return cb(null, true);
-  if (PRIVATE_IP.test(origin)) return cb(null, true);
-  return cb(new Error(`CORS blocked: ${origin}`), false);
+  if (CLIENT_ORIGINS.includes(origin)) return cb(null, true);
+  // Allow private LAN origins only for local development, never by default in production.
+  if (process.env.NODE_ENV !== "production" && PRIVATE_IP.test(origin)) return cb(null, true);
+  return cb(new Error("CORS blocked: origin is not in CLIENT_ORIGIN"), false);
 }
 
 // ---------- state ----------
