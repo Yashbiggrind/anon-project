@@ -139,7 +139,7 @@ async function loadStats() {
 }
 
 async function loadReports() {
-  const q = "?unreviewed=1".replace("?unreviewed=1", filter === "unreviewed" ? "?unreviewed=1" : "");
+  const q = filter === "unreviewed" ? "?unreviewed=1" : "";
   const r = await fetch("/api/admin/reports" + q, { headers: { "x-admin-token": TOKEN } });
   const j = await r.json();
   if (!j.ok) return;
@@ -282,6 +282,8 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
   app.get("/admin", (req, res) => {
     if (!ADMIN_TOKEN) return res.status(500).send("ADMIN_TOKEN not configured. Set it in .env and restart.");
     if (req.query.token !== ADMIN_TOKEN) return res.status(401).send("Unauthorized — open /admin?token=YOUR_TOKEN once.");
+    res.set("Cache-Control", "no-store");
+    res.set("Referrer-Policy", "no-referrer");
     res.type("html").send(renderPage());
   });
 
