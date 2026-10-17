@@ -43,6 +43,27 @@ function renderPage() {
   .dim{color:#7c5a63;font-size:11px}
   .empty{text-align:center;padding:40px;color:#5a4048;font-style:italic}
   .footer{margin-top:20px;font-size:10px;color:#5a4048;text-align:center}
+
+  /* Premium admin refresh */
+  :root{color-scheme:dark;--red:#f0526c;--red-hi:#ff8294;--ink:#08090c;--text:#f0edf0;--dim:#a29ba5;--line:rgba(255,255,255,.09)}
+  body{max-width:1440px;margin:0 auto;padding:clamp(16px,3vw,36px);background:radial-gradient(ellipse at 50% -10%,rgba(240,82,108,.10),transparent 55%),#08090c;color:#f0edf0;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:14px}
+  h1{font-family:Georgia,serif;font-size:clamp(28px,4vw,38px);letter-spacing:-1px;font-weight:700}
+  h1 i{color:#f0526c}
+  .stat{background:linear-gradient(145deg,#171922,#0f1016);border-color:rgba(255,255,255,.09);border-radius:14px;padding:18px;box-shadow:0 12px 32px rgba(0,0,0,.18)}
+  .stat .n{font-family:Georgia,serif;font-size:30px;color:#ff8294}
+  .stat .l{color:#a29ba5;letter-spacing:1.5px}
+  .bar{align-items:center;flex-wrap:wrap;gap:10px}
+  .bar button,.act{border-radius:9px;border-color:rgba(255,255,255,.12);background:#171922;color:#d4cdd5;letter-spacing:.6px;transition:background .15s ease,border-color .15s ease}
+  .bar button.active,.act.primary{background:rgba(240,82,108,.14);border-color:rgba(240,82,108,.45);color:#ff8294}
+  .bar button:hover,.act:hover{border-color:rgba(240,82,108,.55);color:#fff}
+  table{display:block;overflow-x:auto;border-radius:14px;border-color:rgba(255,255,255,.09);background:#101117}
+  th{background:#171922;color:#a29ba5;border-bottom-color:rgba(255,255,255,.09);letter-spacing:1px}
+  td{color:#e5dfe7;border-bottom-color:rgba(255,255,255,.06);white-space:normal}
+  #exportPanel{background:#11131a!important;border-color:rgba(255,255,255,.09)!important;border-radius:14px!important}
+  input{max-width:100%;background:#0b0c11!important;border-color:rgba(255,255,255,.12)!important;border-radius:8px!important;color:#f0edf0!important}
+  .empty{color:#a29ba5}
+  .footer{color:#827b87}
+  @media(max-width:640px){.bar button{flex:1}.bar #openExport{margin-left:0!important}.grid{grid-template-columns:repeat(2,minmax(0,1fr))}td,th{padding:9px}}
 </style>
 </head>
 <body>
@@ -81,7 +102,12 @@ function renderPage() {
   <div class="footer">auto-refresh every 30s · <span id="lastUpdate"></span></div>
 
 <script>
-const TOKEN = new URLSearchParams(location.search).get("token") || "";
+const TOKEN = new URLSearchParams(location.search).get("token") || sessionStorage.getItem("anon_admin_token") || "";
+if (TOKEN) {
+  sessionStorage.setItem("anon_admin_token", TOKEN);
+  // Avoid leaving the admin secret visible in the address bar or browser history.
+  history.replaceState(null, "", location.pathname + location.hash);
+}
 let filter = "unreviewed";
 
 function esc(s) {
@@ -97,7 +123,7 @@ function ago(ts) {
 }
 
 async function loadStats() {
-  const r = await fetch("/api/admin/stats?token=" + encodeURIComponent(TOKEN));
+  const r = await fetch("/api/admin/stats", { headers: { "x-admin-token": TOKEN } });
   const j = await r.json();
   if (!j.ok) return;
   const s = j.stats || {};
@@ -113,8 +139,8 @@ async function loadStats() {
 }
 
 async function loadReports() {
-  const q = "?token=" + encodeURIComponent(TOKEN) + (filter === "unreviewed" ? "&unreviewed=1" : "");
-  const r = await fetch("/api/admin/reports" + q);
+  const q = "?unreviewed=1".replace("?unreviewed=1", filter === "unreviewed" ? "?unreviewed=1" : "");
+  const r = await fetch("/api/admin/reports" + q, { headers: { "x-admin-token": TOKEN } });
   const j = await r.json();
   if (!j.ok) return;
   const list = j.reports || [];
@@ -146,9 +172,9 @@ async function loadReports() {
 
 async function act(id, action) {
   if (!confirm("Mark this report as: " + action + "?")) return;
-  await fetch("/api/admin/reports/" + id + "/review?token=" + encodeURIComponent(TOKEN), {
+  await fetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "x-admin-token": TOKEN },
     body: JSON.stringify({ action }),
   });
   loadReports();
@@ -195,7 +221,6 @@ function buildQuery() {
   if (since) q.set("since", String(since));
   if (until) q.set("until", String(until));
   if (exIp.value.trim()) q.set("ip", exIp.value.trim());
-  q.set("token", TOKEN);
   return q;
 }
 
@@ -203,7 +228,7 @@ document.getElementById("exJson").addEventListener("click", async () => {
   exResult.textContent = "Loading…";
   try {
     const q = buildQuery();
-    const r = await fetch("/api/admin/sessions?" + q.toString());
+    const r = await fetch("/api/admin/sessions?" + q.toString(), { headers: { "x-admin-token": TOKEN } });
     const j = await r.json();
     if (!j.ok) { exResult.textContent = "Error: " + (j.error || "unknown"); return; }
     const blob = new Blob([JSON.stringify(j.sessions, null, 2)], { type: "application/json" });
@@ -219,11 +244,23 @@ document.getElementById("exJson").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("exCsv").addEventListener("click", () => {
-  const q = buildQuery();
-  exResult.textContent = "Downloading CSV…";
-  window.location.href = "/api/admin/sessions.csv?" + q.toString();
-  setTimeout(() => { exResult.textContent = "CSV download started."; }, 500);
+document.getElementById("exCsv").addEventListener("click", async () => {
+  exResult.textContent = "Preparing CSV…";
+  try {
+    const q = buildQuery();
+    const r = await fetch("/api/admin/sessions.csv?" + q.toString(), { headers: { "x-admin-token": TOKEN } });
+    if (!r.ok) throw new Error("Export failed (" + r.status + ")");
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "anon-sessions-" + Date.now() + ".csv";
+    a.click();
+    URL.revokeObjectURL(url);
+    exResult.textContent = "CSV download started.";
+  } catch (e) {
+    exResult.textContent = "Failed: " + e.message;
+  }
 });
 
 loadStats();
@@ -237,14 +274,14 @@ setInterval(() => { loadReports(); loadStats(); }, 30000);
 function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN }) {
   function checkToken(req, res, next) {
     if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set on server" });
-    const token = req.query.token || req.headers["x-admin-token"];
+    const token = req.headers["x-admin-token"];
     if (token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "Unauthorized" });
     next();
   }
 
   app.get("/admin", (req, res) => {
     if (!ADMIN_TOKEN) return res.status(500).send("ADMIN_TOKEN not configured. Set it in .env and restart.");
-    if (req.query.token !== ADMIN_TOKEN) return res.status(401).send("Unauthorized — pass ?token=YOUR_TOKEN");
+    if (req.query.token !== ADMIN_TOKEN) return res.status(401).send("Unauthorized — open /admin?token=YOUR_TOKEN once.");
     res.type("html").send(renderPage());
   });
 
