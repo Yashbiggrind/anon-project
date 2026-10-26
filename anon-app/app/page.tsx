@@ -1658,11 +1658,11 @@ export default function Home() {
               <span className="sep">/</span>
               <a className="footLink accent" href="/confession">◉ CONFESSION</a>
               <span className="sep">/</span>
-              <a className="footLink" href="/legal/privacy">{t("privacy")}</a>
+              <Link className="footLink" href="/legal/privacy">{t("privacy")}</Link>
               <span className="sep">/</span>
-              <a className="footLink" href="/legal/terms">{t("terms")}</a>
+              <Link className="footLink" href="/legal/terms">{t("terms")}</Link>
               <span className="sep">/</span>
-              <a className="footLink" href="/legal/rules">{t("rules")}</a>
+              <Link className="footLink" href="/legal/rules">{t("rules")}</Link>
             </div>
           </footer>
         </section>
