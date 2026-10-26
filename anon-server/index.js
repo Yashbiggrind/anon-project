@@ -774,7 +774,7 @@ io.on("connection", (socket) => {
 
     // A null/non-object payload can throw in handlers that destructure arguments.
     // Normalize malformed payloads so they fail normal validation instead of crashing a handler.
-    if (event.length > 1 && (event[1] === null || typeof event[1] !== "object")) event[1] = {};
+    if (event.length > 1 && (event[1] === null || (typeof event[1] !== "object" && typeof event[1] !== "function"))) event[1] = {};
 
     const s = sessions.get(socket.id);
     if (!s || !name) return next();
