@@ -99,6 +99,7 @@ type ReactionItem = { emoji: string; count: number; mine: boolean };
 
 type RoomSystemLine = {
   id: string;
+  roomId?: string;
   type: string;
   username?: string;
   by?: string;
@@ -204,7 +205,7 @@ export default function Home() {
     { id: string; type: string; username?: string; oldName?: string; at: number }[]
   >([]);
   const [openTime, setOpenTime] = useState<Record<string, boolean>>({});
-  const [reactions, setReactions] = useState<Record<string, { emoji: string; count: number; mine: boolean }[]>>({});
+  const [reactions, setReactions] = useState<Record<string, ReactionItem[]>>({});
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
 
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -535,7 +536,7 @@ export default function Home() {
 
     socket.on("room:update", (r: PrivateRoom) => { setRoom(r); setSection("private"); });
 
-    socket.on("room:system", (p: any) => {
+    socket.on("room:system", (p: { roomId: string; at?: number; type: string; username?: string; by?: string; to?: string; from?: string; topic?: string; seconds?: number; durationMs?: number }) => {
       setRoomSystemLines((prev) => [
         ...prev.slice(-9),
         { id: Math.random().toString(36).slice(2), ...p, at: p.at || Date.now() },
@@ -636,7 +637,7 @@ export default function Home() {
           startTransition(() => setMessages((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const merged = [...prev];
-            for (const m of pub) if (!seen.has(m.id)) merged.push(m as any);
+            for (const m of pub) if (!seen.has(m.id)) merged.push(m);
             return merged.slice(-500);
           }));
         }
@@ -732,8 +733,8 @@ export default function Home() {
 
   // Sync local messageLifetime from room object
   useEffect(() => {
-    if (room && typeof (room as any).messageLifetime === "number") {
-      setMessageLifetime((room as any).messageLifetime * 1000);
+    if (room && typeof room.messageLifetime === "number") {
+      setMessageLifetime(room.messageLifetime * 1000);
     }
   }, [room]);
   
@@ -1667,7 +1668,7 @@ export default function Home() {
                   aria-label={`${t("enter")} ${t(d.name)}`}
                 >
                   <div className="doorIcon">{d.icon}</div>
-                  <div className="doorName">{t(d.name as any)}</div>
+                  <div className="doorName">{t(d.name)}</div>
                   <div className="doorDesc">{t(d.desc)}</div>
                   <div className="doorEnter">→ {t("enter")}</div>
                 </button>
@@ -1817,11 +1818,9 @@ export default function Home() {
                         openTime={openTime}
                         reactions={reactions}
                         reactionPickerFor={reactionPickerFor}
-                        messageMenuFor={messageMenuFor}
                         onToggleTime={toggleTime}
                         onToggleReaction={toggleReaction}
                         onSetReactionPickerFor={setReactionPickerFor}
-                        onSetMessageMenuFor={setMessageMenuFor}
                         onStartReply={startReply}
                         onCopyMessage={copyMessage}
                         onStartEdit={startEdit}
@@ -1829,15 +1828,12 @@ export default function Home() {
                         onSubmitEdit={submitEdit}
                         onCancelEdit={cancelEdit}
                         onSetEditingText={setEditingText}
-                        onBlockUser={blockUser}
-                        onSetReportOpen={setReportOpen}
                         onOpenLightbox={setImageLightbox}
                         onOpenDm={openDm}
                         onOpenProfile={openProfile}
                         t={t}
                         timeShort={timeShort}
                         timeFull={timeFull}
-                        identity={identity}
                         REACTION_EMOJIS={REACTION_EMOJIS}
                         messageLifetime={messageLifetime}
                         nowTick={nowTick}
@@ -1992,7 +1988,7 @@ export default function Home() {
     onClick={() => setRoomLifetime(s)}
   >
     <span>{label}</span>
-    {(room as any)?.messageLifetime === s && <span className="settingsCheck">✓</span>}
+    {room?.messageLifetime === s && <span className="settingsCheck">✓</span>}
   </button>
 ))}
 <button className="purgeBtn" onClick={() => { setSettingsOpen(false); setPurgeOpen(true); }}>
@@ -2063,12 +2059,10 @@ export default function Home() {
                               openTime={openTime}
                               reactions={reactions}
                               reactionPickerFor={reactionPickerFor}
-                              messageMenuFor={messageMenuFor}
                               roomId={room?.roomId}
                               onToggleTime={toggleTime}
                               onToggleReaction={toggleReaction}
                               onSetReactionPickerFor={setReactionPickerFor}
-                              onSetMessageMenuFor={setMessageMenuFor}
                               onStartReply={startReply}
                               onCopyMessage={copyMessage}
                               onStartEdit={startEdit}
@@ -2076,15 +2070,12 @@ export default function Home() {
                               onSubmitEdit={submitEdit}
                               onCancelEdit={cancelEdit}
                               onSetEditingText={setEditingText}
-                              onBlockUser={blockUser}
-                              onSetReportOpen={setReportOpen}
                               onOpenLightbox={setImageLightbox}
                               onOpenDm={openDm}
                               onOpenProfile={openProfile}
                               t={t}
                               timeShort={timeShort}
                               timeFull={timeFull}
-                              identity={identity}
                               REACTION_EMOJIS={REACTION_EMOJIS}
                               messageLifetime={messageLifetime}
                               nowTick={nowTick}
@@ -2284,7 +2275,7 @@ export default function Home() {
                           >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
-                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{(r as any).mode === "ask" ? "ASK" : "OPEN"}</span></div>
+                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{r.mode === "ask" ? "ASK" : "OPEN"}</span></div>
                               <div className="discoverMeta">
                                 by {r.adminName}
                                 {r.slowMode > 0 && <span className="discoverSlow"> · ⏱ {r.slowMode}s</span>}
@@ -2690,16 +2681,45 @@ export default function Home() {
    v22 — Adds onOpenProfile.
    ============================================================ */
 const MessageBubble = memo(
+  type MessageBubbleProps = {
+  m: ChatMessage;
+  mine: boolean;
+  isEditing: boolean;
+  editingText: string;
+  openTime: Record<string, boolean>;
+  reactions: Record<string, ReactionItem[]>;
+  reactionPickerFor: string | null;
+  roomId?: string;
+  messageLifetime: number;
+  nowTick: number;
+  onToggleTime: (id: string) => void;
+  onToggleReaction: (messageId: string, emoji: string, roomId?: string) => void;
+  onSetReactionPickerFor: (value: string | null) => void;
+  onStartReply: (message: ChatMessage) => void;
+  onCopyMessage: (content: string) => void;
+  onStartEdit: (message: ChatMessage, roomId?: string) => void;
+  onDeleteMessage: (message: ChatMessage, roomId?: string) => void;
+  onSubmitEdit: () => void;
+  onCancelEdit: () => void;
+  onSetEditingText: (value: string) => void;
+  onOpenLightbox: (src: string) => void;
+  onOpenDm: (sessionId: string, username: string) => void;
+  onOpenProfile: (sessionId: string, username: string) => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  timeShort: (timestamp: number) => string;
+  timeFull: (timestamp: number) => string;
+};
+
+const MessageBubble = memo(
   function MessageBubble({
     m, mine, isEditing, editingText, openTime, reactions,
     reactionPickerFor, roomId, messageLifetime, nowTick,
     onToggleTime, onToggleReaction, onSetReactionPickerFor,
     onStartReply, onCopyMessage,
     onStartEdit, onDeleteMessage, onSubmitEdit, onCancelEdit,
-    onSetEditingText, onSetReportOpen,
-    onOpenLightbox, onOpenDm, onOpenProfile,
-    t, timeShort, timeFull, identity, REACTION_EMOJIS,
-  }: any) {
+    onSetEditingText, onOpenLightbox, onOpenDm, onOpenProfile,
+    t, timeShort, timeFull,
+  }: MessageBubbleProps) {
     const [swipeX, setSwipeX] = useState(0);
     const [showSheet, setShowSheet] = useState(false);
     const startX = useRef(0);
@@ -2822,7 +2842,7 @@ const MessageBubble = memo(
                   autoFocus
                   value={editingText}
                   onChange={(e) => onSetEditingText(e.target.value)}
-                  onKeyDown={(e: any) => {
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmitEdit(); }
                     if (e.key === "Escape") { e.preventDefault(); onCancelEdit(); }
                   }}
@@ -2911,22 +2931,5 @@ const MessageBubble = memo(
         )}
       </>
     );
-  },
-  (prev: any, next: any) => {
-    if (prev.m !== next.m) return false;
-    if (prev.messageLifetime !== next.messageLifetime) return false;
-    if (prev.nowTick !== next.nowTick) return false;
-    if (prev.mine !== next.mine) return false;
-    if (prev.isEditing !== next.isEditing) return false;
-    if (prev.isEditing && prev.editingText !== next.editingText) return false;
-    if (prev.reactionPickerFor !== next.reactionPickerFor) return false;
-    if (prev.roomId !== next.roomId) return false;
-    if (prev.openTime !== next.openTime) return false;
-    if (prev.reactions !== next.reactions) return false;
-    if (prev.identity !== next.identity) return false;
-    if (prev.t !== next.t) return false;
-    if (prev.timeShort !== next.timeShort) return false;
-    if (prev.timeFull !== next.timeFull) return false;
-    return true;
   }
 );
