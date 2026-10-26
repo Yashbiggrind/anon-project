@@ -148,9 +148,9 @@ export default function DataPage() {
       <style>{CSS}</style>
       <div className="dlRoot">
         <div className="dlHead">
-          <div className="eyebrow">// DATA LOG</div>
-          <h1>See what's on your device. Wipe it in one click.</h1>
-          <p>Everything below lives only in your browser. The server has no copy.</p>
+          <div className="eyebrow">{"// DATA LOG"}</div>
+          <h1>See what&apos;s on your device. Wipe it in one click.</h1>
+          <p>This report lists localStorage keys only. It does not include server-side connection metadata or active in-memory chat state.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
