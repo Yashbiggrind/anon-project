@@ -20,7 +20,7 @@ const RATE_INV = parseInt(process.env.RATE_INVITE_PER_MIN || "5", 10);
 const RATE_ROOM = parseInt(process.env.RATE_ROOM_CREATE_PER_MIN || "3", 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 if (IS_PRODUCTION) {
-  if (!CLIENT_ORIGINS.length || CLIENT_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes("*")) {
+  if (!CLIENT_ORIGINS.length || !SERVER_ORIGINS.length || CLIENT_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes("*")) {
     throw new Error("Production requires explicit CLIENT_ORIGIN and SERVER_ORIGIN allowlists; wildcards are not supported.");
   }
   if (ADMIN_TOKEN.length < 32 || /change-me|your-secret/i.test(ADMIN_TOKEN)) {
@@ -218,6 +218,14 @@ setInterval(() => {
 
 // ---------- express ----------
 const app = express();
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use(cors({ origin: corsOrigin, credentials: false }));
 app.use(express.json({ limit: "200kb" }));
 app.get("/", (req, res) => res.json({ ok: true, online: sessions.size, rooms: rooms.size }));
