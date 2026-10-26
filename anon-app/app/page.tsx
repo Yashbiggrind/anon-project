@@ -466,9 +466,9 @@ export default function Home() {
       return;
     }
     socketRef.current = socket;
-    setSocketForFeatures(socket);
 
     socket.on("connect", () => {
+      setSocketForFeatures(socket);
       setConnected(true);
       setIsOffline(false);
       socket.emit("blocked:list", {}, (res: ServerAck) => {
