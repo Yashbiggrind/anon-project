@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 
 const LS_KEY = "anon_consent_v1";
 
@@ -34,13 +35,13 @@ export default function ConsentBanner() {
               ANON does not require an account, email, or phone. For abuse prevention it retains a <b>keyed hash derived from your connection IP</b>, plus an ephemeral session ID, timestamps, and user-agent data, for up to <b>180 days</b>. This hash can link repeated connections, so it is pseudonymous—not a guarantee of complete anonymity. Chat history may be cached in this browser for up to 24 hours, and offline messages may remain until sent or cleared. When an AI bot generates a reply, relevant message text and limited context may be sent to configured third-party AI providers.
             </p>
             <div className="consentLinks">
-              <a href="/legal/terms" className="consentLink">Terms</a>
+              <Link href="/legal/terms" className="consentLink">Terms</Link>
               <span className="consentSep">·</span>
-              <a href="/legal/privacy" className="consentLink">Privacy</a>
+              <Link href="/legal/privacy" className="consentLink">Privacy</Link>
               <span className="consentSep">·</span>
-              <a href="/legal/grievance" className="consentLink">Grievance</a>
+              <Link href="/legal/grievance" className="consentLink">Grievance</Link>
             <span className="consentSep">·</span>
-            <a href="/data" className="consentLink">Data wipe</a>
+            <Link href="/data" className="consentLink">Data wipe</Link>
             </div>
           </div>
           <button className="consentBtn" onClick={accept} aria-label="Accept and continue">
