@@ -480,7 +480,7 @@ export default function Home() {
       setConnected(true);
       setIsOffline(false);
       socket.emit("blocked:list", {}, (res: ServerAck) => {
-        if (res?.ok) setBlockedList(res.blocked);
+        if (res?.ok) setBlockedList(res.blocked ?? []);
       });
       const sinceRaw = localStorage.getItem(LS_LAST_SEEN_PUBLIC);
       const since = sinceRaw ? parseInt(sinceRaw, 10) : 0;
@@ -1021,7 +1021,7 @@ export default function Home() {
 
   const startEdit = useCallback((m: ChatMessage, roomId?: string) => {
     setEditingId(m.id); setEditingText(m.content); setEditingRoomId(roomId ?? null);
-    setMessageMenuFor(null); setReplyTo(null);
+     setReplyTo(null);
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -1044,20 +1044,20 @@ export default function Home() {
     setMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
     setPrivateMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
     persistUpdate(m.id, { deleted: true, content: "" });
-    setMessageMenuFor(null);
+    
   }, []);
 
   const copyMessage = useCallback((content: string) => {
     try { navigator.clipboard?.writeText(content); showToast("Copied"); }
     catch { showToast("Copy failed"); }
-    setMessageMenuFor(null);
+    
   }, [showToast]);
 
   const blockUser = useCallback((sessionId: string, username: string) => {
     socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userBlocked", { name: username }), 2000);
-        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked); });
+        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       } else {
         showToast(res?.error || t("couldNotBlock"));
       }
@@ -1080,7 +1080,7 @@ export default function Home() {
 
     setDmMessages([]);
     setDmTypingFrom(null);
-    setMessageMenuFor(null);
+    
 
     setDmPanel({
       target: { sessionId: targetSessionId, username: targetUsername },
@@ -1088,7 +1088,7 @@ export default function Home() {
     });
 
     s.emit("dm:open", { targetSessionId }, (res: ServerAck) => {
-      if (!res?.ok) {
+      if (!res?.ok || !res.thread) {
         showToast(res?.error || "Could not open DM");
         setDmPanel(null);
         return;
@@ -1193,7 +1193,7 @@ export default function Home() {
         if (privateInputRef.current) privateInputRef.current.value = "";
       }
       setReplyTo(null);
-    } catch (err: ServerAck) { showToast(err?.message || "Image failed"); }
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Image failed"); }
     finally { setImageUploading(false); }
   }
 
@@ -1317,7 +1317,7 @@ export default function Home() {
   }
   function joinRoomById(roomId: string) {
     socketRef.current?.emit("room:join", { roomId }, (res: ServerAck) => {
-      if (!res?.ok) {
+      if (!res?.ok || !res.room) {
         showToast(res?.error || "Could not join room", 2500, "error");
         return;
       }
@@ -1339,7 +1339,7 @@ export default function Home() {
     const cap = Math.max(2, Math.min(10, Number(capacity) || 5));
     const topic = createTopic.trim().slice(0, 40);
     socketRef.current?.emit("room:create", { capacity: cap, topic }, (res: ServerAck) => {
-      if (!res?.ok) { showToast(res?.error || t("couldNotCreate")); return; }
+      if (!res?.ok || !res.room) { showToast(res?.error || t("couldNotCreate")); return; }
       setRoom(res.room);
       setPrivateMessages([]);
       setRoomSystemLines([]);
@@ -1364,7 +1364,7 @@ export default function Home() {
   }
   function acceptInvite(inv: Invite) {
     socketRef.current?.emit("invite:accept", { inviteId: inv.inviteId }, (res: ServerAck) => {
-      if (!res?.ok) { showToast(res?.error || t("couldNotAccept")); }
+      if (!res?.ok || !res.room) { showToast(res?.error || t("couldNotAccept")); }
       else {
         setRoom(res.room);
         setPrivateMessages([]);
@@ -1505,13 +1505,13 @@ export default function Home() {
     socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userUnblocked", { name: username }), 2000);
-        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked); });
+        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       }
     });
   }
   function refreshBlocked() {
     socketRef.current?.emit("blocked:list", {}, (res: ServerAck) => {
-      if (res?.ok) setBlockedList(res.blocked);
+      if (res?.ok) setBlockedList(res.blocked ?? []);
     });
   }
 
@@ -1883,7 +1883,6 @@ export default function Home() {
                         t={t}
                         timeShort={timeShort}
                         timeFull={timeFull}
-                        REACTION_EMOJIS={REACTION_EMOJIS}
                         messageLifetime={messageLifetime}
                         nowTick={nowTick}
                       />
@@ -2125,7 +2124,6 @@ export default function Home() {
                               t={t}
                               timeShort={timeShort}
                               timeFull={timeFull}
-                              REACTION_EMOJIS={REACTION_EMOJIS}
                               messageLifetime={messageLifetime}
                               nowTick={nowTick}
                             />
