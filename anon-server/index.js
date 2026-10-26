@@ -11,6 +11,8 @@ const PORT = parseInt(process.env.PORT || "4000", 10);
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || (IS_PRODUCTION ? "" : "http://localhost:3000"))
   .split(",").map((origin) => origin.trim()).filter(Boolean);
+const SERVER_ORIGINS = (process.env.SERVER_ORIGIN || "").split(",").map((origin) => origin.trim()).filter(Boolean);
+const ALLOWED_ORIGINS = [...new Set([...CLIENT_ORIGINS, ...SERVER_ORIGINS])];
 const TRUST_PROXY = process.env.TRUST_PROXY === "true";
 const MAX_MSG = parseInt(process.env.MAX_MSG_LENGTH || "1000", 10);
 const RATE_MSG = parseInt(process.env.RATE_MSG_PER_10S || "15", 10);
@@ -18,8 +20,8 @@ const RATE_INV = parseInt(process.env.RATE_INVITE_PER_MIN || "5", 10);
 const RATE_ROOM = parseInt(process.env.RATE_ROOM_CREATE_PER_MIN || "3", 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
 if (IS_PRODUCTION) {
-  if (!CLIENT_ORIGINS.length || CLIENT_ORIGINS.includes("*")) {
-    throw new Error("Production requires CLIENT_ORIGIN to list explicit allowed frontend origins.");
+  if (!CLIENT_ORIGINS.length || CLIENT_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes("*")) {
+    throw new Error("Production requires explicit CLIENT_ORIGIN and SERVER_ORIGIN allowlists; wildcards are not supported.");
   }
   if (ADMIN_TOKEN.length < 32 || /change-me|your-secret/i.test(ADMIN_TOKEN)) {
     throw new Error("Production requires ADMIN_TOKEN to be a unique random value of at least 32 characters.");
@@ -38,7 +40,7 @@ const PRIVATE_IP = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.1
 function corsOrigin(origin, cb) {
   // Non-browser clients may omit Origin; authorization is enforced separately.
   if (!origin) return cb(null, true);
-  if (CLIENT_ORIGINS.includes(origin)) return cb(null, true);
+  if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
   // LAN convenience is development-only and never overrides a production allowlist.
   if (!IS_PRODUCTION && PRIVATE_IP.test(origin)) return cb(null, true);
   return cb(new Error("CORS blocked"), false);
@@ -762,6 +764,17 @@ io.on("connection", (socket) => {
   db.logConnect(clientIp, session.sessionId, socket.handshake.headers["user-agent"] || "");
 
   socket.emit("session:ready", publicUser(session));
+  // Bound event-key cardinality: ignore unhandled event names before creating rate buckets.
+  const HANDLED_EVENTS = new Set([
+    "block:user", "blocked:list", "chat:public:image", "chat:public:send",
+    "confession:create", "confession:list", "confession:reply", "confession:vote",
+    "dm:close", "dm:open", "dm:send", "dm:typing", "election:vote",
+    "invite:accept", "invite:decline", "message:delete", "message:edit", "messages:since",
+    "reaction:toggle", "report:user", "room:clear-timeout", "room:create", "room:image",
+    "room:invite", "room:invites:list", "room:join", "room:kick", "room:leave", "room:list",
+    "room:message", "room:purge", "room:set-lifetime", "room:set-slowmode", "room:set-topic",
+    "room:timeout", "room:transfer-admin", "typing:public", "typing:room", "unblock:user", "user:rename"
+  ]);
   // v24.7 — global rate limit for sensitive actions
   const SENSITIVE_EVENTS = new Set([
     "room:kick", "room:purge", "room:set-lifetime", "room:set-topic",
@@ -777,7 +790,7 @@ io.on("connection", (socket) => {
     if (event.length > 1 && (event[1] === null || (typeof event[1] !== "object" && typeof event[1] !== "function"))) event[1] = {};
 
     const s = sessions.get(socket.id);
-    if (!s || !name) return next();
+    if (!s || !name || !HANDLED_EVENTS.has(name)) return next();
 
     // General per-event flood ceiling complements tighter action-specific limits below.
     const ack = event[event.length - 1];
@@ -2178,6 +2191,6 @@ server.listen(port, "0.0.0.0", () => {
     }
   }
   console.log("");
-  console.log(`  CORS allowed: ${CLIENT_ORIGINS.join(", ") || "none"}; proxy trust: ${TRUST_PROXY ? "enabled" : "disabled"}`);
+  console.log(`  CORS allowed: ${ALLOWED_ORIGINS.join(", ") || "none"}; proxy trust: ${TRUST_PROXY ? "enabled" : "disabled"}`);
   console.log("");
 });
