@@ -1156,15 +1156,21 @@ export default function Home() {
     const el = inputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text) return;
-    bumpSent();
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
-    if (el) el.value = "";
     if (!connected || isOffline) {
-      const q = enqueue(text);
-      setQueued((p) => [...p, q]);
-      setReplyTo(null);
+      try {
+        const q = enqueue(text);
+        setQueued((p) => [...p.filter((item) => item.id !== q.id), q]);
+        if (el) el.value = "";
+        bumpSent();
+        setReplyTo(null);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Could not queue this message.", 4500, "error");
+      }
       return;
     }
+    bumpSent();
+    if (el) el.value = "";
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const tempMsg: ChatMessage = {
       id: tempId,
