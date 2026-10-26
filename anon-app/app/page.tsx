@@ -1,6 +1,7 @@
 "use client";
 import "./anon.css";
 import { useEffect, useRef, useState, useCallback, startTransition, memo } from "react"
+import type { CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
 import ConfessionTab from "@/components/ConfessionTab";
@@ -67,8 +68,35 @@ type PrivateRoom = {
   slowMode: number;
   participants: RoomParticipant[];
   status: string;
+  messageLifetime?: number;
+  mode?: "ask" | "open";
 };
 type BlockedUser = { sessionId: string; username: string };
+type RoomListing = {
+  roomId: string;
+  topic: string;
+  adminName: string;
+  capacity: number;
+  occupancy: number;
+  full: boolean;
+  slowMode: number;
+  createdAt: number;
+  mode?: "ask" | "open";
+};
+type ServerAck = {
+  ok?: boolean;
+  error?: string;
+  id?: string;
+  username?: string;
+  blocked?: BlockedUser[];
+  messages?: ChatMessage[];
+  awayFor?: number;
+  room?: PrivateRoom;
+  rooms?: RoomListing[];
+  thread?: { threadId: string; messages: DMMessage[] };
+};
+type ReactionItem = { emoji: string; count: number; mine: boolean };
+
 type RoomSystemLine = {
   id: string;
   type: string;
@@ -148,11 +176,7 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   /* v20.8 — room discovery */
-  const [roomList, setRoomList] = useState<Array<{
-    roomId: string; topic: string; adminName: string;
-    capacity: number; occupancy: number; full: boolean;
-    slowMode: number; createdAt: number;
-  }>>([]);
+  const [roomList, setRoomList] = useState<RoomListing[]>([]);
   const [roomListLoading, setRoomListLoading] = useState(false);
   const [messageLifetime, setMessageLifetime] = useState(0);
   const [purgeOpen, setPurgeOpen] = useState(false);
@@ -418,13 +442,13 @@ export default function Home() {
     socket.on("connect", () => {
       setConnected(true);
       setIsOffline(false);
-      socket.emit("blocked:list", {}, (res: any) => {
+      socket.emit("blocked:list", {}, (res: ServerAck) => {
         if (res?.ok) setBlockedList(res.blocked);
       });
       const sinceRaw = localStorage.getItem(LS_LAST_SEEN_PUBLIC);
       const since = sinceRaw ? parseInt(sinceRaw, 10) : 0;
       if (Number.isFinite(since) && since > 0) {
-        socket.emit("messages:since", { since }, (res: any) => {
+        socket.emit("messages:since", { since }, (res: ServerAck) => {
           if (res?.ok && Array.isArray(res.messages) && res.messages.length > 0) {
             setMissed(res.messages);
             setWelcomeBack({ awayFor: res.awayFor || 0, count: res.messages.length });
@@ -437,7 +461,7 @@ export default function Home() {
         const sendNext = () => {
           if (i >= pendingMsgs.length) { setQueued([]); return; }
           const m = pendingMsgs[i];
-          socket.emit("chat:public:send", { content: m.content }, (ack: any) => {
+          socket.emit("chat:public:send", { content: m.content }, (ack: ServerAck) => {
             if (ack?.ok) removeQueue(m.id);
             i++;
             sendNext();
@@ -912,10 +936,10 @@ export default function Home() {
 
     const s = socketRef.current;
     if (!s) return;
-    const payload: any = { messageId, emoji };
+    const payload: { messageId: string; emoji: string; roomId?: string } = { messageId, emoji };
     if (roomId) payload.roomId = roomId;
     const doSend = () => {
-      s.emit("reaction:toggle", payload, (ack: any) => {
+      s.emit("reaction:toggle", payload, (ack: ServerAck) => {
         if (ack && ack.ok === false) {
           console.warn("[reaction] server rejected:", ack.error);
           setReactions((prev) => {
@@ -979,10 +1003,10 @@ export default function Home() {
   }, [showToast]);
 
   const blockUser = useCallback((sessionId: string, username: string) => {
-    socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: any) => {
+    socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userBlocked", { name: username }), 2000);
-        socketRef.current?.emit("blocked:list", {}, (r: any) => { if (r?.ok) setBlockedList(r.blocked); });
+        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked); });
       } else {
         showToast(res?.error || t("couldNotBlock"));
       }
@@ -1012,7 +1036,7 @@ export default function Home() {
       loading: true,
     });
 
-    s.emit("dm:open", { targetSessionId }, (res: any) => {
+    s.emit("dm:open", { targetSessionId }, (res: ServerAck) => {
       if (!res?.ok) {
         showToast(res?.error || "Could not open DM");
         setDmPanel(null);
@@ -1105,20 +1129,20 @@ export default function Home() {
       const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
       if (imageTarget === "public") {
         const caption = (inputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: any) => {
+        socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
         });
         if (inputRef.current) inputRef.current.value = "";
       } else {
         if (!room) { showToast("No room"); return; }
         const caption = (privateInputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: any) => {
+        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
         });
         if (privateInputRef.current) privateInputRef.current.value = "";
       }
       setReplyTo(null);
-    } catch (err: any) { showToast(err?.message || "Image failed"); }
+    } catch (err: ServerAck) { showToast(err?.message || "Image failed"); }
     finally { setImageUploading(false); }
   }
 
@@ -1135,7 +1159,7 @@ export default function Home() {
     localStorage.setItem(LS_LAST_OFFER, String(Date.now()));
     localStorage.removeItem(LS_PENDING);
     setNameOffer(null);
-    socketRef.current?.emit("user:rename", { username: newName }, (res: any) => {
+    socketRef.current?.emit("user:rename", { username: newName }, (res: ServerAck) => {
       if (res?.ok) showToast(t("youAreNow", { name: newName }));
     });
   }
@@ -1241,7 +1265,7 @@ export default function Home() {
     return favoriteRooms.some((r) => r.roomId === roomId);
   }
   function joinRoomById(roomId: string) {
-    socketRef.current?.emit("room:join", { roomId }, (res: any) => {
+    socketRef.current?.emit("room:join", { roomId }, (res: ServerAck) => {
       if (!res?.ok) {
         showToast(res?.error || "Could not join room", 2500, "error");
         return;
@@ -1263,7 +1287,7 @@ export default function Home() {
   function createRoom(capacity: number) {
     const cap = Math.max(2, Math.min(10, Number(capacity) || 5));
     const topic = createTopic.trim().slice(0, 40);
-    socketRef.current?.emit("room:create", { capacity: cap, topic }, (res: any) => {
+    socketRef.current?.emit("room:create", { capacity: cap, topic }, (res: ServerAck) => {
       if (!res?.ok) { showToast(res?.error || t("couldNotCreate")); return; }
       setRoom(res.room);
       setPrivateMessages([]);
@@ -1276,7 +1300,7 @@ export default function Home() {
   }
   function inviteToRoom(username: string) {
     if (!room || !socketRef.current) return;
-    socketRef.current.emit("room:invite", { roomId: room.roomId, recipientUsername: username }, (res: any) => {
+    socketRef.current.emit("room:invite", { roomId: room.roomId, recipientUsername: username }, (res: ServerAck) => {
       showToast(res?.ok ? t("invitationSentTo", { name: username }) : (res?.error || t("couldNotSend")));
     });
     setInviteOpen(false);
@@ -1288,7 +1312,7 @@ export default function Home() {
     setInviteManual("");
   }
   function acceptInvite(inv: Invite) {
-    socketRef.current?.emit("invite:accept", { inviteId: inv.inviteId }, (res: any) => {
+    socketRef.current?.emit("invite:accept", { inviteId: inv.inviteId }, (res: ServerAck) => {
       if (!res?.ok) { showToast(res?.error || t("couldNotAccept")); }
       else {
         setRoom(res.room);
@@ -1312,7 +1336,7 @@ export default function Home() {
 
   function kickMember(sessionId: string, username: string) {
     if (!room) return;
-    socketRef.current?.emit("room:kick", { roomId: room.roomId, targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("room:kick", { roomId: room.roomId, targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) showToast(`${username} was kicked.`, 2000);
       else showToast(res?.error || "Could not kick.");
     });
@@ -1321,7 +1345,7 @@ export default function Home() {
 
   function timeoutMember(sessionId: string, username: string, durationMs: number) {
     if (!room) return;
-    socketRef.current?.emit("room:timeout", { roomId: room.roomId, targetSessionId: sessionId, durationMs }, (res: any) => {
+    socketRef.current?.emit("room:timeout", { roomId: room.roomId, targetSessionId: sessionId, durationMs }, (res: ServerAck) => {
       if (res?.ok) {
         const mins = Math.round(durationMs / 60000);
         showToast(`${username} timed out for ${mins}m.`, 2000);
@@ -1334,7 +1358,7 @@ export default function Home() {
 
   function clearTimeoutFor(sessionId: string, username: string) {
     if (!room) return;
-    socketRef.current?.emit("room:clear-timeout", { roomId: room.roomId, targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("room:clear-timeout", { roomId: room.roomId, targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) showToast(`${username}'s timeout cleared.`, 2000);
       else showToast(res?.error || "Could not clear timeout.");
     });
@@ -1343,7 +1367,7 @@ export default function Home() {
 
   function transferAdminTo(sessionId: string, username: string) {
     if (!room) return;
-    socketRef.current?.emit("room:transfer-admin", { roomId: room.roomId, targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("room:transfer-admin", { roomId: room.roomId, targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) showToast(`${username} is now admin.`, 2500);
       else showToast(res?.error || "Could not transfer.");
     });
@@ -1364,7 +1388,7 @@ export default function Home() {
   function saveTopic() {
     if (!room) return;
     const next = topicDraft.trim().slice(0, 40);
-    socketRef.current?.emit("room:set-topic", { roomId: room.roomId, topic: next }, (res: any) => {
+    socketRef.current?.emit("room:set-topic", { roomId: room.roomId, topic: next }, (res: ServerAck) => {
       if (res?.ok) showToast("Room renamed", 1500);
       else showToast(res?.error || "Could not rename");
     });
@@ -1374,7 +1398,7 @@ export default function Home() {
 
   function setSlowMode(sec: number) {
     if (!room) return;
-    socketRef.current?.emit("room:set-slowmode", { roomId: room.roomId, seconds: sec }, (res: any) => {
+    socketRef.current?.emit("room:set-slowmode", { roomId: room.roomId, seconds: sec }, (res: ServerAck) => {
       if (res?.ok) showToast(sec === 0 ? "Slow mode off" : `Slow mode: ${sec}s`, 1500);
       else showToast(res?.error || "Could not set slow mode");
     });
@@ -1382,7 +1406,7 @@ export default function Home() {
   }
     function setRoomLifetime(seconds: number) {
     if (!room) return;
-    socketRef.current?.emit("room:set-lifetime", { roomId: room.roomId, seconds }, (res: any) => {
+    socketRef.current?.emit("room:set-lifetime", { roomId: room.roomId, seconds }, (res: ServerAck) => {
       if (res?.ok) setSettingsOpen(false);
       else showToast(res?.error || "Could not set lifetime", 2000, "error");
     });
@@ -1390,7 +1414,7 @@ export default function Home() {
 
   function purgeChat() {
     if (!room) return;
-    socketRef.current?.emit("room:purge", { roomId: room.roomId }, (res: any) => {
+    socketRef.current?.emit("room:purge", { roomId: room.roomId }, (res: ServerAck) => {
       if (res?.ok) setPurgeOpen(false);
       else showToast(res?.error || "Could not purge", 2000, "error");
     });
@@ -1401,7 +1425,7 @@ export default function Home() {
     const s = socketRef.current;
     if (!s) return;
     setRoomListLoading(true);
-    s.emit("room:list", {}, (res: any) => {
+    s.emit("room:list", {}, (res: ServerAck) => {
       setRoomListLoading(false);
       if (res?.ok && Array.isArray(res.rooms)) setRoomList(res.rooms);
     });
@@ -1427,15 +1451,15 @@ export default function Home() {
   }
 
   function unblockUser(sessionId: string, username: string) {
-    socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userUnblocked", { name: username }), 2000);
-        socketRef.current?.emit("blocked:list", {}, (r: any) => { if (r?.ok) setBlockedList(r.blocked); });
+        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked); });
       }
     });
   }
   function refreshBlocked() {
-    socketRef.current?.emit("blocked:list", {}, (res: any) => {
+    socketRef.current?.emit("blocked:list", {}, (res: ServerAck) => {
       if (res?.ok) setBlockedList(res.blocked);
     });
   }
@@ -1477,8 +1501,8 @@ export default function Home() {
               height: `${s.size}px`,
               animationDuration: `${s.duration}s`,
               animationDelay: `-${s.delay}s`,
-              ["--drift" as any]: `${s.drift}px`,
-            }}
+              "--drift": `${s.drift}px`,
+            } as CSSProperties}
           />
         ))}
       </div>
@@ -1640,11 +1664,11 @@ export default function Home() {
                   key={d.id}
                   className={`doorArch ${opening === d.id ? "opening" : ""}`}
                   onClick={() => openDoor(d.id)}
-                  aria-label={`${t("enter")} ${t(d.name as any)}`}
+                  aria-label={`${t("enter")} ${t(d.name)}`}
                 >
                   <div className="doorIcon">{d.icon}</div>
                   <div className="doorName">{t(d.name as any)}</div>
-                  <div className="doorDesc">{t(d.desc as any)}</div>
+                  <div className="doorDesc">{t(d.desc)}</div>
                   <div className="doorEnter">→ {t("enter")}</div>
                 </button>
               ))}
@@ -1964,7 +1988,7 @@ export default function Home() {
 ].map(({ s, label }) => (
   <button
     key={s}
-    className={`settingsOpt ${(room as any)?.messageLifetime === s ? "active" : ""}`}
+    className={`settingsOpt ${room?.messageLifetime === s ? "active" : ""}`}
     onClick={() => setRoomLifetime(s)}
   >
     <span>{label}</span>
@@ -2260,7 +2284,7 @@ export default function Home() {
                           >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
-                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${(r as any).mode === "ask" ? "ask" : "open"}`}>{(r as any).mode === "ask" ? "ASK" : "OPEN"}</span></div>
+                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{(r as any).mode === "ask" ? "ASK" : "OPEN"}</span></div>
                               <div className="discoverMeta">
                                 by {r.adminName}
                                 {r.slowMode > 0 && <span className="discoverSlow"> · ⏱ {r.slowMode}s</span>}
@@ -2823,7 +2847,7 @@ const MessageBubble = memo(
             {!isEditing && (
               <div className="msgFoot">
                 <div className="reactionRow">
-                  {(reactions[m.id] ?? []).map((r: any) => (
+                  {(reactions[m.id] ?? []).map((r: ServerAck) => (
                     <button
                       key={r.emoji}
                       className={`reactionPill ${r.mine ? "mine" : ""}`}
