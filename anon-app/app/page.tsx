@@ -145,7 +145,6 @@ export default function Home() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [connected, setConnected] = useState(false);
   const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -212,7 +211,6 @@ export default function Home() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
-  const [messageMenuFor, setMessageMenuFor] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -934,7 +932,6 @@ export default function Home() {
       if (!t) return;
       if (t.closest(".msgMenu, .reactionPicker, .settingsMenu, .emojiPicker, .langMenu, .memberMenu")) return;
       if (t.closest(".menuBtn, .reactionAdd, .settingsToggle, .emojiBtn, .langBtn, .memberRow, .msgNameLink")) return;
-      setMessageMenuFor(null);
       setReactionPickerFor(null);
       setSettingsOpen(false);
       setEmojiOpen(false);
@@ -1017,7 +1014,7 @@ export default function Home() {
   }, []);
 
   const startReply = useCallback((m: ChatMessage) => {
-    setReplyTo(m); setMessageMenuFor(null); setEditingId(null);
+    setReplyTo(m); setEditingId(null);
   }, []);
 
   const cancelReply = useCallback(() => { setReplyTo(null); }, []);
@@ -1521,7 +1518,6 @@ export default function Home() {
   const others = online.filter((u) => u.sessionId !== identity?.sessionId);
   const availableOthers = others.filter((u) => u.status !== "in-room");
   const isFull = room ? room.participants.length >= room.capacity : false;
-  const isHost = room ? room.host === identity?.sessionId : false;
 
   const visibleMessages = searchQuery.trim()
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.trim().toLowerCase()) || m.senderName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
