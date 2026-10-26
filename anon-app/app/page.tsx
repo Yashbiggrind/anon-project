@@ -157,7 +157,7 @@ export default function Home() {
   const [messageLifetime, setMessageLifetime] = useState(0);
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [burnFlash, setBurnFlash] = useState(false);
-  const [nowTick, setNowTick] = useState(Date.now());
+  const [nowTick, setNowTick] = useState(0);
   /* v22 — new feature state */
   const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
     const [favoriteRooms, setFavoriteRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
@@ -205,6 +205,7 @@ export default function Home() {
   const [welcomeBack, setWelcomeBack] = useState<{ awayFor: number; count: number } | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  const [socketForFeatures, setSocketForFeatures] = useState<Socket | null>(null);
   const msgsRef = useRef<HTMLDivElement>(null);
   const privMsgsRef = useRef<HTMLDivElement>(null);
   const lastTypingRef = useRef(0);
@@ -412,6 +413,7 @@ export default function Home() {
       return;
     }
     socketRef.current = socket;
+    setSocketForFeatures(socket);
 
     socket.on("connect", () => {
       setConnected(true);
@@ -680,6 +682,7 @@ export default function Home() {
   }, [privateMessages]);
   useEffect(() => {
     if (!room) return;
+    setNowTick(Date.now());
     const t = setInterval(() => setNowTick(Date.now()), 1000);
     return () => clearInterval(t);
   }, [room]);
@@ -996,8 +999,8 @@ export default function Home() {
   }, []);
 
   const openDm = useCallback((targetSessionId: string, targetUsername: string) => {
-    const s = socketRef.current;
-    if (!s) { showToast("Not connected"); return; }
+    const s = socketForFeatures;
+    if (!s?.connected) { showToast("Not connected"); return; }
     if (targetSessionId === identity?.sessionId) return;
 
     setDmMessages([]);
@@ -1022,7 +1025,7 @@ export default function Home() {
         loading: false,
       });
     });
-  }, [identity, showToast]);
+  }, [identity, showToast, socketForFeatures]);
 
   const closeDm = useCallback(() => {
     setDmPanel(null);
@@ -2124,7 +2127,7 @@ export default function Home() {
                           {room.participants.map((p) => {
                             const isMe = p.sessionId === identity?.sessionId;
                             const isPAdmin = p.isAdmin;
-                            const isTimedOut = p.timedOutUntil && p.timedOutUntil > Date.now();
+                            const isTimedOut = p.timedOutUntil && nowTick > 0 && p.timedOutUntil > nowTick;
                             const canModerate = isAdmin && !isMe;
                             const canDm = !isMe;
                             return (
@@ -2329,7 +2332,7 @@ export default function Home() {
             </section>
 
             <section className={`app-view ${section === "confession" ? "active" : ""}`}>
-              <ConfessionTab socket={socketRef.current} connected={connected} />
+              <ConfessionTab socket={socketForFeatures} connected={connected} />
             </section>
             <section className={`app-view ${section === "content" ? "active" : ""}`}>
               <div className="hero">
@@ -2780,7 +2783,7 @@ const MessageBubble = memo(
               </button>
               {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
               {roomId && messageLifetime > 0 && m.createdAt && !m.deleted && (() => {
-                const remaining = Math.max(0, m.createdAt + messageLifetime - (nowTick || Date.now()));
+                const remaining = Math.max(0, m.createdAt + messageLifetime - nowTick);
                 if (remaining <= 0) return null;
                 const sec = Math.floor(remaining / 1000);
                 const cls = remaining < 30000 ? "critical" : remaining < 300000 ? "warn" : "";
