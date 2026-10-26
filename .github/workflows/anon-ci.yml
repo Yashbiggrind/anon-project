@@ -1,0 +1,52 @@
+name: ANON CI
+
+on:
+  push:
+    branches:
+      - main
+      - "fix/**"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend integration tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+          cache-dependency-path: anon-server/package-lock.json
+      - name: Install backend dependencies
+        run: npm ci --prefix anon-server
+      - name: Run backend test suite
+        run: npm test --prefix anon-server
+
+  frontend:
+    name: Frontend lint and production build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+          cache-dependency-path: anon-app/package-lock.json
+      - name: Install frontend dependencies
+        run: npm ci --prefix anon-app
+      - name: Lint frontend
+        run: npm run lint --prefix anon-app
+      - name: Build frontend
+        run: npm run build --prefix anon-app
+        env:
+          NEXT_PUBLIC_SERVER_URL: https://anon-api.invalid
+          NEXT_TELEMETRY_DISABLED: "1"

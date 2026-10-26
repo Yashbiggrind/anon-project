@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 type Phase = "portal" | "visa" | "game1" | "game2" | "game3" | "gameover";
@@ -21,6 +21,8 @@ export default function Borderland() {
     { id: 3, name: "Bot_Beta", alive: true, isTraitor: false, action: "Standing still...", score: 0, votes: 0 },
     { id: 4, name: "Bot_Gamma", alive: true, isTraitor: false, action: "Sweating...", score: 0, votes: 0 }
   ]);
+  const playersRef = useRef(players);
+  useEffect(() => { playersRef.current = players; }, [players]);
 
   const log = (msg: string) => setLogs(prev => [...prev.slice(-4), msg]);
 
@@ -33,10 +35,6 @@ export default function Borderland() {
   // GAME 1: VOTING
   useEffect(() => {
     if (phase !== "game1") return;
-    setGameTimer(15);
-    setHasVoted(false);
-    log("Host: Vote for the weakest link. 15 seconds.");
-    
     const t = setInterval(() => {
       setGameTimer((p) => {
         if (p <= 1) {
@@ -44,12 +42,16 @@ export default function Borderland() {
           setPlayers(prev => {
             const alive = prev.filter(p => p.alive);
             const maxVotes = Math.max(...alive.map(p => p.votes));
-            let toDie = alive.filter(p => p.votes === maxVotes);
-            let victim = toDie.find(p => p.name === "You") || toDie[0];
+            const toDie = alive.filter(p => p.votes === maxVotes);
+            const victim = toDie.find(p => p.name === "You") || toDie[0];
             log("💥 " + victim.name + " was voted out.");
             const updated = prev.map(p => p.id === victim.id ? { ...p, alive: false, action: "VOTED OUT" } : p);
             if (victim.name === "You") setTimeout(() => { setWinner("The Bots"); setPhase("gameover"); }, 2000);
-            else setTimeout(() => { setPhase("game2"); setGameTimer(60); }, 3000);
+            else setTimeout(() => {
+              setGameTimer(60);
+              log("Host: Spam for 60 seconds. Lowest score dies.");
+              setPhase("game2");
+            }, 3000);
             return updated;
           });
           return 0;
@@ -63,9 +65,6 @@ export default function Borderland() {
   // GAME 2: 60 SECOND SPAM
   useEffect(() => {
     if (phase !== "game2") return;
-    setGameTimer(60);
-    log("Host: Spam for 60 seconds. Lowest score dies.");
-    
     const botSpam = setInterval(() => {
       setPlayers(prev => prev.map(p => p.name !== "You" && p.alive && Math.random() > 0.2 ? { ...p, score: p.score + 1, action: "Spamming!" } : p));
     }, 300);
@@ -99,24 +98,35 @@ export default function Borderland() {
   // GAME 3: TRAITOR
   useEffect(() => {
     if (phase !== "game3") return;
-    log("Host: One of you is a traitor. Find them.");
-    const traitor = players.find(p => p.isTraitor && p.alive);
-    if (!traitor) return;
 
-    const attackTimer = setTimeout(() => {
-      setPlayers(prev => {
-        const aliveTargets = prev.filter(p => !p.isTraitor && p.alive);
-        if (aliveTargets.length === 0) return prev;
-        const victim = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-        const updated = prev.map(p => p.id === victim.id ? { ...p, alive: false, action: "STABBED IN THE DARK" } : p);
-        log("🩸 " + victim.name + " was murdered.");
-        setClues(prev => [...prev, "Clue: A trail of dark pixels leads to the bottom right corner."]);
-        if (victim.name === "You") setTimeout(() => { setWinner("The Traitor"); setPhase("gameover"); }, 2000);
-        return updated;
-      });
+    const introTimer = window.setTimeout(() => {
+      log("Host: One of you is a traitor. Find them.");
+    }, 0);
+    const traitor = playersRef.current.find((player) => player.isTraitor && player.alive);
+    if (!traitor) return () => window.clearTimeout(introTimer);
+
+    const attackTimer = window.setTimeout(() => {
+      const currentPlayers = playersRef.current;
+      const aliveTargets = currentPlayers.filter((player) => !player.isTraitor && player.alive);
+      if (aliveTargets.length === 0) return;
+      const victim = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+      const updated = currentPlayers.map((player) =>
+        player.id === victim.id ? { ...player, alive: false, action: "STABBED IN THE DARK" } : player
+      );
+      playersRef.current = updated;
+      setPlayers(updated);
+      log("🩸 " + victim.name + " was murdered.");
+      setClues((current) => [...current, "Clue: A trail of dark pixels leads to the bottom right corner."]);
+      if (victim.name === "You") {
+        window.setTimeout(() => { setWinner("The Traitor"); setPhase("gameover"); }, 2000);
+      }
     }, 6000);
-    return () => clearTimeout(attackTimer);
-  }, [phase, players]);
+
+    return () => {
+      window.clearTimeout(introTimer);
+      window.clearTimeout(attackTimer);
+    };
+  }, [phase]);
 
   const spamClick = () => {
     if (gameTimer <= 0 || !players.find(p => p.name === "You")?.alive) return;
@@ -147,7 +157,12 @@ export default function Borderland() {
   );
 
   if (phase === "visa") return (
-    <div className="bl-visa-bg"><style>{BL_CSS}</style><div className="bl-visa-card"><div className="bl-visa-chip"></div><div className="bl-visa-header">BORDERLAND VISA</div><div className="bl-visa-number">#{playerNum.toString().padStart(3, '0')}</div><div className="bl-visa-timer"><span>TIME UNTIL CLOSURE</span>{formatTime(timer)}</div><div className="bl-visa-barcode">|||| |||| ||| |||| |||| ||</div></div><button className="bl-enter-btn" onClick={() => setPhase("game1")}>ENTER THE ARENA</button></div>
+    <div className="bl-visa-bg"><style>{BL_CSS}</style><div className="bl-visa-card"><div className="bl-visa-chip"></div><div className="bl-visa-header">BORDERLAND VISA</div><div className="bl-visa-number">#{playerNum.toString().padStart(3, '0')}</div><div className="bl-visa-timer"><span>TIME UNTIL CLOSURE</span>{formatTime(timer)}</div><div className="bl-visa-barcode">|||| |||| ||| |||| |||| ||</div></div><button className="bl-enter-btn" onClick={() => {
+            setGameTimer(15);
+            setHasVoted(false);
+            log("Host: Vote for the weakest link. 15 seconds.");
+            setPhase("game1");
+          }}>ENTER THE ARENA</button></div>
   );
 
   if (phase === "gameover") return (

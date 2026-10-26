@@ -1,6 +1,7 @@
 "use client";
 import "./anon.css";
 import { useEffect, useRef, useState, useCallback, startTransition, memo } from "react"
+import type { CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
 import ConfessionTab from "@/components/ConfessionTab";
@@ -67,10 +68,38 @@ type PrivateRoom = {
   slowMode: number;
   participants: RoomParticipant[];
   status: string;
+  messageLifetime?: number;
+  mode?: "ask" | "open";
 };
 type BlockedUser = { sessionId: string; username: string };
+type RoomListing = {
+  roomId: string;
+  topic: string;
+  adminName: string;
+  capacity: number;
+  occupancy: number;
+  full: boolean;
+  slowMode: number;
+  createdAt: number;
+  mode?: "ask" | "open";
+};
+type ServerAck = {
+  ok?: boolean;
+  error?: string;
+  id?: string;
+  username?: string;
+  blocked?: BlockedUser[];
+  messages?: ChatMessage[];
+  awayFor?: number;
+  room?: PrivateRoom;
+  rooms?: RoomListing[];
+  thread?: { threadId: string; messages: DMMessage[] };
+};
+type ReactionItem = { emoji: string; count: number; mine: boolean };
+
 type RoomSystemLine = {
   id: string;
+  roomId?: string;
   type: string;
   username?: string;
   by?: string;
@@ -108,6 +137,9 @@ export default function Home() {
   const [gone, setGone] = useState(false);
 
   const [lang, setLang] = useState<Lang>("en");
+  // Keep socket callbacks in sync with the active language.
+  const langRef = useRef<Lang>(lang);
+  useEffect(() => { langRef.current = lang; }, [lang]);
   const [langOpen, setLangOpen] = useState(false);
   const [muted, setMutedState] = useState(false);
 
@@ -116,7 +148,6 @@ export default function Home() {
   const [identity, setIdentity] = useState<Identity | null>(null);
   const [connected, setConnected] = useState(false);
   const [codeInput, setCodeInput] = useState("");
-  const [codeError, setCodeError] = useState("");
 
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -148,16 +179,12 @@ export default function Home() {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   /* v20.8 — room discovery */
-  const [roomList, setRoomList] = useState<Array<{
-    roomId: string; topic: string; adminName: string;
-    capacity: number; occupancy: number; full: boolean;
-    slowMode: number; createdAt: number;
-  }>>([]);
+  const [roomList, setRoomList] = useState<RoomListing[]>([]);
   const [roomListLoading, setRoomListLoading] = useState(false);
   const [messageLifetime, setMessageLifetime] = useState(0);
   const [purgeOpen, setPurgeOpen] = useState(false);
   const [burnFlash, setBurnFlash] = useState(false);
-  const [nowTick, setNowTick] = useState(Date.now());
+  const [nowTick, setNowTick] = useState(0);
   /* v22 — new feature state */
   const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
     const [favoriteRooms, setFavoriteRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
@@ -180,14 +207,13 @@ export default function Home() {
     { id: string; type: string; username?: string; oldName?: string; at: number }[]
   >([]);
   const [openTime, setOpenTime] = useState<Record<string, boolean>>({});
-  const [reactions, setReactions] = useState<Record<string, { emoji: string; count: number; mine: boolean }[]>>({});
+  const [reactions, setReactions] = useState<Record<string, ReactionItem[]>>({});
   const [reactionPickerFor, setReactionPickerFor] = useState<string | null>(null);
 
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
-  const [messageMenuFor, setMessageMenuFor] = useState<string | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [emojiOpen, setEmojiOpen] = useState(false);
@@ -205,6 +231,7 @@ export default function Home() {
   const [welcomeBack, setWelcomeBack] = useState<{ awayFor: number; count: number } | null>(null);
 
   const socketRef = useRef<Socket | null>(null);
+  const [socketForFeatures, setSocketForFeatures] = useState<Socket | null>(null);
   const msgsRef = useRef<HTMLDivElement>(null);
   const privMsgsRef = useRef<HTMLDivElement>(null);
   const lastTypingRef = useRef(0);
@@ -279,8 +306,10 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const savedMute = localStorage.getItem(LS_MUTED) === "1";
-    setMutedState(savedMute);
-    setMuted(savedMute);
+    const hydrateMuteTimer = window.setTimeout(() => {
+      setMutedState(savedMute);
+      setMuted(savedMute);
+    }, 0);
     const unlock = () => {
       unlockAudio();
       window.removeEventListener("click", unlock);
@@ -294,6 +323,7 @@ export default function Home() {
       window.removeEventListener("click", unlock);
       window.removeEventListener("keydown", unlock);
       window.removeEventListener("touchstart", unlock);
+      window.clearTimeout(hydrateMuteTimer);
     };
   }, []);
 
@@ -315,37 +345,56 @@ export default function Home() {
         return next;
       });
     };
-    update();
-    const tmr = setInterval(update, 4000);
-    return () => clearInterval(tmr);
+    const initialUpdate = window.setTimeout(update, 0);
+    const tmr = window.setInterval(update, 4000);
+    return () => {
+      window.clearTimeout(initialUpdate);
+      window.clearInterval(tmr);
+    };
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const update = () => setIsOffline(!navigator.onLine);
-    update();
+    const initialUpdate = window.setTimeout(update, 0);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     return () => {
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
+      window.clearTimeout(initialUpdate);
     };
   }, []);
 
-  useEffect(() => { setQueued(listQueue()); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQueued(listQueue()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("anon_recent_rooms");
-      if (raw) setRecentRooms(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const timer = window.setTimeout(() => {
+          if (Array.isArray(parsed)) setRecentRooms(parsed);
+        }, 0);
+        return () => window.clearTimeout(timer);
+      }
     } catch {}
   }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("anon_favorite_rooms");
-      if (raw) setFavoriteRooms(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const timer = window.setTimeout(() => {
+          if (Array.isArray(parsed)) setFavoriteRooms(parsed);
+        }, 0);
+        return () => window.clearTimeout(timer);
+      }
     } catch {}
   }, []);
   useEffect(() => {
@@ -358,7 +407,7 @@ export default function Home() {
     if (typeof window === "undefined") return;
 
     const savedLang = localStorage.getItem(LS_LANG) as Lang | null;
-    if (savedLang && LANGUAGES.some((l) => l.code === savedLang)) setLang(savedLang);
+    const validSavedLang = savedLang && LANGUAGES.some((l) => l.code === savedLang) ? savedLang : null;
 
     const now = Date.now();
     const savedName = localStorage.getItem(LS_USERNAME) || "";
@@ -384,37 +433,62 @@ export default function Home() {
       localStorage.removeItem(LS_PENDING);
       pending = null;
     }
-    if (now - lastOffer >= SEVEN_DAYS) {
-      if (!pending) {
-        pending = { a: makeRandomName(), b: makeRandomName(), shownAt: now };
-        localStorage.setItem(LS_PENDING, JSON.stringify(pending));
-      }
-      setNameOffer({ a: pending.a, b: pending.b });
-    }
+    const nextNameOffer = now - lastOffer >= SEVEN_DAYS
+      ? (() => {
+          if (!pending) {
+            pending = { a: makeRandomName(), b: makeRandomName(), shownAt: now };
+            localStorage.setItem(LS_PENDING, JSON.stringify(pending));
+          }
+          return { a: pending.a, b: pending.b };
+        })()
+      : null;
 
-    const socket = io(serverUrl(), {
-      auth: savedName ? { username: savedName } : {},
-      transports: ["websocket", "polling"],
-      upgrade: true,
-      reconnection: true,
-      reconnectionAttempts: 50,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      forceNew: true,
-    });
+    const stateHydrationTimer = window.setTimeout(() => {
+      if (validSavedLang) setLang(validSavedLang);
+      if (nextNameOffer) setNameOffer(nextNameOffer);
+    }, 0);
+
+    let socket: Socket;
+    try {
+      socket = io(serverUrl(), {
+        auth: savedName ? { username: savedName } : {},
+        transports: ["websocket", "polling"],
+        upgrade: true,
+        reconnection: true,
+        reconnectionAttempts: 50,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        forceNew: true,
+      });
+    } catch (error) {
+      console.error("[ANON] Backend configuration error:", error);
+      // Defer the toast state update and cancel both timers if the page unmounts.
+      const toastTimer = window.setTimeout(() => {
+        showToast(
+          "Chat server configuration is missing or invalid. Please try again later.",
+          5000,
+          "error"
+        );
+      }, 0);
+      return () => {
+        window.clearTimeout(stateHydrationTimer);
+        window.clearTimeout(toastTimer);
+      };
+    }
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      setSocketForFeatures(socket);
       setConnected(true);
       setIsOffline(false);
-      socket.emit("blocked:list", {}, (res: any) => {
-        if (res?.ok) setBlockedList(res.blocked);
+      socket.emit("blocked:list", {}, (res: ServerAck) => {
+        if (res?.ok) setBlockedList(res.blocked ?? []);
       });
       const sinceRaw = localStorage.getItem(LS_LAST_SEEN_PUBLIC);
       const since = sinceRaw ? parseInt(sinceRaw, 10) : 0;
       if (Number.isFinite(since) && since > 0) {
-        socket.emit("messages:since", { since }, (res: any) => {
+        socket.emit("messages:since", { since }, (res: ServerAck) => {
           if (res?.ok && Array.isArray(res.messages) && res.messages.length > 0) {
             setMissed(res.messages);
             setWelcomeBack({ awayFor: res.awayFor || 0, count: res.messages.length });
@@ -427,7 +501,7 @@ export default function Home() {
         const sendNext = () => {
           if (i >= pendingMsgs.length) { setQueued([]); return; }
           const m = pendingMsgs[i];
-          socket.emit("chat:public:send", { content: m.content }, (ack: any) => {
+          socket.emit("chat:public:send", { content: m.content }, (ack: ServerAck) => {
             if (ack?.ok) removeQueue(m.id);
             i++;
             sendNext();
@@ -483,23 +557,25 @@ export default function Home() {
     socket.on("message:edited", ({ messageId, content, editedAt }: { messageId: string; content: string; editedAt: number }) => {
       setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
       setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
+      void persistUpdate(messageId, { content, editedAt });
     });
 
     socket.on("message:deleted", ({ messageId }: { messageId: string }) => {
-      setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)));
-      setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)));
+      setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
+      setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
+      void persistUpdate(messageId, { deleted: true, content: "", image: undefined });
     });
 
     socket.on("invite:received", (inv: Invite) => {
       playSound("invite");
       setInvites((p) => [...p, inv]);
-      showToast(libTranslate(lang, "invitationReceived", { name: inv.from.username, cap: inv.capacity }), 3000);
+      showToast(libTranslate(langRef.current, "invitationReceived", { name: inv.from.username, cap: inv.capacity }), 3000);
     });
-    socket.on("invite:declined", () => showToast(libTranslate(lang, "invitationDeclined")));
+    socket.on("invite:declined", () => showToast(libTranslate(langRef.current, "invitationDeclined")));
 
     socket.on("room:update", (r: PrivateRoom) => { setRoom(r); setSection("private"); });
 
-    socket.on("room:system", (p: any) => {
+    socket.on("room:system", (p: { roomId: string; at?: number; type: string; username?: string; by?: string; to?: string; from?: string; topic?: string; seconds?: number; durationMs?: number }) => {
       setRoomSystemLines((prev) => [
         ...prev.slice(-9),
         { id: Math.random().toString(36).slice(2), ...p, at: p.at || Date.now() },
@@ -552,12 +628,13 @@ export default function Home() {
     });
 
     socket.on("room:ended", (e: { reason: string }) => {
-      // v24.5 — messages persist in localStorage; only admin purge or lifetime will remove them
+      const endedRoomId = roomRef.current?.roomId;
+      if (endedRoomId) void persistClearScope("room", endedRoomId);
       setRoom(null); setPrivateMessages([]); setInviteOpen(false);
       setRoomSystemLines([]);
       setMemberMenuFor(null);
       const key = e.reason?.toLowerCase().includes("disconnect") ? "roomEndedDisconnected" : "roomEndedLeft";
-      showToast(libTranslate(lang, key), 3000);
+      showToast(libTranslate(langRef.current, key), 3000);
     });
 
     socket.on("dm:message", (m: DMMessage) => {
@@ -584,8 +661,11 @@ export default function Home() {
       });
     });
 
-    return () => { socket.disconnect(); };
-  }, []);
+    return () => {
+      window.clearTimeout(stateHydrationTimer);
+      socket.disconnect();
+    };
+  }, [showToast]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -599,7 +679,7 @@ export default function Home() {
           startTransition(() => setMessages((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const merged = [...prev];
-            for (const m of pub) if (!seen.has(m.id)) merged.push(m as any);
+            for (const m of pub) if (!seen.has(m.id)) merged.push(m);
             return merged.slice(-500);
           }));
         }
@@ -607,7 +687,7 @@ export default function Home() {
           startTransition(() => setPrivateMessages((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const merged = [...prev];
-            for (const m of roomMsgs) if (!seen.has(m.id)) merged.push(m as any);
+            for (const m of roomMsgs) if (!seen.has(m.id)) merged.push(m);
             return merged.slice(-500);
           }));
         }
@@ -620,84 +700,98 @@ export default function Home() {
     const el = msgsRef.current;
     if (!el) return;
 
-    const prevLen = pubPrevLenRef.current;
-    const curLen = messages.length;
-    pubPrevLenRef.current = curLen;
+    const previousLength = pubPrevLenRef.current;
+    const currentLength = messages.length;
+    pubPrevLenRef.current = currentLength;
 
-    if (!pubInitRef.current && curLen > 0) {
+    if (!pubInitRef.current && currentLength > 0) {
       pubInitRef.current = true;
       el.scrollTop = el.scrollHeight;
       return;
     }
+    if (currentLength <= previousLength) return;
 
-    if (curLen <= prevLen) return;
-
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    if (near) {
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottom) {
       el.scrollTop = el.scrollHeight;
-    } else {
-      const latest = messages[curLen - 1];
-      if (latest && !latest.localSent) setScrollBadge((n) => n + 1);
-      setShowScrollBtn(true);
+      return;
     }
+
+    const latest = messages[currentLength - 1];
+    const updateTimer = window.setTimeout(() => {
+      if (latest && !latest.localSent) setScrollBadge((count) => count + 1);
+      setShowScrollBtn(true);
+    }, 0);
+    return () => window.clearTimeout(updateTimer);
   }, [messages]);
 
   useEffect(() => {
     const el = privMsgsRef.current;
     if (!el) return;
 
-    const prevLen = privPrevLenRef.current;
-    const curLen = privateMessages.length;
-    privPrevLenRef.current = curLen;
+    const previousLength = privPrevLenRef.current;
+    const currentLength = privateMessages.length;
+    privPrevLenRef.current = currentLength;
 
-    if (!privInitRef.current && curLen > 0) {
+    if (!privInitRef.current && currentLength > 0) {
       privInitRef.current = true;
       el.scrollTop = el.scrollHeight;
       return;
     }
+    if (currentLength <= previousLength) return;
 
-    if (curLen <= prevLen) return;
-
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    if (near) {
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottom) {
       el.scrollTop = el.scrollHeight;
-    } else {
-      const latest = privateMessages[curLen - 1];
-      if (latest && !latest.localSent) setPrivateScrollBadge((n) => n + 1);
-      setShowPrivateScrollBtn(true);
+      return;
     }
-  }, [privateMessages]);
-  useEffect(() => {
-    if (!room) return;
-    const t = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, [room]);
 
-  // Auto-remove expired messages when lifetime is on
+    const latest = privateMessages[currentLength - 1];
+    const updateTimer = window.setTimeout(() => {
+      if (latest && !latest.localSent) setPrivateScrollBadge((count) => count + 1);
+      setShowPrivateScrollBtn(true);
+    }, 0);
+    return () => window.clearTimeout(updateTimer);
+  }, [privateMessages]);
+
+  useEffect(() => {
+    const initialTick = window.setTimeout(() => setNowTick(Date.now()), 0);
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => {
+      window.clearTimeout(initialTick);
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  // Auto-remove expired messages from both the visible list and IndexedDB.
   useEffect(() => {
     if (!room || !messageLifetime) return;
-    const cut = Date.now() - messageLifetime;
-    setPrivateMessages((prev) => {
-      const expired = prev.filter((m) => m.createdAt < cut);
-      if (expired.length === 0) return prev;
-      expired.forEach((m) => {
-        const el = document.querySelector(`[data-mid="${m.id}"]`);
-        if (el) el.classList.add("expiring");
-      });
-      setTimeout(() => {
-        setPrivateMessages((p) => p.filter((m) => m.createdAt >= cut));
-      }, 800);
-      return prev;
-    });
-  }, [nowTick, messageLifetime, room]);
+    const cutoff = Date.now() - messageLifetime;
+    const expired = privateMessages.filter((message) => message.createdAt < cutoff);
+    if (expired.length === 0) return;
 
-  // Sync local messageLifetime from room object
-  useEffect(() => {
-    if (room && typeof (room as any).messageLifetime === "number") {
-      setMessageLifetime((room as any).messageLifetime * 1000);
+    for (const message of expired) {
+      const element = document.querySelector('[data-mid="' + message.id + '"]');
+      if (element) element.classList.add("expiring");
+      void persistRemove(message.id);
     }
+
+    const expiredIds = new Set(expired.map((message) => message.id));
+    const timer = window.setTimeout(() => {
+      setPrivateMessages((current) => current.filter((message) =>
+        !expiredIds.has(message.id) && message.createdAt >= cutoff
+      ));
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [nowTick, messageLifetime, room, privateMessages]);
+
+  // Synchronize the local timer display when room settings change.
+  useEffect(() => {
+    if (!room || typeof room.messageLifetime !== "number") return;
+    const timer = window.setTimeout(() => setMessageLifetime(room.messageLifetime! * 1000), 0);
+    return () => window.clearTimeout(timer);
   }, [room]);
-  
+
   useEffect(() => { roomRef.current = room; }, [room]);
   useEffect(() => {
     const el = dmMsgsRef.current;
@@ -719,8 +813,16 @@ export default function Home() {
   useEffect(() => {
     const tmr = setInterval(() => {
       const cut = Date.now() - 60 * 60 * 1000;
-      setMessages((p) => p.map((m) => (m.image && m.createdAt < cut ? { ...m, image: undefined } : m)));
-      setPrivateMessages((p) => p.map((m) => (m.image && m.createdAt < cut ? { ...m, image: undefined } : m)));
+      setMessages((p) => p.map((m) => {
+        if (!m.image || m.createdAt >= cut) return m;
+        void persistUpdate(m.id, { image: undefined });
+        return { ...m, image: undefined };
+      }));
+      setPrivateMessages((p) => p.map((m) => {
+        if (!m.image || m.createdAt >= cut) return m;
+        void persistUpdate(m.id, { image: undefined });
+        return { ...m, image: undefined };
+      }));
     }, 60 * 1000);
     return () => clearInterval(tmr);
   }, []);
@@ -833,7 +935,6 @@ export default function Home() {
       if (!t) return;
       if (t.closest(".msgMenu, .reactionPicker, .settingsMenu, .emojiPicker, .langMenu, .memberMenu")) return;
       if (t.closest(".menuBtn, .reactionAdd, .settingsToggle, .emojiBtn, .langBtn, .memberRow, .msgNameLink")) return;
-      setMessageMenuFor(null);
       setReactionPickerFor(null);
       setSettingsOpen(false);
       setEmojiOpen(false);
@@ -889,10 +990,10 @@ export default function Home() {
 
     const s = socketRef.current;
     if (!s) return;
-    const payload: any = { messageId, emoji };
+    const payload: { messageId: string; emoji: string; roomId?: string } = { messageId, emoji };
     if (roomId) payload.roomId = roomId;
     const doSend = () => {
-      s.emit("reaction:toggle", payload, (ack: any) => {
+      s.emit("reaction:toggle", payload, (ack: ServerAck) => {
         if (ack && ack.ok === false) {
           console.warn("[reaction] server rejected:", ack.error);
           setReactions((prev) => {
@@ -916,14 +1017,14 @@ export default function Home() {
   }, []);
 
   const startReply = useCallback((m: ChatMessage) => {
-    setReplyTo(m); setMessageMenuFor(null); setEditingId(null);
+    setReplyTo(m); setEditingId(null);
   }, []);
 
   const cancelReply = useCallback(() => { setReplyTo(null); }, []);
 
   const startEdit = useCallback((m: ChatMessage, roomId?: string) => {
     setEditingId(m.id); setEditingText(m.content); setEditingRoomId(roomId ?? null);
-    setMessageMenuFor(null); setReplyTo(null);
+     setReplyTo(null);
   }, []);
 
   const cancelEdit = useCallback(() => {
@@ -946,20 +1047,20 @@ export default function Home() {
     setMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
     setPrivateMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
     persistUpdate(m.id, { deleted: true, content: "" });
-    setMessageMenuFor(null);
+    
   }, []);
 
   const copyMessage = useCallback((content: string) => {
     try { navigator.clipboard?.writeText(content); showToast("Copied"); }
     catch { showToast("Copy failed"); }
-    setMessageMenuFor(null);
+    
   }, [showToast]);
 
   const blockUser = useCallback((sessionId: string, username: string) => {
-    socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: any) => {
+    socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userBlocked", { name: username }), 2000);
-        socketRef.current?.emit("blocked:list", {}, (r: any) => { if (r?.ok) setBlockedList(r.blocked); });
+        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       } else {
         showToast(res?.error || t("couldNotBlock"));
       }
@@ -976,21 +1077,21 @@ export default function Home() {
   }, []);
 
   const openDm = useCallback((targetSessionId: string, targetUsername: string) => {
-    const s = socketRef.current;
-    if (!s) { showToast("Not connected"); return; }
+    const s = socketForFeatures;
+    if (!s?.connected) { showToast("Not connected"); return; }
     if (targetSessionId === identity?.sessionId) return;
 
     setDmMessages([]);
     setDmTypingFrom(null);
-    setMessageMenuFor(null);
+    
 
     setDmPanel({
       target: { sessionId: targetSessionId, username: targetUsername },
       loading: true,
     });
 
-    s.emit("dm:open", { targetSessionId }, (res: any) => {
-      if (!res?.ok) {
+    s.emit("dm:open", { targetSessionId }, (res: ServerAck) => {
+      if (!res?.ok || !res.thread) {
         showToast(res?.error || "Could not open DM");
         setDmPanel(null);
         return;
@@ -1002,7 +1103,7 @@ export default function Home() {
         loading: false,
       });
     });
-  }, [identity, showToast]);
+  }, [identity, showToast, socketForFeatures]);
 
   const closeDm = useCallback(() => {
     setDmPanel(null);
@@ -1082,20 +1183,20 @@ export default function Home() {
       const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
       if (imageTarget === "public") {
         const caption = (inputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: any) => {
+        socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
         });
         if (inputRef.current) inputRef.current.value = "";
       } else {
         if (!room) { showToast("No room"); return; }
         const caption = (privateInputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: any) => {
+        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
         });
         if (privateInputRef.current) privateInputRef.current.value = "";
       }
       setReplyTo(null);
-    } catch (err: any) { showToast(err?.message || "Image failed"); }
+    } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Image failed"); }
     finally { setImageUploading(false); }
   }
 
@@ -1112,7 +1213,7 @@ export default function Home() {
     localStorage.setItem(LS_LAST_OFFER, String(Date.now()));
     localStorage.removeItem(LS_PENDING);
     setNameOffer(null);
-    socketRef.current?.emit("user:rename", { username: newName }, (res: any) => {
+    socketRef.current?.emit("user:rename", { username: newName }, (res: ServerAck) => {
       if (res?.ok) showToast(t("youAreNow", { name: newName }));
     });
   }
@@ -1136,15 +1237,21 @@ export default function Home() {
     const el = inputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text) return;
-    bumpSent();
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
-    if (el) el.value = "";
     if (!connected || isOffline) {
-      const q = enqueue(text);
-      setQueued((p) => [...p, q]);
-      setReplyTo(null);
+      try {
+        const q = enqueue(text);
+        setQueued((p) => [...p.filter((item) => item.id !== q.id), q]);
+        if (el) el.value = "";
+        bumpSent();
+        setReplyTo(null);
+      } catch (error) {
+        showToast(error instanceof Error ? error.message : "Could not queue this message.", 4500, "error");
+      }
       return;
     }
+    bumpSent();
+    if (el) el.value = "";
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const tempMsg: ChatMessage = {
       id: tempId,
@@ -1186,7 +1293,7 @@ export default function Home() {
   /* v22 — recent rooms + join + profile helpers */
   function rememberRoom(room: { roomId: string; topic?: string }) {
     try {
-      const entry = { roomId: room.roomId, topic: room.topic || "Untitled", at: Date.now() };
+      const entry = { roomId: room.roomId, topic: room.topic || "Untitled", at: nowTick };
       const next = [entry, ...recentRooms.filter((r) => r.roomId !== room.roomId)].slice(0, 5);
       setRecentRooms(next);
       localStorage.setItem("anon_recent_rooms", JSON.stringify(next));
@@ -1202,7 +1309,7 @@ export default function Home() {
     const exists = favoriteRooms.some((r) => r.roomId === room.roomId);
     const next = exists
       ? favoriteRooms.filter((r) => r.roomId !== room.roomId)
-      : [{ roomId: room.roomId, topic: room.topic || "Untitled", at: Date.now() }, ...favoriteRooms].slice(0, 20);
+      : [{ roomId: room.roomId, topic: room.topic || "Untitled", at: nowTick }, ...favoriteRooms].slice(0, 20);
     setFavoriteRooms(next);
     try { localStorage.setItem("anon_favorite_rooms", JSON.stringify(next)); } catch {}
     showToast(exists ? "Removed from favourites" : "⭐ Added to favourites", 1500, exists ? "info" : "success");
@@ -1212,8 +1319,8 @@ export default function Home() {
     return favoriteRooms.some((r) => r.roomId === roomId);
   }
   function joinRoomById(roomId: string) {
-    socketRef.current?.emit("room:join", { roomId }, (res: any) => {
-      if (!res?.ok) {
+    socketRef.current?.emit("room:join", { roomId }, (res: ServerAck) => {
+      if (!res?.ok || !res.room) {
         showToast(res?.error || "Could not join room", 2500, "error");
         return;
       }
@@ -1234,8 +1341,8 @@ export default function Home() {
   function createRoom(capacity: number) {
     const cap = Math.max(2, Math.min(10, Number(capacity) || 5));
     const topic = createTopic.trim().slice(0, 40);
-    socketRef.current?.emit("room:create", { capacity: cap, topic }, (res: any) => {
-      if (!res?.ok) { showToast(res?.error || t("couldNotCreate")); return; }
+    socketRef.current?.emit("room:create", { capacity: cap, topic }, (res: ServerAck) => {
+      if (!res?.ok || !res.room) { showToast(res?.error || t("couldNotCreate")); return; }
       setRoom(res.room);
       setPrivateMessages([]);
       setRoomSystemLines([]);
@@ -1247,7 +1354,7 @@ export default function Home() {
   }
   function inviteToRoom(username: string) {
     if (!room || !socketRef.current) return;
-    socketRef.current.emit("room:invite", { roomId: room.roomId, recipientUsername: username }, (res: any) => {
+    socketRef.current.emit("room:invite", { roomId: room.roomId, recipientUsername: username }, (res: ServerAck) => {
       showToast(res?.ok ? t("invitationSentTo", { name: username }) : (res?.error || t("couldNotSend")));
     });
     setInviteOpen(false);
@@ -1259,8 +1366,8 @@ export default function Home() {
     setInviteManual("");
   }
   function acceptInvite(inv: Invite) {
-    socketRef.current?.emit("invite:accept", { inviteId: inv.inviteId }, (res: any) => {
-      if (!res?.ok) { showToast(res?.error || t("couldNotAccept")); }
+    socketRef.current?.emit("invite:accept", { inviteId: inv.inviteId }, (res: ServerAck) => {
+      if (!res?.ok || !res.room) { showToast(res?.error || t("couldNotAccept")); }
       else {
         setRoom(res.room);
         setPrivateMessages([]);
@@ -1283,7 +1390,7 @@ export default function Home() {
 
   function kickMember(sessionId: string, username: string) {
     if (!room) return;
-    socketRef.current?.emit("room:kick", { roomId: room.roomId, targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("room:kick", { roomId: room.roomId, targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) showToast(`${username} was kicked.`, 2000);
       else showToast(res?.error || "Could not kick.");
     });
@@ -1292,7 +1399,7 @@ export default function Home() {
 
   function timeoutMember(sessionId: string, username: string, durationMs: number) {
     if (!room) return;
-    socketRef.current?.emit("room:timeout", { roomId: room.roomId, targetSessionId: sessionId, durationMs }, (res: any) => {
+    socketRef.current?.emit("room:timeout", { roomId: room.roomId, targetSessionId: sessionId, durationMs }, (res: ServerAck) => {
       if (res?.ok) {
         const mins = Math.round(durationMs / 60000);
         showToast(`${username} timed out for ${mins}m.`, 2000);
@@ -1305,7 +1412,7 @@ export default function Home() {
 
   function clearTimeoutFor(sessionId: string, username: string) {
     if (!room) return;
-    socketRef.current?.emit("room:clear-timeout", { roomId: room.roomId, targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("room:clear-timeout", { roomId: room.roomId, targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) showToast(`${username}'s timeout cleared.`, 2000);
       else showToast(res?.error || "Could not clear timeout.");
     });
@@ -1314,7 +1421,7 @@ export default function Home() {
 
   function transferAdminTo(sessionId: string, username: string) {
     if (!room) return;
-    socketRef.current?.emit("room:transfer-admin", { roomId: room.roomId, targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("room:transfer-admin", { roomId: room.roomId, targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) showToast(`${username} is now admin.`, 2500);
       else showToast(res?.error || "Could not transfer.");
     });
@@ -1335,7 +1442,7 @@ export default function Home() {
   function saveTopic() {
     if (!room) return;
     const next = topicDraft.trim().slice(0, 40);
-    socketRef.current?.emit("room:set-topic", { roomId: room.roomId, topic: next }, (res: any) => {
+    socketRef.current?.emit("room:set-topic", { roomId: room.roomId, topic: next }, (res: ServerAck) => {
       if (res?.ok) showToast("Room renamed", 1500);
       else showToast(res?.error || "Could not rename");
     });
@@ -1345,7 +1452,7 @@ export default function Home() {
 
   function setSlowMode(sec: number) {
     if (!room) return;
-    socketRef.current?.emit("room:set-slowmode", { roomId: room.roomId, seconds: sec }, (res: any) => {
+    socketRef.current?.emit("room:set-slowmode", { roomId: room.roomId, seconds: sec }, (res: ServerAck) => {
       if (res?.ok) showToast(sec === 0 ? "Slow mode off" : `Slow mode: ${sec}s`, 1500);
       else showToast(res?.error || "Could not set slow mode");
     });
@@ -1353,7 +1460,7 @@ export default function Home() {
   }
     function setRoomLifetime(seconds: number) {
     if (!room) return;
-    socketRef.current?.emit("room:set-lifetime", { roomId: room.roomId, seconds }, (res: any) => {
+    socketRef.current?.emit("room:set-lifetime", { roomId: room.roomId, seconds }, (res: ServerAck) => {
       if (res?.ok) setSettingsOpen(false);
       else showToast(res?.error || "Could not set lifetime", 2000, "error");
     });
@@ -1361,7 +1468,7 @@ export default function Home() {
 
   function purgeChat() {
     if (!room) return;
-    socketRef.current?.emit("room:purge", { roomId: room.roomId }, (res: any) => {
+    socketRef.current?.emit("room:purge", { roomId: room.roomId }, (res: ServerAck) => {
       if (res?.ok) setPurgeOpen(false);
       else showToast(res?.error || "Could not purge", 2000, "error");
     });
@@ -1372,7 +1479,7 @@ export default function Home() {
     const s = socketRef.current;
     if (!s) return;
     setRoomListLoading(true);
-    s.emit("room:list", {}, (res: any) => {
+    s.emit("room:list", {}, (res: ServerAck) => {
       setRoomListLoading(false);
       if (res?.ok && Array.isArray(res.rooms)) setRoomList(res.rooms);
     });
@@ -1398,23 +1505,22 @@ export default function Home() {
   }
 
   function unblockUser(sessionId: string, username: string) {
-    socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: any) => {
+    socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userUnblocked", { name: username }), 2000);
-        socketRef.current?.emit("blocked:list", {}, (r: any) => { if (r?.ok) setBlockedList(r.blocked); });
+        socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       }
     });
   }
   function refreshBlocked() {
-    socketRef.current?.emit("blocked:list", {}, (res: any) => {
-      if (res?.ok) setBlockedList(res.blocked);
+    socketRef.current?.emit("blocked:list", {}, (res: ServerAck) => {
+      if (res?.ok) setBlockedList(res.blocked ?? []);
     });
   }
 
   const others = online.filter((u) => u.sessionId !== identity?.sessionId);
   const availableOthers = others.filter((u) => u.status !== "in-room");
   const isFull = room ? room.participants.length >= room.capacity : false;
-  const isHost = room ? room.host === identity?.sessionId : false;
 
   const visibleMessages = searchQuery.trim()
     ? messages.filter((m) => m.content.toLowerCase().includes(searchQuery.trim().toLowerCase()) || m.senderName.toLowerCase().includes(searchQuery.trim().toLowerCase()))
@@ -1448,8 +1554,8 @@ export default function Home() {
               height: `${s.size}px`,
               animationDuration: `${s.duration}s`,
               animationDelay: `-${s.delay}s`,
-              ["--drift" as any]: `${s.drift}px`,
-            }}
+              "--drift": `${s.drift}px`,
+            } as CSSProperties}
           />
         ))}
       </div>
@@ -1496,7 +1602,7 @@ export default function Home() {
                 <circle cx="38" cy="22" r="1.5" fill="#ff2d55"/>
               </svg>
               <div className="brandText">
-                <div className="brandLogo">ANON<i>//</i></div>
+                <div className="brandLogo">ANON<i>{"//"}</i></div>
                 <div className="brandTag">{t("brandTagline")}</div>
               </div>
             </div>
@@ -1574,7 +1680,7 @@ export default function Home() {
 
             <div className="heroGrid">
               <div className="heroLeft">
-                <h1 className="bigLogo">ANON<i>//</i></h1>
+                <h1 className="bigLogo">ANON<i>{"//"}</i></h1>
                 <div className="bigTag">{t("brandTagline")}</div>
 
                 <div className="anonPanel">
@@ -1611,11 +1717,11 @@ export default function Home() {
                   key={d.id}
                   className={`doorArch ${opening === d.id ? "opening" : ""}`}
                   onClick={() => openDoor(d.id)}
-                  aria-label={`${t("enter")} ${t(d.name as any)}`}
+                  aria-label={`${t("enter")} ${t(d.name)}`}
                 >
                   <div className="doorIcon">{d.icon}</div>
-                  <div className="doorName">{t(d.name as any)}</div>
-                  <div className="doorDesc">{t(d.desc as any)}</div>
+                  <div className="doorName">{t(d.name)}</div>
+                  <div className="doorDesc">{t(d.desc)}</div>
                   <div className="doorEnter">→ {t("enter")}</div>
                 </button>
               ))}
@@ -1629,11 +1735,11 @@ export default function Home() {
               <span className="sep">/</span>
               <a className="footLink accent" href="/confession">◉ CONFESSION</a>
               <span className="sep">/</span>
-              <a className="footLink" href="/legal/privacy">{t("privacy")}</a>
+              <Link className="footLink" href="/legal/privacy">{t("privacy")}</Link>
               <span className="sep">/</span>
-              <a className="footLink" href="/legal/terms">{t("terms")}</a>
+              <Link className="footLink" href="/legal/terms">{t("terms")}</Link>
               <span className="sep">/</span>
-              <a className="footLink" href="/legal/rules">{t("rules")}</a>
+              <Link className="footLink" href="/legal/rules">{t("rules")}</Link>
             </div>
           </footer>
         </section>
@@ -1643,7 +1749,7 @@ export default function Home() {
         <div className="app in" style={{ display: "block" }}>
           <header className="app-head">
             <button className="back" onClick={goBack} title={t("backTitle")}>←</button>
-            <div className="app-brand">ANON<i>//</i></div>
+            <div className="app-brand">ANON<i>{"//"}</i></div>
             <nav className="app-nav">
               {(["chat", "private", "content"] as Section[]).map((v) => (
                 <button key={v} className={section === v ? "active" : ""} onClick={() => setSection(v)}>
@@ -1764,11 +1870,9 @@ export default function Home() {
                         openTime={openTime}
                         reactions={reactions}
                         reactionPickerFor={reactionPickerFor}
-                        messageMenuFor={messageMenuFor}
                         onToggleTime={toggleTime}
                         onToggleReaction={toggleReaction}
                         onSetReactionPickerFor={setReactionPickerFor}
-                        onSetMessageMenuFor={setMessageMenuFor}
                         onStartReply={startReply}
                         onCopyMessage={copyMessage}
                         onStartEdit={startEdit}
@@ -1776,16 +1880,12 @@ export default function Home() {
                         onSubmitEdit={submitEdit}
                         onCancelEdit={cancelEdit}
                         onSetEditingText={setEditingText}
-                        onBlockUser={blockUser}
-                        onSetReportOpen={setReportOpen}
                         onOpenLightbox={setImageLightbox}
                         onOpenDm={openDm}
                         onOpenProfile={openProfile}
                         t={t}
                         timeShort={timeShort}
                         timeFull={timeFull}
-                        identity={identity}
-                        REACTION_EMOJIS={REACTION_EMOJIS}
                         messageLifetime={messageLifetime}
                         nowTick={nowTick}
                       />
@@ -1935,11 +2035,11 @@ export default function Home() {
 ].map(({ s, label }) => (
   <button
     key={s}
-    className={`settingsOpt ${(room as any)?.messageLifetime === s ? "active" : ""}`}
+    className={`settingsOpt ${room?.messageLifetime === s ? "active" : ""}`}
     onClick={() => setRoomLifetime(s)}
   >
     <span>{label}</span>
-    {(room as any)?.messageLifetime === s && <span className="settingsCheck">✓</span>}
+    {room?.messageLifetime === s && <span className="settingsCheck">✓</span>}
   </button>
 ))}
 <button className="purgeBtn" onClick={() => { setSettingsOpen(false); setPurgeOpen(true); }}>
@@ -2010,12 +2110,10 @@ export default function Home() {
                               openTime={openTime}
                               reactions={reactions}
                               reactionPickerFor={reactionPickerFor}
-                              messageMenuFor={messageMenuFor}
                               roomId={room?.roomId}
                               onToggleTime={toggleTime}
                               onToggleReaction={toggleReaction}
                               onSetReactionPickerFor={setReactionPickerFor}
-                              onSetMessageMenuFor={setMessageMenuFor}
                               onStartReply={startReply}
                               onCopyMessage={copyMessage}
                               onStartEdit={startEdit}
@@ -2023,16 +2121,12 @@ export default function Home() {
                               onSubmitEdit={submitEdit}
                               onCancelEdit={cancelEdit}
                               onSetEditingText={setEditingText}
-                              onBlockUser={blockUser}
-                              onSetReportOpen={setReportOpen}
                               onOpenLightbox={setImageLightbox}
                               onOpenDm={openDm}
                               onOpenProfile={openProfile}
                               t={t}
                               timeShort={timeShort}
                               timeFull={timeFull}
-                              identity={identity}
-                              REACTION_EMOJIS={REACTION_EMOJIS}
                               messageLifetime={messageLifetime}
                               nowTick={nowTick}
                             />
@@ -2098,7 +2192,7 @@ export default function Home() {
                           {room.participants.map((p) => {
                             const isMe = p.sessionId === identity?.sessionId;
                             const isPAdmin = p.isAdmin;
-                            const isTimedOut = p.timedOutUntil && p.timedOutUntil > Date.now();
+                            const isTimedOut = p.timedOutUntil && nowTick > 0 && p.timedOutUntil > nowTick;
                             const canModerate = isAdmin && !isMe;
                             const canDm = !isMe;
                             return (
@@ -2231,7 +2325,7 @@ export default function Home() {
                           >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
-                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${(r as any).mode === "ask" ? "ask" : "open"}`}>{(r as any).mode === "ask" ? "ASK" : "OPEN"}</span></div>
+                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{r.mode === "ask" ? "ASK" : "OPEN"}</span></div>
                               <div className="discoverMeta">
                                 by {r.adminName}
                                 {r.slowMode > 0 && <span className="discoverSlow"> · ⏱ {r.slowMode}s</span>}
@@ -2303,7 +2397,7 @@ export default function Home() {
             </section>
 
             <section className={`app-view ${section === "confession" ? "active" : ""}`}>
-              <ConfessionTab socket={socketRef.current} identity={identity} connected={connected} />
+              <ConfessionTab socket={socketForFeatures} connected={connected} />
             </section>
             <section className={`app-view ${section === "content" ? "active" : ""}`}>
               <div className="hero">
@@ -2483,6 +2577,7 @@ export default function Home() {
       {imageLightbox && (
         <div className="lightbox" onClick={() => setImageLightbox(null)}>
           <button className="lightboxClose" onClick={() => setImageLightbox(null)}>✕</button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- inline image URL cannot be optimized by next/image */}
           <img src={imageLightbox} alt="preview" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
@@ -2636,6 +2731,35 @@ export default function Home() {
    v20.7 — Adds onOpenDm + click-to-DM on avatar.
    v22 — Adds onOpenProfile.
    ============================================================ */
+type MessageBubbleProps = {
+  m: ChatMessage;
+  mine: boolean;
+  isEditing: boolean;
+  editingText: string;
+  openTime: Record<string, boolean>;
+  reactions: Record<string, ReactionItem[]>;
+  reactionPickerFor: string | null;
+  roomId?: string;
+  messageLifetime: number;
+  nowTick: number;
+  onToggleTime: (id: string) => void;
+  onToggleReaction: (messageId: string, emoji: string, roomId?: string) => void;
+  onSetReactionPickerFor: (value: string | null) => void;
+  onStartReply: (message: ChatMessage) => void;
+  onCopyMessage: (content: string) => void;
+  onStartEdit: (message: ChatMessage, roomId?: string) => void;
+  onDeleteMessage: (message: ChatMessage, roomId?: string) => void;
+  onSubmitEdit: () => void;
+  onCancelEdit: () => void;
+  onSetEditingText: (value: string) => void;
+  onOpenLightbox: (src: string) => void;
+  onOpenDm: (sessionId: string, username: string) => void;
+  onOpenProfile: (sessionId: string, username: string) => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  timeShort: (timestamp: number) => string;
+  timeFull: (timestamp: number) => string;
+};
+
 const MessageBubble = memo(
   function MessageBubble({
     m, mine, isEditing, editingText, openTime, reactions,
@@ -2643,10 +2767,9 @@ const MessageBubble = memo(
     onToggleTime, onToggleReaction, onSetReactionPickerFor,
     onStartReply, onCopyMessage,
     onStartEdit, onDeleteMessage, onSubmitEdit, onCancelEdit,
-    onSetEditingText, onSetReportOpen,
-    onOpenLightbox, onOpenDm, onOpenProfile,
-    t, timeShort, timeFull, identity, REACTION_EMOJIS,
-  }: any) {
+    onSetEditingText, onOpenLightbox, onOpenDm, onOpenProfile,
+    t, timeShort, timeFull,
+  }: MessageBubbleProps) {
     const [swipeX, setSwipeX] = useState(0);
     const [showSheet, setShowSheet] = useState(false);
     const startX = useRef(0);
@@ -2754,7 +2877,7 @@ const MessageBubble = memo(
               </button>
               {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
               {roomId && messageLifetime > 0 && m.createdAt && !m.deleted && (() => {
-                const remaining = Math.max(0, m.createdAt + messageLifetime - (nowTick || Date.now()));
+                const remaining = Math.max(0, m.createdAt + messageLifetime - nowTick);
                 if (remaining <= 0) return null;
                 const sec = Math.floor(remaining / 1000);
                 const cls = remaining < 30000 ? "critical" : remaining < 300000 ? "warn" : "";
@@ -2769,7 +2892,7 @@ const MessageBubble = memo(
                   autoFocus
                   value={editingText}
                   onChange={(e) => onSetEditingText(e.target.value)}
-                  onKeyDown={(e: any) => {
+                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
                     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); onSubmitEdit(); }
                     if (e.key === "Escape") { e.preventDefault(); onCancelEdit(); }
                   }}
@@ -2783,6 +2906,7 @@ const MessageBubble = memo(
               <>
                 {m.image && (
                   <div className="imageBubble" onClick={() => onOpenLightbox(m.image!)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- shared image URL cannot be optimized by next/image */}
                     <img src={m.image} alt="shared" loading="lazy" />
                     <div className="imageMeta">🎞️ RAM only · 60 min</div>
                   </div>
@@ -2794,7 +2918,7 @@ const MessageBubble = memo(
             {!isEditing && (
               <div className="msgFoot">
                 <div className="reactionRow">
-                  {(reactions[m.id] ?? []).map((r: any) => (
+                  {(reactions[m.id] ?? []).map((r) => (
                     <button
                       key={r.emoji}
                       className={`reactionPill ${r.mine ? "mine" : ""}`}
@@ -2858,22 +2982,5 @@ const MessageBubble = memo(
         )}
       </>
     );
-  },
-  (prev: any, next: any) => {
-    if (prev.m !== next.m) return false;
-    if (prev.messageLifetime !== next.messageLifetime) return false;
-    if (prev.nowTick !== next.nowTick) return false;
-    if (prev.mine !== next.mine) return false;
-    if (prev.isEditing !== next.isEditing) return false;
-    if (prev.isEditing && prev.editingText !== next.editingText) return false;
-    if (prev.reactionPickerFor !== next.reactionPickerFor) return false;
-    if (prev.roomId !== next.roomId) return false;
-    if (prev.openTime !== next.openTime) return false;
-    if (prev.reactions !== next.reactions) return false;
-    if (prev.identity !== next.identity) return false;
-    if (prev.t !== next.t) return false;
-    if (prev.timeShort !== next.timeShort) return false;
-    if (prev.timeFull !== next.timeFull) return false;
-    return true;
   }
 );

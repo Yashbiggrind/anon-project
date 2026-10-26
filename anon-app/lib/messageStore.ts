@@ -57,11 +57,14 @@ function openDb(): Promise<IDBDatabase> {
 async function tx<T>(mode: IDBTransactionMode, fn: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
   const db = await openDb();
   return new Promise((resolve, reject) => {
-    const t = db.transaction(STORE, mode);
-    const store = t.objectStore(STORE);
-    const req = fn(store);
-    req.onsuccess = () => resolve(req.result as T);
-    req.onerror = () => reject(req.error || new Error("IndexedDB tx failed"));
+    const transaction = db.transaction(STORE, mode);
+    const request = fn(transaction.objectStore(STORE));
+    let result: T;
+    request.onsuccess = () => { result = request.result as T; };
+    request.onerror = () => reject(request.error || new Error("IndexedDB request failed"));
+    transaction.oncomplete = () => resolve(result);
+    transaction.onerror = () => reject(transaction.error || new Error("IndexedDB transaction failed"));
+    transaction.onabort = () => reject(transaction.error || new Error("IndexedDB transaction aborted"));
   });
 }
 
@@ -80,7 +83,13 @@ export async function loadMessages(scope: "public" | "room", roomId?: string): P
     const all = await tx<StoredMessage[]>("readonly", (s) => s.getAll());
     const now = Date.now();
 
-    // Filter by scope, prune by TTL, apply image rule
+    // Enforce TTL in storage as well as in the returned view.
+    const expiredIds = all.filter((m) => now - m.createdAt > TTL_MS).map((m) => m.id);
+    await Promise.all(expiredIds.map((id) => removeMessage(id)));
+
+    const expiredImages = all.filter((m) => m.image && now - m.createdAt > IMAGE_TTL_MS);
+    await Promise.all(expiredImages.map((m) => updateMessage(m.id, { image: undefined })));
+
     const filtered = all
       .filter((m) => {
         if (m.scope !== scope) return false;
@@ -89,10 +98,7 @@ export async function loadMessages(scope: "public" | "room", roomId?: string): P
         return true;
       })
       .map((m) => {
-        // Strip images older than 60 min
-        if (m.image && now - m.createdAt > IMAGE_TTL_MS) {
-          return { ...m, image: undefined };
-        }
+        if (m.image && now - m.createdAt > IMAGE_TTL_MS) return { ...m, image: undefined };
         return m;
       })
       .sort((a, b) => a.createdAt - b.createdAt)
@@ -127,27 +133,43 @@ export async function removeMessage(id: string): Promise<void> {
 /** Clear everything for a scope. */
 export async function clearScope(scope: "public" | "room", roomId?: string): Promise<void> {
   try {
-    const all = await tx<StoredMessage[]>("readonly", (s) => s.getAll());
+    const all = await tx<StoredMessage[]>("readonly", (store) => store.getAll());
     const db = await openDb();
-    const t = db.transaction(STORE, "readwrite");
-    const store = t.objectStore(STORE);
-    for (const m of all) {
-      if (m.scope !== scope) continue;
-      if (scope === "room" && m.roomId !== roomId) continue;
-      store.delete(m.id);
-    }
+    await new Promise<void>((resolve, reject) => {
+      const transaction = db.transaction(STORE, "readwrite");
+      const store = transaction.objectStore(STORE);
+      for (const message of all) {
+        if (message.scope !== scope) continue;
+        if (scope === "room" && message.roomId !== roomId) continue;
+        store.delete(message.id);
+      }
+      transaction.oncomplete = () => resolve();
+      transaction.onerror = () => reject(transaction.error || new Error("IndexedDB clear failed"));
+      transaction.onabort = () => reject(transaction.error || new Error("IndexedDB clear aborted"));
+    });
   } catch {
-    /* ignore */
+    /* Keep the UI responsive if browser storage is unavailable. */
   }
 }
 
-/** Nuke everything. Used by "Clear history" button. */
+/** Delete every stored message and wait for the IndexedDB transaction to complete. */
 export async function clearAll(): Promise<void> {
-  try {
-    await tx("readwrite", (s) => s.clear());
-  } catch {
-    /* ignore */
+  await tx("readwrite", (store) => store.clear());
+}
+
+/** Close the app's database handle and delete the database during an explicit full wipe. */
+export async function destroyStore(): Promise<void> {
+  if (typeof window === "undefined" || !("indexedDB" in window)) return;
+  if (dbPromise) {
+    try { (await dbPromise).close(); } catch { /* failed opening is already handled by caller */ }
   }
+  dbPromise = null;
+  await new Promise<void>((resolve, reject) => {
+    const request = indexedDB.deleteDatabase(DB_NAME);
+    request.onsuccess = () => resolve();
+    request.onerror = () => reject(request.error || new Error("Could not delete local message database"));
+    request.onblocked = () => reject(new Error("Another ANON tab is using the local database. Close other ANON tabs and retry the wipe."));
+  });
 }
 
 /** Stats for /data page. */

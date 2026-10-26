@@ -5,19 +5,31 @@ const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const DB_PATH = path.join(__dirname, "anon.db");
-const IP_HASH_SECRET = process.env.IP_HASH_SECRET || "change-me-in-env";
+const DB_PATH = process.env.ANON_DB_PATH || path.join(__dirname, "anon.db");
+const CONFIGURED_IP_HASH_SECRET = String(process.env.IP_HASH_SECRET || "").trim();
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+if (IS_PRODUCTION && (CONFIGURED_IP_HASH_SECRET.length < 32 || /change-me|your-secret/i.test(CONFIGURED_IP_HASH_SECRET))) {
+  throw new Error("Production requires IP_HASH_SECRET to be a unique random secret of at least 32 characters.");
+}
+// A process-local random secret keeps development usable without a hard-coded persistent key.
+const IP_HASH_SECRET = CONFIGURED_IP_HASH_SECRET || crypto.randomBytes(32).toString("hex");
 const RETENTION_DAYS = 180;
 
 let db = null;
 let ready = false;
 
 // ---- IP hashing (HMAC-SHA256, 32 hex chars = 128 bits) ----
+function normalizeIp(rawIp) {
+  const ip = String(rawIp || "").trim().toLowerCase();
+  if (!ip) return "unknown";
+  // Treat IPv4-mapped IPv6 addresses consistently with their IPv4 form.
+  return ip.startsWith("::ffff:") ? ip.slice(7) : ip.slice(0, 64);
+}
+
 function hashIp(rawIp) {
-  if (!rawIp) return "unknown";
   return crypto
     .createHmac("sha256", IP_HASH_SECRET)
-    .update(String(rawIp))
+    .update(normalizeIp(rawIp))
     .digest("hex")
     .slice(0, 32);
 }
@@ -74,10 +86,49 @@ function init() {
       CREATE INDEX IF NOT EXISTS idx_sessions_session ON sessions_log(session_id);
     `);
     try { db.exec("ALTER TABLE reports ADD COLUMN target_username TEXT"); } catch { /* exists */ }
+
+    // Migrate legacy raw-IP strike keys to keyed hashes without discarding moderation state.
+    // Enable secure_delete before removing old rows, then compact the database if migration was needed.
+    db.exec("PRAGMA secure_delete = ON");
+    const legacyIpKeys = db.prepare("SELECT * FROM strikes WHERE spam_key LIKE 'ip:%'").all();
+    const upsertHashedStrike = db.prepare(`
+      INSERT INTO strikes
+        (spam_key, count, level, last_offense, cooldown_until, shadow_banned_until, warnings_shown, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(spam_key) DO UPDATE SET
+        count = MAX(strikes.count, excluded.count),
+        level = MAX(strikes.level, excluded.level),
+        last_offense = MAX(strikes.last_offense, excluded.last_offense),
+        cooldown_until = MAX(strikes.cooldown_until, excluded.cooldown_until),
+        shadow_banned_until = MAX(strikes.shadow_banned_until, excluded.shadow_banned_until),
+        warnings_shown = MAX(strikes.warnings_shown, excluded.warnings_shown),
+        updated_at = MAX(strikes.updated_at, excluded.updated_at)
+    `);
+    const deleteLegacyStrike = db.prepare("DELETE FROM strikes WHERE spam_key = ?");
+    let migratedLegacyKeys = 0;
+    for (const row of legacyIpKeys) {
+      const oldKey = String(row.spam_key || "");
+      if (!oldKey.startsWith("ip:") || /^ip:[a-f0-9]{32}$/i.test(oldKey)) continue;
+      const hashedKey = "ip:" + hashIp(oldKey.slice(3));
+      upsertHashedStrike.run(
+        hashedKey, row.count || 0, row.level || 0, row.last_offense || 0,
+        row.cooldown_until || 0, row.shadow_banned_until || 0,
+        row.warnings_shown || 0, row.updated_at || Date.now()
+      );
+      deleteLegacyStrike.run(oldKey);
+      migratedLegacyKeys += 1;
+    }
+    if (migratedLegacyKeys > 0) {
+      // This reduces residual deleted-cell data in the active DB file; it cannot erase
+      // older deployment backups, copied databases, or hosting-provider logs.
+      db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      db.exec("VACUUM");
+      console.log(`[db] migrated ${migratedLegacyKeys} legacy IP-based strike key(s)`);
+    }
+
     ready = true;
     console.log("[db] ready at", DB_PATH);
-    console.log("[db] IP retention: 180 days, HMAC secret =",
-      IP_HASH_SECRET === "change-me-in-env" ? "DEFAULT (change in .env!)" : "set");
+    console.log("[db] connection-metadata retention: 180 days; HMAC secret =", CONFIGURED_IP_HASH_SECRET ? "configured" : "ephemeral development key");
   } catch (err) {
     console.error("[db] failed to initialize:", err.message);
     console.error(err.stack);

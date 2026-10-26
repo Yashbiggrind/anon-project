@@ -42,9 +42,6 @@ export default function BorderlandProto() {
   // --- GAME 1: THE WEAKEST LINK (VOTING) ---
   useEffect(() => {
     if (phase !== "game1") return;
-    setGameTimer(10);
-    setHasVoted(false);
-    
     const t = setInterval(() => {
       setGameTimer((p) => {
         if (p <= 1) {
@@ -67,7 +64,7 @@ export default function BorderlandProto() {
             if (victim.name === "You") {
               setTimeout(() => { setWinner("The Bots"); setPhase("gameover"); }, 2000);
             } else {
-              setTimeout(() => { setPhase("game2"); setGameTimer(10); }, 3000);
+              setTimeout(() => { setGameTimer(10); setPhase("game2"); }, 3000);
             }
             return updated;
           });
@@ -82,8 +79,6 @@ export default function BorderlandProto() {
   // --- GAME 2: SPAM SURVIVAL ---
   useEffect(() => {
     if (phase !== "game2") return;
-    setGameTimer(10);
-    
     const botSpam = setInterval(() => {
       setPlayers(prev => prev.map(p => {
         if (p.name !== "You" && p.alive && Math.random() > 0.3) {
@@ -171,7 +166,6 @@ export default function BorderlandProto() {
     // Bots vote randomly after you
     setTimeout(() => {
       setPlayers(prev => {
-        const aliveBots = prev.filter(p => p.name !== "You" && p.alive);
         return prev.map(p => {
           if (p.alive && Math.random() > 0.5) return { ...p, votes: p.votes + 1 };
           return p;
@@ -203,7 +197,11 @@ export default function BorderlandProto() {
   );
 
   if (phase === "visa") return (
-    <div className="bl-visa-bg"><style>{VISA_CSS}</style><div className="bl-visa-card"><div className="bl-visa-chip"></div><div className="bl-visa-header">BORDERLAND VISA</div><div className="bl-visa-number">#{playerNum.toString().padStart(3, '0')}</div><div className="bl-visa-timer"><span>TIME UNTIL CLOSURE</span>{formatTime(timer)}</div><div className="bl-visa-barcode">|||| |||| ||| |||| |||| ||</div></div><button className="bl-enter-btn" onClick={() => setPhase("game1")}>ENTER THE ARENA</button></div>
+    <div className="bl-visa-bg"><style>{VISA_CSS}</style><div className="bl-visa-card"><div className="bl-visa-chip"></div><div className="bl-visa-header">BORDERLAND VISA</div><div className="bl-visa-number">#{playerNum.toString().padStart(3, '0')}</div><div className="bl-visa-timer"><span>TIME UNTIL CLOSURE</span>{formatTime(timer)}</div><div className="bl-visa-barcode">|||| |||| ||| |||| |||| ||</div></div><button className="bl-enter-btn" onClick={() => {
+            setGameTimer(10);
+            setHasVoted(false);
+            setPhase("game1");
+          }}>ENTER THE ARENA</button></div>
   );
 
   if (phase === "gameover") return (

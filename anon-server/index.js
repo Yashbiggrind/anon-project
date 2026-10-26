@@ -8,12 +8,25 @@ const { Server } = require("socket.io");
 const db = require("./db");
 const { registerAdmin } = require("./admin");
 const PORT = parseInt(process.env.PORT || "4000", 10);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || (IS_PRODUCTION ? "" : "http://localhost:3000"))
+  .split(",").map((origin) => origin.trim()).filter(Boolean);
+const SERVER_ORIGINS = (process.env.SERVER_ORIGIN || "").split(",").map((origin) => origin.trim()).filter(Boolean);
+const ALLOWED_ORIGINS = [...new Set([...CLIENT_ORIGINS, ...SERVER_ORIGINS])];
+const TRUST_PROXY = process.env.TRUST_PROXY === "true";
 const MAX_MSG = parseInt(process.env.MAX_MSG_LENGTH || "1000", 10);
 const RATE_MSG = parseInt(process.env.RATE_MSG_PER_10S || "15", 10);
 const RATE_INV = parseInt(process.env.RATE_INVITE_PER_MIN || "5", 10);
 const RATE_ROOM = parseInt(process.env.RATE_ROOM_CREATE_PER_MIN || "3", 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+if (IS_PRODUCTION) {
+  if (!CLIENT_ORIGINS.length || !SERVER_ORIGINS.length || CLIENT_ORIGINS.includes("*") || ALLOWED_ORIGINS.includes("*")) {
+    throw new Error("Production requires explicit CLIENT_ORIGIN and SERVER_ORIGIN allowlists; wildcards are not supported.");
+  }
+  if (ADMIN_TOKEN.length < 32 || /change-me|your-secret/i.test(ADMIN_TOKEN)) {
+    throw new Error("Production requires ADMIN_TOKEN to be a unique random value of at least 32 characters.");
+  }
+}
 
 // ---------- v20 room config ----------
 const MIN_ROOM_CAPACITY = 2;
@@ -25,11 +38,12 @@ const ROOM_TOPIC_MAX = 40;
 // ---------- CORS origin checker ----------
 const PRIVATE_IP = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/;
 function corsOrigin(origin, cb) {
+  // Non-browser clients may omit Origin; authorization is enforced separately.
   if (!origin) return cb(null, true);
-  if (CLIENT_ORIGIN === "*") return cb(null, true);
-  if (origin === CLIENT_ORIGIN) return cb(null, true);
-  if (PRIVATE_IP.test(origin)) return cb(null, true);
-  return cb(new Error(`CORS blocked: ${origin}`), false);
+  if (ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+  // LAN convenience is development-only and never overrides a production allowlist.
+  if (!IS_PRODUCTION && PRIVATE_IP.test(origin)) return cb(null, true);
+  return cb(new Error("CORS blocked"), false);
 }
 
 // ---------- state ----------
@@ -43,6 +57,20 @@ const DM_TTL_MS = 60 * 60 * 1000;
 const DM_MAX_MESSAGES = 200;
 const rateBuckets = new Map();
 const reports = [];
+const confessions = new Map();
+const CONFESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CONFESSIONS = 500;
+const MAX_CONFESSION_REPLIES = 50;
+const CONFESSION_MAX_LENGTH = 1000;
+const CONFESSION_REPLY_MAX_LENGTH = 400;
+const ELECTION_DURATION_MS = 24 * 60 * 60 * 1000;
+const electionVotes = new Map();
+const electionState = {
+  status: "voting",
+  startedAt: Date.now(),
+  endsAt: Date.now() + ELECTION_DURATION_MS,
+  winner: null,
+};
 const reactions = new Map();
 const reactionTimes = new Map();
 const REACTION_RATE = 20;
@@ -107,8 +135,15 @@ function isEmoji(str) {
 }
 
 function getClientIp(socket) {
-  const fwd = socket.handshake.headers["x-forwarded-for"];
-  if (typeof fwd === "string" && fwd.length) return fwd.split(",")[0].trim();
+  // Forwarded headers are client-controlled unless the ingress proxy overwrites them.
+  // Enable TRUST_PROXY only when the deployed proxy is configured to sanitize X-Forwarded-For.
+  if (TRUST_PROXY) {
+    const fwd = socket.handshake.headers["x-forwarded-for"];
+    if (typeof fwd === "string" && fwd.length) {
+      const candidate = fwd.split(",")[0].trim();
+      if (candidate && candidate.length <= 64) return candidate;
+    }
+  }
   return socket.handshake.address || "unknown";
 }
 
@@ -160,6 +195,19 @@ setInterval(() => {
       dmThreads.delete(threadId);
     }
   }
+  let confessionChanged = false;
+  for (const [id, post] of confessions) {
+    if (post.expiresAt <= now) {
+      confessions.delete(id);
+      confessionChanged = true;
+    }
+  }
+  if (electionState.status === "voting" && electionState.endsAt <= now) {
+    finishElection();
+    confessionChanged = true;
+  }
+  if (confessionChanged) io.emit("confession:update");
+
   decayStrikes();
   // v21.3 â€” purge session log entries older than 180 days
   {
@@ -170,6 +218,14 @@ setInterval(() => {
 
 // ---------- express ----------
 const app = express();
+app.disable("x-powered-by");
+app.use((req, res, next) => {
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  res.setHeader("X-Frame-Options", "DENY");
+  res.setHeader("Referrer-Policy", "no-referrer");
+  res.setHeader("Cache-Control", "no-store");
+  next();
+});
 app.use(cors({ origin: corsOrigin, credentials: false }));
 app.use(express.json({ limit: "200kb" }));
 app.get("/", (req, res) => res.json({ ok: true, online: sessions.size, rooms: rooms.size }));
@@ -199,6 +255,59 @@ const io = new Server(server, {
 const publicUser = (s) => ({
   sessionId: s.sessionId, username: s.username, accent: s.accent, status: s.status || "available",
 });
+
+// Internal spam identifiers must never cross the Socket.IO boundary.
+const publicChatMessage = (message) => {
+  const safeMessage = { ...message };
+  delete safeMessage.senderSpamKey;
+  return safeMessage;
+};
+
+function publicConfession(post) {
+  return {
+    id: post.id,
+    text: post.text,
+    author: post.author,
+    createdAt: post.createdAt,
+    expiresAt: post.expiresAt,
+    upvotes: post.upvotes,
+    downvotes: post.downvotes,
+    replies: post.replies.map((reply) => ({ ...reply })),
+  };
+}
+
+function publicElection() {
+  return {
+    status: electionState.status,
+    startedAt: electionState.startedAt,
+    endsAt: electionState.endsAt,
+    winner: electionState.winner,
+    voteCount: electionVotes.size,
+  };
+}
+
+function getConfessionFeed() {
+  return [...confessions.values()]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(publicConfession);
+}
+
+function finishElection() {
+  if (electionState.status !== "voting") return false;
+  const tally = new Map();
+  for (const candidate of electionVotes.values()) {
+    tally.set(candidate, (tally.get(candidate) || 0) + 1);
+  }
+  let winner = null;
+  let highest = 0;
+  for (const [candidate, count] of tally) {
+    if (count > highest) { winner = candidate; highest = count; }
+  }
+  electionState.status = "finished";
+  electionState.winner = winner || "No votes";
+  electionState.endsAt = Date.now();
+  return true;
+}
 
 const publicRoom = (r) => ({
   roomId: r.roomId,
@@ -255,7 +364,7 @@ function broadcastPublicMessage(msg) {
       (session.blocked.has(msg.senderSessionId) || isBlocked(msg.senderSessionId, session.sessionId))
     ) continue;
     if (shadowed && session.sessionId !== msg.senderSessionId) continue;
-    io.to(socketId).emit("chat:public:message", msg);
+    io.to(socketId).emit("chat:public:message", publicChatMessage(msg));
   }
 }
 
@@ -276,7 +385,7 @@ function broadcastRoomMessage(room, msg) {
     ) continue;
     if (shadowed && p.sessionId !== msg.senderSessionId) continue;
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:message", msg);
+    if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
   }
 }
 
@@ -646,12 +755,11 @@ io.on("connection", (socket) => {
   const validName = /^[A-Za-z]+\d{1,4}$/.test(provided) && provided.length <= 20 ? provided : null;
 
   const clientIp = getClientIp(socket);
-  const spamKey = `ip:${clientIp}`;
+  const spamKey = `ip:${db.hashIp(clientIp)}`;
 
   const session = {
     sessionId: makeId(),
     spamKey,
-    ip: clientIp,
     username: validName || makeUsername(),
     accent: pick(ACCENTS),
     status: "available",
@@ -660,10 +768,21 @@ io.on("connection", (socket) => {
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
 
-  // v21.3 â€” log connection for 180-day retention (Rule 3(1)(h))
+  // Store only a keyed hash of the network address plus bounded session metadata.
   db.logConnect(clientIp, session.sessionId, socket.handshake.headers["user-agent"] || "");
 
-  socket.emit("session:ready", session);
+  socket.emit("session:ready", publicUser(session));
+  // Bound event-key cardinality: ignore unhandled event names before creating rate buckets.
+  const HANDLED_EVENTS = new Set([
+    "block:user", "blocked:list", "chat:public:image", "chat:public:send",
+    "confession:create", "confession:list", "confession:reply", "confession:vote",
+    "dm:close", "dm:open", "dm:send", "dm:typing", "election:vote",
+    "invite:accept", "invite:decline", "message:delete", "message:edit", "messages:since",
+    "reaction:toggle", "report:user", "room:clear-timeout", "room:create", "room:image",
+    "room:invite", "room:invites:list", "room:join", "room:kick", "room:leave", "room:list",
+    "room:message", "room:purge", "room:set-lifetime", "room:set-slowmode", "room:set-topic",
+    "room:timeout", "room:transfer-admin", "typing:public", "typing:room", "unblock:user", "user:rename"
+  ]);
   // v24.7 — global rate limit for sensitive actions
   const SENSITIVE_EVENTS = new Set([
     "room:kick", "room:purge", "room:set-lifetime", "room:set-topic",
@@ -672,13 +791,25 @@ io.on("connection", (socket) => {
   ]);
   socket.use((event, next) => {
     if (!Array.isArray(event)) return next();
-    const name = event[0];
-    if (!SENSITIVE_EVENTS.has(name)) return next();
+    const name = typeof event[0] === "string" ? event[0] : "";
+
+    // A null/non-object payload can throw in handlers that destructure arguments.
+    // Normalize malformed payloads so they fail normal validation instead of crashing a handler.
+    if (event.length > 1 && (event[1] === null || (typeof event[1] !== "object" && typeof event[1] !== "function"))) event[1] = {};
+
     const s = sessions.get(socket.id);
-    if (!s) return next();
+    if (!s || !name || !HANDLED_EVENTS.has(name)) return next();
+
+    // General per-event flood ceiling complements tighter action-specific limits below.
+    const ack = event[event.length - 1];
+    if (!rateLimit(`event:${name}:${s.spamKey}`, 240, 60000)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Too many requests. Slow down." });
+      return;
+    }
+
+    if (!SENSITIVE_EVENTS.has(name)) return next();
     const limit = name === "report:user" ? 10 : 30;
     if (!rateLimit(`sens:${name}:${s.spamKey}`, limit, 60000)) {
-      const ack = event[event.length - 1];
       if (typeof ack === "function") ack({ ok: false, error: "Slow down — too many requests." });
       return;
     }
@@ -750,7 +881,7 @@ io.on("connection", (socket) => {
       if (isShadowBanned(m.senderSpamKey)) continue;
       if (s.blocked.has(m.senderSessionId)) continue;
       if (isBlocked(m.senderSessionId, s.sessionId)) continue;
-      out.push(m);
+      out.push(publicChatMessage(m));
     }
     const awayFor = ts > 0 ? Math.max(0, now - ts) : 0;
     ack?.({ ok: true, messages: out, awayFor });
@@ -883,7 +1014,7 @@ io.on("connection", (socket) => {
     }
     const old = s.username;
     s.username = name;
-    socket.emit("session:ready", s);
+    socket.emit("session:ready", publicUser(s));
     broadcastOnline();
     broadcastSystemFor(s.sessionId, { type: "rename", oldName: old, username: name });
 
@@ -1228,24 +1359,30 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, room: publicRoom(room) });
   });
 
-  socket.on("invite:decline", ({ inviteId } = {}) => {
-    const inv = invites.get(inviteId);
-    if (!inv) return;
-    invites.delete(inviteId);
+  socket.on("invite:decline", ({ inviteId } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    const inv = invites.get(String(inviteId || ""));
+    if (!inv) return ack?.({ ok: false, error: "Invitation expired" });
+    if (inv.recipientSessionId !== s.sessionId) {
+      return ack?.({ ok: false, error: "Not your invitation" });
+    }
+    invites.delete(inv.inviteId);
     const sid = findSocketBySession(inv.senderSessionId);
-    if (sid) io.to(sid).emit("invite:declined", { inviteId });
+    if (sid) io.to(sid).emit("invite:declined", { inviteId: inv.inviteId });
 
     const room = rooms.get(inv.roomId);
     if (room && room.status === "active") {
       for (const p of room.participants) {
         const psid = findSocketBySession(p.sessionId);
         if (psid) io.to(psid).emit("room:invite:resolved", {
-          inviteId,
+          inviteId: inv.inviteId,
           accepted: false,
           at: Date.now(),
         });
       }
     }
+    ack?.({ ok: true });
   });
 
   // ---------- room message ----------
@@ -1298,7 +1435,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", msg);
+      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
@@ -1360,7 +1497,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", msg);
+      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
@@ -1447,6 +1584,11 @@ io.on("connection", (socket) => {
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
 
     const payload = { messageId: String(messageId), content: text, editedAt: Date.now() };
+    // Keep the in-memory history consistent so edits are not reverted on reconnect.
+    if (!meta.roomId) {
+      const historical = publicHistory.find((message) => message.id === String(messageId));
+      if (historical) { historical.content = text; historical.editedAt = payload.editedAt; }
+    }
 
     if (meta.roomId) {
       const room = rooms.get(meta.roomId);
@@ -1475,6 +1617,11 @@ io.on("connection", (socket) => {
     if (!meta) return ack?.({ ok: false, error: "Message not found" });
     if (meta.senderSessionId !== s.sessionId) return ack?.({ ok: false, error: "Not your message" });
     messageOwners.delete(String(messageId));
+    // A deleted public message must not reappear through messages:since.
+    if (!meta.roomId) {
+      const historyIndex = publicHistory.findIndex((message) => message.id === String(messageId));
+      if (historyIndex >= 0) publicHistory.splice(historyIndex, 1);
+    }
 
     const payload = { messageId: String(messageId) };
 
@@ -1601,6 +1748,133 @@ io.on("connection", (socket) => {
 
   // ---------- DM: close thread ----------
   socket.on("dm:close", ({ threadId } = {}, ack) => {
+    ack?.({ ok: true });
+  });
+
+  // ---------- confession feed (ephemeral server-memory feature) ----------
+  socket.on("confession:list", (_payload, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:list:${s.spamKey}`, 60, 60000)) {
+      return ack?.({ ok: false, error: "Too many refreshes. Slow down." });
+    }
+    ack?.({ ok: true, confessions: getConfessionFeed(), election: publicElection() });
+  });
+
+  socket.on("confession:create", ({ text } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:create:${s.spamKey}`, 5, 60000)) {
+      return ack?.({ ok: false, error: "Too many posts. Try again later." });
+    }
+    const content = clean(String(text ?? "")).trim();
+    if (!content) return ack?.({ ok: false, error: "Write something first." });
+    if (content.length > CONFESSION_MAX_LENGTH) {
+      return ack?.({ ok: false, error: `Maximum length is ${CONFESSION_MAX_LENGTH} characters.` });
+    }
+    const now = Date.now();
+    const post = {
+      id: makeId(),
+      text: content,
+      author: s.username,
+      authorSessionId: s.sessionId,
+      createdAt: now,
+      expiresAt: now + CONFESSION_TTL_MS,
+      upvotes: 0,
+      downvotes: 0,
+      votesBySession: new Map(),
+      replies: [],
+    };
+    confessions.set(post.id, post);
+    while (confessions.size > MAX_CONFESSIONS) {
+      const oldest = [...confessions.values()].sort((a, b) => a.createdAt - b.createdAt)[0];
+      if (!oldest) break;
+      confessions.delete(oldest.id);
+    }
+    io.emit("confession:update");
+    ack?.({ ok: true, confession: publicConfession(post) });
+  });
+
+  socket.on("confession:reply", ({ confessionId, text } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:reply:${s.spamKey}`, 10, 60000)) {
+      return ack?.({ ok: false, error: "Too many replies. Try again later." });
+    }
+    const post = confessions.get(String(confessionId || ""));
+    if (!post || post.expiresAt <= Date.now()) {
+      return ack?.({ ok: false, error: "That confession has expired." });
+    }
+    if (post.replies.length >= MAX_CONFESSION_REPLIES) {
+      return ack?.({ ok: false, error: "This confession has reached its reply limit." });
+    }
+    const content = clean(String(text ?? "")).trim();
+    if (!content) return ack?.({ ok: false, error: "Write a reply first." });
+    if (content.length > CONFESSION_REPLY_MAX_LENGTH) {
+      return ack?.({ ok: false, error: `Maximum reply length is ${CONFESSION_REPLY_MAX_LENGTH} characters.` });
+    }
+    post.replies.push({
+      id: makeId(),
+      author: s.username,
+      text: content,
+      createdAt: Date.now(),
+    });
+    io.emit("confession:update");
+    ack?.({ ok: true });
+  });
+
+  socket.on("confession:vote", ({ confessionId, dir } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:vote:${s.spamKey}`, 30, 60000)) {
+      return ack?.({ ok: false, error: "Too many votes. Slow down." });
+    }
+    const post = confessions.get(String(confessionId || ""));
+    if (!post || post.expiresAt <= Date.now()) {
+      return ack?.({ ok: false, error: "That confession has expired." });
+    }
+    if (post.authorSessionId === s.sessionId) {
+      return ack?.({ ok: false, error: "You cannot vote on your own confession." });
+    }
+    const vote = Number(dir);
+    if (vote !== 1 && vote !== -1) return ack?.({ ok: false, error: "Invalid vote." });
+    const previous = post.votesBySession.get(s.sessionId) || 0;
+    if (previous === vote) {
+      if (vote === 1) post.upvotes = Math.max(0, post.upvotes - 1);
+      else post.downvotes = Math.max(0, post.downvotes - 1);
+      post.votesBySession.delete(s.sessionId);
+    } else {
+      if (previous === 1) post.upvotes = Math.max(0, post.upvotes - 1);
+      if (previous === -1) post.downvotes = Math.max(0, post.downvotes - 1);
+      if (vote === 1) post.upvotes += 1;
+      else post.downvotes += 1;
+      post.votesBySession.set(s.sessionId, vote);
+    }
+    io.emit("confession:update");
+    ack?.({ ok: true });
+  });
+
+  socket.on("election:vote", ({ candidate } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (electionState.status !== "voting" || electionState.endsAt <= Date.now()) {
+      finishElection();
+      io.emit("confession:update");
+      return ack?.({ ok: false, error: "The election is closed." });
+    }
+    if (!rateLimit(`election:vote:${s.spamKey}`, 5, 60000)) {
+      return ack?.({ ok: false, error: "Too many votes. Slow down." });
+    }
+    const name = clean(String(candidate || "")).trim().slice(0, 40);
+    const choices = getConfessionFeed().slice(0, 3);
+    if (!name || !choices.some((post) => post.author === name)) {
+      return ack?.({ ok: false, error: "Choose one of the current candidates." });
+    }
+    if (electionVotes.has(s.sessionId)) {
+      return ack?.({ ok: false, error: "You have already voted in this election." });
+    }
+    electionVotes.set(s.sessionId, name);
+    io.emit("confession:update");
     ack?.({ ok: true });
   });
 
@@ -1837,7 +2111,7 @@ async function botPublicChat() {
       if (publicHistory.length > PUBLIC_HISTORY_MAX) publicHistory.shift();
 
       for (const [socketId, session] of sessions) {
-        if (!session.isBot) io.to(socketId).emit("chat:public:message", msg);
+        if (!session.isBot) io.to(socketId).emit("chat:public:message", publicChatMessage(msg));
       }
       BOT_ACTIVITY.lastCall = Date.now();
     } catch (e) {
@@ -1925,6 +2199,6 @@ server.listen(port, "0.0.0.0", () => {
     }
   }
   console.log("");
-  console.log(`  CORS allowed: ${CLIENT_ORIGIN === "*" ? "any origin" : CLIENT_ORIGIN + " + localhost + private LAN"}`);
+  console.log(`  CORS allowed: ${ALLOWED_ORIGINS.join(", ") || "none"}; proxy trust: ${TRUST_PROXY ? "enabled" : "disabled"}`);
   console.log("");
 });

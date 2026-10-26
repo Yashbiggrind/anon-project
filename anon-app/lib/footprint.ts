@@ -72,7 +72,7 @@ function create(): FootprintState {
 
 export function tickFootprint(active = true): FootprintState {
   const now = Date.now();
-  let fp = read() || create();
+  const fp = read() || create();
 
   const todayIndex = Math.floor((now - fp.startedAt) / DAY_MS);
   if (active && todayIndex > fp.lastActiveDayIndex) {
