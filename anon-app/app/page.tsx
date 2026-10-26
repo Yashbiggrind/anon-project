@@ -305,8 +305,10 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const savedMute = localStorage.getItem(LS_MUTED) === "1";
-    setMutedState(savedMute);
-    setMuted(savedMute);
+    const hydrateMuteTimer = window.setTimeout(() => {
+      setMutedState(savedMute);
+      setMuted(savedMute);
+    }, 0);
     const unlock = () => {
       unlockAudio();
       window.removeEventListener("click", unlock);
@@ -320,6 +322,7 @@ export default function Home() {
       window.removeEventListener("click", unlock);
       window.removeEventListener("keydown", unlock);
       window.removeEventListener("touchstart", unlock);
+      window.clearTimeout(hydrateMuteTimer);
     };
   }, []);
 
@@ -341,37 +344,56 @@ export default function Home() {
         return next;
       });
     };
-    update();
-    const tmr = setInterval(update, 4000);
-    return () => clearInterval(tmr);
+    const initialUpdate = window.setTimeout(update, 0);
+    const tmr = window.setInterval(update, 4000);
+    return () => {
+      window.clearTimeout(initialUpdate);
+      window.clearInterval(tmr);
+    };
   }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     const update = () => setIsOffline(!navigator.onLine);
-    update();
+    const initialUpdate = window.setTimeout(update, 0);
     window.addEventListener("online", update);
     window.addEventListener("offline", update);
     return () => {
       window.removeEventListener("online", update);
       window.removeEventListener("offline", update);
+      window.clearTimeout(initialUpdate);
     };
   }, []);
 
-  useEffect(() => { setQueued(listQueue()); }, []);
+  useEffect(() => {
+    const timer = window.setTimeout(() => setQueued(listQueue()), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("anon_recent_rooms");
-      if (raw) setRecentRooms(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const timer = window.setTimeout(() => {
+          if (Array.isArray(parsed)) setRecentRooms(parsed);
+        }, 0);
+        return () => window.clearTimeout(timer);
+      }
     } catch {}
   }, []);
   useEffect(() => {
     if (typeof window === "undefined") return;
     try {
       const raw = localStorage.getItem("anon_favorite_rooms");
-      if (raw) setFavoriteRooms(JSON.parse(raw));
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        const timer = window.setTimeout(() => {
+          if (Array.isArray(parsed)) setFavoriteRooms(parsed);
+        }, 0);
+        return () => window.clearTimeout(timer);
+      }
     } catch {}
   }, []);
   useEffect(() => {
