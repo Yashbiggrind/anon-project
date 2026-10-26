@@ -14,6 +14,7 @@ Node.js + Express + Socket.io backend for the ANON anonymous chat app.
 Create .env in this folder with:
 PORT=4000
 CLIENT_ORIGIN=http://localhost:3000
+SERVER_ORIGIN=http://localhost:4000
 ADMIN_TOKEN=replace-with-a-random-secret-at-least-32-characters
 IP_HASH_SECRET=replace-with-a-different-random-secret-at-least-32-characters
 TRUST_PROXY=false
@@ -28,7 +29,7 @@ node index.js
 
 ## Production security checklist
 
-- Set `CLIENT_ORIGIN` to the exact HTTPS frontend origin (comma-separated only if multiple origins are intentionally supported). Wildcard origins are rejected in production.
+- Set `CLIENT_ORIGIN` to the exact HTTPS frontend origin and `SERVER_ORIGIN` to the exact public HTTPS backend origin (comma-separated only when multiple origins are intentionally supported). Both must be explicit in production; wildcard origins are rejected. The backend origin is needed for same-origin admin dashboard actions.
 - Set `ADMIN_TOKEN` and `IP_HASH_SECRET` to separate, high-entropy random values of at least 32 characters. The server refuses production startup when either is missing/weak.
 - Leave `TRUST_PROXY=false` unless your hosting ingress is configured to overwrite/sanitize `X-Forwarded-For`; only then enable it.
 - Ensure persistent database files, platform logs, and backups have restricted access and a documented retention policy. The app can hash its own connection metadata but cannot control a provider's logs.
