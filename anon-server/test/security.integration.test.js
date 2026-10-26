@@ -66,6 +66,22 @@ async function waitForHttp(url, child, getOutput, timeoutMs = 12000) {
   throw new Error("Server startup failed: " + lastError + ". " + getOutput());
 }
 
+async function stopChild(child) {
+  if (child.exitCode !== null || child.signalCode !== null) return;
+  // Install the listener before signalling; otherwise a fast exit can be missed.
+  const exited = once(child, "exit").then(() => true, () => true);
+  child.kill("SIGTERM");
+  const graceful = await Promise.race([
+    exited,
+    new Promise((resolve) => setTimeout(() => resolve(false), 2000)),
+  ]);
+  if (!graceful && child.exitCode === null && child.signalCode === null) {
+    const forcedExit = once(child, "exit").then(() => true, () => true);
+    child.kill("SIGKILL");
+    await Promise.race([forcedExit, new Promise((resolve) => setTimeout(resolve, 2000))]);
+  }
+}
+
 test("HMAC connection identifiers are normalized, keyed, and fixed-length", () => {
   const v4 = hashIp("192.0.2.25");
   assert.match(v4, /^[a-f0-9]{32}$/);
@@ -166,11 +182,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     b.disconnect();
     a = null;
     b = null;
-    child.kill("SIGTERM");
-    await Promise.race([
-      once(child, "exit"),
-      new Promise((resolve) => { const timer = setTimeout(() => { child.kill("SIGKILL"); resolve(); }, 2000); timer.unref(); }),
-    ]);
+    await stopChild(child);
 
     const { DatabaseSync } = require("node:sqlite");
     const database = new DatabaseSync(dbPath);
@@ -181,13 +193,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
   } finally {
     if (a) a.disconnect();
     if (b) b.disconnect();
-    if (child.exitCode === null) {
-      child.kill("SIGTERM");
-      await Promise.race([
-        once(child, "exit"),
-        new Promise((resolve) => { const timer = setTimeout(() => { child.kill("SIGKILL"); resolve(); }, 2000); timer.unref(); }),
-      ]);
-    }
+    await stopChild(child);
     await fs.rm(tempDir, { recursive: true, force: true });
   }
 });
