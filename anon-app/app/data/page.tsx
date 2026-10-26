@@ -67,7 +67,8 @@ export default function DataPage() {
   }
 
   useEffect(() => {
-    refresh();
+    const timer = window.setTimeout(refresh, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   function flash(msg: string) {
