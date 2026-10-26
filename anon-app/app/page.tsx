@@ -137,6 +137,9 @@ export default function Home() {
   const [gone, setGone] = useState(false);
 
   const [lang, setLang] = useState<Lang>("en");
+  // Keep socket callbacks in sync with the active language.
+  const langRef = useRef<Lang>(lang);
+  useEffect(() => { langRef.current = lang; }, [lang]);
   const [langOpen, setLangOpen] = useState(false);
   const [muted, setMutedState] = useState(false);
 
@@ -566,9 +569,9 @@ export default function Home() {
     socket.on("invite:received", (inv: Invite) => {
       playSound("invite");
       setInvites((p) => [...p, inv]);
-      showToast(libTranslate(lang, "invitationReceived", { name: inv.from.username, cap: inv.capacity }), 3000);
+      showToast(libTranslate(langRef.current, "invitationReceived", { name: inv.from.username, cap: inv.capacity }), 3000);
     });
-    socket.on("invite:declined", () => showToast(libTranslate(lang, "invitationDeclined")));
+    socket.on("invite:declined", () => showToast(libTranslate(langRef.current, "invitationDeclined")));
 
     socket.on("room:update", (r: PrivateRoom) => { setRoom(r); setSection("private"); });
 
@@ -631,7 +634,7 @@ export default function Home() {
       setRoomSystemLines([]);
       setMemberMenuFor(null);
       const key = e.reason?.toLowerCase().includes("disconnect") ? "roomEndedDisconnected" : "roomEndedLeft";
-      showToast(libTranslate(lang, key), 3000);
+      showToast(libTranslate(langRef.current, key), 3000);
     });
 
     socket.on("dm:message", (m: DMMessage) => {
@@ -662,7 +665,7 @@ export default function Home() {
       window.clearTimeout(stateHydrationTimer);
       socket.disconnect();
     };
-  }, []);
+  }, [showToast]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2574,6 +2577,7 @@ export default function Home() {
       {imageLightbox && (
         <div className="lightbox" onClick={() => setImageLightbox(null)}>
           <button className="lightboxClose" onClick={() => setImageLightbox(null)}>✕</button>
+          {/* eslint-disable-next-line @next/next/no-img-element -- inline image URL cannot be optimized by next/image */}
           <img src={imageLightbox} alt="preview" onClick={(e) => e.stopPropagation()} />
         </div>
       )}
@@ -2902,6 +2906,7 @@ const MessageBubble = memo(
               <>
                 {m.image && (
                   <div className="imageBubble" onClick={() => onOpenLightbox(m.image!)}>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- shared image URL cannot be optimized by next/image */}
                     <img src={m.image} alt="shared" loading="lazy" />
                     <div className="imageMeta">🎞️ RAM only · 60 min</div>
                   </div>
