@@ -462,8 +462,7 @@ export default function Home() {
       });
     } catch (error) {
       console.error("[ANON] Backend configuration error:", error);
-      setConnected(false);
-      setToast("Chat server configuration is missing or invalid. Please try again later.");
+      showToast("Chat server configuration is missing or invalid. Please try again later.", 5000, "error");
       return;
     }
     socketRef.current = socket;
@@ -745,14 +744,13 @@ export default function Home() {
   }, [privateMessages]);
 
   useEffect(() => {
-    if (!room) return;
     const initialTick = window.setTimeout(() => setNowTick(Date.now()), 0);
     const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
     return () => {
       window.clearTimeout(initialTick);
       window.clearInterval(timer);
     };
-  }, [room]);
+  }, []);
 
   // Auto-remove expired messages from both the visible list and IndexedDB.
   useEffect(() => {
@@ -1285,7 +1283,7 @@ export default function Home() {
   /* v22 — recent rooms + join + profile helpers */
   function rememberRoom(room: { roomId: string; topic?: string }) {
     try {
-      const entry = { roomId: room.roomId, topic: room.topic || "Untitled", at: Date.now() };
+      const entry = { roomId: room.roomId, topic: room.topic || "Untitled", at: nowTick };
       const next = [entry, ...recentRooms.filter((r) => r.roomId !== room.roomId)].slice(0, 5);
       setRecentRooms(next);
       localStorage.setItem("anon_recent_rooms", JSON.stringify(next));
@@ -1301,7 +1299,7 @@ export default function Home() {
     const exists = favoriteRooms.some((r) => r.roomId === room.roomId);
     const next = exists
       ? favoriteRooms.filter((r) => r.roomId !== room.roomId)
-      : [{ roomId: room.roomId, topic: room.topic || "Untitled", at: Date.now() }, ...favoriteRooms].slice(0, 20);
+      : [{ roomId: room.roomId, topic: room.topic || "Untitled", at: nowTick }, ...favoriteRooms].slice(0, 20);
     setFavoriteRooms(next);
     try { localStorage.setItem("anon_favorite_rooms", JSON.stringify(next)); } catch {}
     showToast(exists ? "Removed from favourites" : "⭐ Added to favourites", 1500, exists ? "info" : "success");
