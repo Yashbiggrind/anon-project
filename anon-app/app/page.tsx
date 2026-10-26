@@ -462,15 +462,18 @@ export default function Home() {
       });
     } catch (error) {
       console.error("[ANON] Backend configuration error:", error);
-      // Defer React state updates until after effect initialization has completed.
-      window.setTimeout(() => {
+      // Defer the toast state update and cancel both timers if the page unmounts.
+      const toastTimer = window.setTimeout(() => {
         showToast(
           "Chat server configuration is missing or invalid. Please try again later.",
           5000,
           "error"
         );
       }, 0);
-      return;
+      return () => {
+        window.clearTimeout(stateHydrationTimer);
+        window.clearTimeout(toastTimer);
+      };
     }
     socketRef.current = socket;
 
