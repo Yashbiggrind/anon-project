@@ -13,69 +13,68 @@ type Player = {
 
 export default function IslandPreview() {
   const [isOwnerView, setIsOwnerView] = useState(false);
-  const [timeLeft, setTimeLeft] = useState(900); // 15 mins
-  const [isVotingOpen, setIsVotingOpen] = useState(true);
+  const [clock, setClock] = useState({ timeLeft: 900, isVotingOpen: true });
   const [log, setLog] = useState<string[]>(["System Initialized. Waiting for votes..."]);
   
   // Initialize 4 players (1 User, 3 Bots)
   const [players, setPlayers] = useState<Player[]>([
-    { id: 1, num: Math.floor(Math.random()*899)+100, name: "YOU", faction: "Independent", votes: 0, isUser: true },
+    { id: 1, num: 537, name: "YOU", faction: "Independent", votes: 0, isUser: true },
     { id: 2, num: 12, name: "SILENT_WOLF", faction: "Idealist", votes: 0, isUser: false },
     { id: 3, num: 34, name: "VELVET_CROW", faction: "Militant", votes: 0, isUser: false },
     { id: 4, num: 78, name: "GHOST_LYNX", faction: "Independent", votes: 0, isUser: false }
   ]);
 
-  // Main countdown
+  // Keep countdown and voting status in one state update to avoid nested state writes.
   useEffect(() => {
-    if (!isVotingOpen) return;
-    const t = setInterval(() => {
-      setTimeLeft((p) => {
-        if (p <= 1) {
-          clearInterval(t);
-          setIsVotingOpen(false);
-          determineWinner();
-          return 0;
+    if (!clock.isVotingOpen) return;
+    const timer = setInterval(() => {
+      setClock((current) => {
+        if (!current.isVotingOpen) return current;
+        if (current.timeLeft <= 1) {
+          return { timeLeft: 0, isVotingOpen: false };
         }
-        return p - 1;
+        return { ...current, timeLeft: current.timeLeft - 1 };
       });
     }, 1000);
-    return () => clearInterval(t);
-  }, [isVotingOpen]);
+    return () => clearInterval(timer);
+  }, [clock.isVotingOpen]);
 
-  // Bots vote randomly every 3 seconds
+  // Announce the winner after voting has closed, using the final current tally.
   useEffect(() => {
-    if (!isVotingOpen) return;
-    const t = setInterval(() => {
-      setPlayers(prev => {
-        // Pick a random bot to vote for someone else
-        const voters = prev.filter(p => !p.isUser);
-        const voter = voters[Math.floor(Math.random() * voters.length)];
-        const targets = prev.filter(p => p.id !== voter.id);
-        const target = targets[Math.floor(Math.random() * targets.length)];
-        
-        if (Math.random() > 0.4) {
-           setLog(l => [...l.slice(-4), `🗳️ ${voter.name} voted for ${target.name}`]);
-           return prev.map(p => p.id === target.id ? { ...p, votes: p.votes + 1 } : p);
-        }
-        return prev;
-      });
+    if (clock.isVotingOpen) return;
+    const winner = players.reduce((max, player) => player.votes > max.votes ? player : max, players[0]);
+    setLog((current) => {
+      const announcement = `👑 ELECTION CLOSED. ${winner.name} (#${winner.num}) WINS.`;
+      return current.includes(announcement) ? current : [...current, announcement];
+    });
+  }, [clock.isVotingOpen, players]);
+
+  // Bots vote randomly every three seconds; no state updates happen inside a state updater.
+  useEffect(() => {
+    if (!clock.isVotingOpen) return;
+    const timer = setInterval(() => {
+      const voters = players.filter((player) => !player.isUser);
+      if (voters.length === 0) return;
+      const voter = voters[Math.floor(Math.random() * voters.length)];
+      const targets = players.filter((player) => player.id !== voter.id);
+      if (targets.length === 0 || Math.random() <= 0.4) return;
+      const target = targets[Math.floor(Math.random() * targets.length)];
+      setLog((current) => [...current.slice(-4), `🗳️ ${voter.name} voted for ${target.name}`]);
+      setPlayers((current) => current.map((player) =>
+        player.id === target.id ? { ...player, votes: player.votes + 1 } : player
+      ));
     }, 3000);
-    return () => clearInterval(t);
-  }, [isVotingOpen]);
+    return () => clearInterval(timer);
+  }, [clock.isVotingOpen, players]);
 
   const castVote = (targetId: number) => {
-    if (!isVotingOpen) return;
-    const target = players.find(p => p.id === targetId);
-    setPlayers(prev => prev.map(p => p.id === targetId ? { ...p, votes: p.votes + 1 } : p));
-    setLog(l => [...l.slice(-4), `👤 YOU voted for ${target?.name}`]);
-  };
-
-  const determineWinner = () => {
-    setPlayers(prev => {
-      const winner = prev.reduce((max, p) => p.votes > max.votes ? p : max, prev[0]);
-      setLog(l => [...l, `👑 ELECTION CLOSED. ${winner.name} (#${winner.num}) WINS.`]);
-      return prev;
-    });
+    if (!clock.isVotingOpen) return;
+    const target = players.find((player) => player.id === targetId);
+    if (!target) return;
+    setPlayers((current) => current.map((player) =>
+      player.id === targetId ? { ...player, votes: player.votes + 1 } : player
+    ));
+    setLog((current) => [...current.slice(-4), `👤 YOU voted for ${target.name}`]);
   };
 
   const formatTime = (sec: number) => `${Math.floor(sec/60)}:${(sec%60).toString().padStart(2, '0')}`;
@@ -122,10 +121,10 @@ export default function IslandPreview() {
                 <span className="v-label">VOTES</span>
                 <span className="v-count">{p.votes}</span>
               </div>
-              {isVotingOpen && !p.isUser && (
+              {clock.isVotingOpen && !p.isUser && (
                 <button className="vote-btn" onClick={() => castVote(p.id)}>VOTE</button>
               )}
-              {!isVotingOpen && p.votes === Math.max(...players.map(x => x.votes)) && (
+              {!clock.isVotingOpen && p.votes === Math.max(...players.map(x => x.votes)) && (
                 <div className="winner-crown">👑 WINNER</div>
               )}
             </div>
@@ -138,11 +137,11 @@ export default function IslandPreview() {
             <div className="panel-title" style={{ color: '#ff2d55' }}>OWNER OVERRIDE</div>
             <div className="owner-stats">
               <p>Phase: <span>ELECTION</span></p>
-              <p>Time Left: <span style={{ color: '#00ffcc' }}>{formatTime(timeLeft)}</span></p>
+              <p>Time Left: <span style={{ color: '#00ffcc' }}>{formatTime(clock.timeLeft)}</span></p>
               <p>Total Players: <span>{players.length}</span></p>
-              <p>Status: <span>{isVotingOpen ? 'LIVE' : 'LOCKED'}</span></p>
+              <p>Status: <span>{clock.isVotingOpen ? 'LIVE' : 'LOCKED'}</span></p>
             </div>
-            <button className="owner-btn" onClick={() => { setIsVotingOpen(false); determineWinner(); }}>
+            <button className="owner-btn" onClick={() => setClock((current) => ({ ...current, isVotingOpen: false }))}>
               FORCE END ELECTION
             </button>
             <button className="owner-btn danger" onClick={() => window.location.reload()}>
@@ -156,7 +155,7 @@ export default function IslandPreview() {
       {/* TIMER OVERLAY */}
       <div className="global-timer">
         <div className="timer-label">TIME UNTIL CLOSURE</div>
-        <div className="timer-clock">{formatTime(timeLeft)}</div>
+        <div className="timer-clock">{formatTime(clock.timeLeft)}</div>
       </div>
     </div>
   );
