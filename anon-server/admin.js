@@ -43,10 +43,26 @@ function renderPage() {
   .dim{color:#7c5a63;font-size:11px}
   .empty{text-align:center;padding:40px;color:#5a4048;font-style:italic}
   .footer{margin-top:20px;font-size:10px;color:#5a4048;text-align:center}
+  .login{max-width:460px;margin:40px auto;padding:22px;background:#0c0407;border:1px solid #3a0a14;border-radius:10px}
+  .login p{color:#8a7276;line-height:1.5}
+  .login input{width:100%;padding:11px;background:#050204;color:#f4e8e8;border:1px solid #3a0a14;border-radius:6px;font:inherit;margin:8px 0 12px}
+  .login button{padding:10px 14px;background:#3a0510;color:#fff;border:1px solid #7a0a1c;border-radius:6px;font:inherit;cursor:pointer}
+  #loginError{color:#ff7890;min-height:18px;margin-top:8px}
 </style>
 </head>
 <body>
   <h1>ANON<i>//</i> ADMIN</h1>
+  <section id="loginGate" class="login">
+    <h2>Administrator sign-in</h2>
+    <p>Enter the server-side admin token. It will remain in this page's memory only and will not be placed in the URL or saved in browser storage.</p>
+    <form id="loginForm" autocomplete="off">
+      <label for="adminToken">Admin token</label>
+      <input id="adminToken" type="password" autocomplete="current-password" required minlength="32" />
+      <button type="submit">Sign in</button>
+      <div id="loginError" role="status" aria-live="polite"></div>
+    </form>
+  </section>
+  <div id="adminContent" style="display:none">
   <div id="stats" class="grid"></div>
   <div class="bar">
     <button data-f="unreviewed" class="active">Unreviewed</button>
@@ -79,10 +95,46 @@ function renderPage() {
 
   <div id="reports"></div>
   <div class="footer">auto-refresh every 30s · <span id="lastUpdate"></span></div>
+  </div>
 
 <script>
-const TOKEN = new URLSearchParams(location.search).get("token") || "";
+let TOKEN = "";
+let refreshTimer = null;
 let filter = "unreviewed";
+
+async function apiFetch(url, options = {}) {
+  if (!TOKEN) throw new Error("Sign in required.");
+  return fetch(url, {
+    ...options,
+    headers: { ...(options.headers || {}), "x-admin-token": TOKEN },
+    cache: "no-store",
+  });
+}
+
+document.getElementById("loginForm").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const field = document.getElementById("adminToken");
+  const error = document.getElementById("loginError");
+  TOKEN = field.value.trim();
+  error.textContent = "Checking token…";
+  try {
+    const response = await apiFetch("/api/admin/stats");
+    const data = await response.json();
+    if (!response.ok || !data.ok) throw new Error("Invalid token or access denied.");
+    document.getElementById("loginGate").style.display = "none";
+    document.getElementById("adminContent").style.display = "block";
+    field.value = "";
+    error.textContent = "";
+    await Promise.all([loadStats(), loadReports()]);
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(() => {
+      if (TOKEN) { loadReports(); loadStats(); }
+    }, 30000);
+  } catch (err) {
+    TOKEN = "";
+    error.textContent = err instanceof Error ? err.message : "Authentication failed.";
+  }
+});
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/[&<>"']/g, (c) =>
@@ -97,7 +149,7 @@ function ago(ts) {
 }
 
 async function loadStats() {
-  const r = await fetch("/api/admin/stats?token=" + encodeURIComponent(TOKEN));
+  const r = await apiFetch("/api/admin/stats");
   const j = await r.json();
   if (!j.ok) return;
   const s = j.stats || {};
@@ -113,8 +165,8 @@ async function loadStats() {
 }
 
 async function loadReports() {
-  const q = "?token=" + encodeURIComponent(TOKEN) + (filter === "unreviewed" ? "&unreviewed=1" : "");
-  const r = await fetch("/api/admin/reports" + q);
+  const q = filter === "unreviewed" ? "?unreviewed=1" : "";
+  const r = await apiFetch("/api/admin/reports" + q);
   const j = await r.json();
   if (!j.ok) return;
   const list = j.reports || [];
@@ -146,7 +198,7 @@ async function loadReports() {
 
 async function act(id, action) {
   if (!confirm("Mark this report as: " + action + "?")) return;
-  await fetch("/api/admin/reports/" + id + "/review?token=" + encodeURIComponent(TOKEN), {
+  await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action }),
@@ -195,7 +247,6 @@ function buildQuery() {
   if (since) q.set("since", String(since));
   if (until) q.set("until", String(until));
   if (exIp.value.trim()) q.set("ip", exIp.value.trim());
-  q.set("token", TOKEN);
   return q;
 }
 
@@ -203,7 +254,7 @@ document.getElementById("exJson").addEventListener("click", async () => {
   exResult.textContent = "Loading…";
   try {
     const q = buildQuery();
-    const r = await fetch("/api/admin/sessions?" + q.toString());
+    const r = await apiFetch("/api/admin/sessions?" + q.toString());
     const j = await r.json();
     if (!j.ok) { exResult.textContent = "Error: " + (j.error || "unknown"); return; }
     const blob = new Blob([JSON.stringify(j.sessions, null, 2)], { type: "application/json" });
@@ -219,16 +270,28 @@ document.getElementById("exJson").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("exCsv").addEventListener("click", () => {
-  const q = buildQuery();
+document.getElementById("exCsv").addEventListener("click", async () => {
   exResult.textContent = "Downloading CSV…";
-  window.location.href = "/api/admin/sessions.csv?" + q.toString();
-  setTimeout(() => { exResult.textContent = "CSV download started."; }, 500);
+  try {
+    const response = await apiFetch("/api/admin/sessions.csv?" + buildQuery().toString());
+    if (!response.ok) throw new Error("Export failed (HTTP " + response.status + ").");
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "anon-sessions-" + Date.now() + ".csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    exResult.textContent = "CSV download started.";
+  } catch (err) {
+    exResult.textContent = err instanceof Error ? err.message : "Export failed.";
+  }
 });
 
-loadStats();
-loadReports();
-setInterval(() => { loadReports(); loadStats(); }, 30000);
+// Data loads only after a successful sign-in; the token is never read from the URL.
+
 </script>
 </body>
 </html>`;
@@ -237,14 +300,16 @@ setInterval(() => { loadReports(); loadStats(); }, 30000);
 function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN }) {
   function checkToken(req, res, next) {
     if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set on server" });
-    const token = req.query.token || req.headers["x-admin-token"];
-    if (token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "Unauthorized" });
+    const authorization = String(req.headers.authorization || "");
+    const bearer = authorization.match(/^Bearer\s+(.+)$/i);
+    const token = req.headers["x-admin-token"] || (bearer ? bearer[1] : "");
+    if (!token || token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "Unauthorized" });
     next();
   }
 
   app.get("/admin", (req, res) => {
     if (!ADMIN_TOKEN) return res.status(500).send("ADMIN_TOKEN not configured. Set it in .env and restart.");
-    if (req.query.token !== ADMIN_TOKEN) return res.status(401).send("Unauthorized — pass ?token=YOUR_TOKEN");
+    res.setHeader("Cache-Control", "no-store");
     res.type("html").send(renderPage());
   });
 
