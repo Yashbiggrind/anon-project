@@ -392,17 +392,25 @@ export default function Home() {
       setNameOffer({ a: pending.a, b: pending.b });
     }
 
-    const socket = io(serverUrl(), {
-      auth: savedName ? { username: savedName } : {},
-      transports: ["websocket", "polling"],
-      upgrade: true,
-      reconnection: true,
-      reconnectionAttempts: 50,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 20000,
-      forceNew: true,
-    });
+    let socket: Socket;
+    try {
+      socket = io(serverUrl(), {
+        auth: savedName ? { username: savedName } : {},
+        transports: ["websocket", "polling"],
+        upgrade: true,
+        reconnection: true,
+        reconnectionAttempts: 50,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        timeout: 20000,
+        forceNew: true,
+      });
+    } catch (error) {
+      console.error("[ANON] Backend configuration error:", error);
+      setConnected(false);
+      setToast("Chat server configuration is missing or invalid. Please try again later.");
+      return;
+    }
     socketRef.current = socket;
 
     socket.on("connect", () => {
