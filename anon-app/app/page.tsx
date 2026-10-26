@@ -406,7 +406,7 @@ export default function Home() {
     if (typeof window === "undefined") return;
 
     const savedLang = localStorage.getItem(LS_LANG) as Lang | null;
-    if (savedLang && LANGUAGES.some((l) => l.code === savedLang)) setLang(savedLang);
+    const validSavedLang = savedLang && LANGUAGES.some((l) => l.code === savedLang) ? savedLang : null;
 
     const now = Date.now();
     const savedName = localStorage.getItem(LS_USERNAME) || "";
@@ -432,13 +432,20 @@ export default function Home() {
       localStorage.removeItem(LS_PENDING);
       pending = null;
     }
-    if (now - lastOffer >= SEVEN_DAYS) {
-      if (!pending) {
-        pending = { a: makeRandomName(), b: makeRandomName(), shownAt: now };
-        localStorage.setItem(LS_PENDING, JSON.stringify(pending));
-      }
-      setNameOffer({ a: pending.a, b: pending.b });
-    }
+    const nextNameOffer = now - lastOffer >= SEVEN_DAYS
+      ? (() => {
+          if (!pending) {
+            pending = { a: makeRandomName(), b: makeRandomName(), shownAt: now };
+            localStorage.setItem(LS_PENDING, JSON.stringify(pending));
+          }
+          return { a: pending.a, b: pending.b };
+        })()
+      : null;
+
+    const stateHydrationTimer = window.setTimeout(() => {
+      if (validSavedLang) setLang(validSavedLang);
+      if (nextNameOffer) setNameOffer(nextNameOffer);
+    }, 0);
 
     let socket: Socket;
     try {
@@ -644,7 +651,10 @@ export default function Home() {
       });
     });
 
-    return () => { socket.disconnect(); };
+    return () => {
+      window.clearTimeout(stateHydrationTimer);
+      socket.disconnect();
+    };
   }, []);
 
   useEffect(() => {
