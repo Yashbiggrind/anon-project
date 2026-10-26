@@ -52,16 +52,25 @@ export default function ConfessionPage() {
   const [filter, setFilter] = useState<"new" | "top" | "hot">("new");
   const [me, setMe] = useState<string>("anon");
   const [ready, setReady] = useState(false);
+  const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
-    setMe(getSession());
-    setList(loadStore());
-    setReady(true);
-    const t = setInterval(() => {
-      const next = loadStore();
-      setList(next);
+    // Defer browser storage reads/state updates until after the effect, avoiding
+    // synchronous state changes during effect setup and SSR hydration mismatches.
+    const initialise = window.setTimeout(() => {
+      setMe(getSession());
+      setList(loadStore());
+      setNow(Date.now());
+      setReady(true);
+    }, 0);
+    const refreshTimer = window.setInterval(() => {
+      setList(loadStore());
+      setNow(Date.now());
     }, 15000);
-    return () => clearInterval(t);
+    return () => {
+      window.clearTimeout(initialise);
+      window.clearInterval(refreshTimer);
+    };
   }, []);
 
   function persist(next: Confession[]) {
@@ -105,11 +114,10 @@ export default function ConfessionPage() {
   }
 
   const sorted = useMemo(() => {
-    const now = Date.now();
     const arr = [...list];
-    if (filter === "new") arr.sort((a, b) => b.createdAt - a.createdAt);
+    if (filter === "new" || now === null) arr.sort((a, b) => b.createdAt - a.createdAt);
     if (filter === "top") arr.sort((a, b) => (b.up - b.down) - (a.up - a.down));
-    if (filter === "hot") {
+    if (filter === "hot" && now !== null) {
       arr.sort((a, b) => {
         const sa = (a.up - a.down) / Math.pow((now - a.createdAt) / 3600000 + 2, 1.5);
         const sb = (b.up - b.down) / Math.pow((now - b.createdAt) / 3600000 + 2, 1.5);
@@ -117,10 +125,11 @@ export default function ConfessionPage() {
       });
     }
     return arr;
-  }, [list, filter]);
+  }, [list, filter, now]);
 
   function timeLeft(ts: number) {
-    const ms = ts - Date.now();
+    if (now === null) return "loading…";
+    const ms = ts - now;
     if (ms <= 0) return "expired";
     const h = Math.floor(ms / 3600000);
     const m = Math.floor((ms % 3600000) / 60000);
