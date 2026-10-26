@@ -12,10 +12,12 @@ export default function LegalRoute() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    const saved = (localStorage.getItem("anon_lang") as Lang) || "en";
-    setLang(saved);
-    const t = setTimeout(() => setReady(true), 60);
-    return () => clearTimeout(t);
+    const timer = window.setTimeout(() => {
+      const saved = (localStorage.getItem("anon_lang") as Lang) || "en";
+      setLang(saved);
+      setReady(true);
+    }, 60);
+    return () => window.clearTimeout(timer);
   }, []);
 
   useEffect(() => {
