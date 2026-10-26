@@ -84,7 +84,7 @@ export default function TrustPage() {
       <style>{CSS}</style>
       <div className="trustRoot">
         <div className="tHead">
-          <div className="eyebrow">// TRUST LAYER</div>
+          <div className="eyebrow">{"// TRUST LAYER"}</div>
           <h1>What we promise. What is live.</h1>
           <p>Status labels are honest: LIVE, READY, or PLANNED.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
