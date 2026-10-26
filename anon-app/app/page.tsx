@@ -462,7 +462,14 @@ export default function Home() {
       });
     } catch (error) {
       console.error("[ANON] Backend configuration error:", error);
-      showToast("Chat server configuration is missing or invalid. Please try again later.", 5000, "error");
+      // Defer React state updates until after effect initialization has completed.
+      window.setTimeout(() => {
+        showToast(
+          "Chat server configuration is missing or invalid. Please try again later.",
+          5000,
+          "error"
+        );
+      }, 0);
       return;
     }
     socketRef.current = socket;
