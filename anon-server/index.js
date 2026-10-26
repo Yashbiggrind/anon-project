@@ -221,7 +221,8 @@ const publicUser = (s) => ({
 
 // Internal spam identifiers must never cross the Socket.IO boundary.
 const publicChatMessage = (message) => {
-  const { senderSpamKey: _privateSpamKey, ...safeMessage } = message;
+  const safeMessage = { ...message };
+  delete safeMessage.senderSpamKey;
   return safeMessage;
 };
 
