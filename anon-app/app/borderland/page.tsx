@@ -44,8 +44,8 @@ export default function Borderland() {
           setPlayers(prev => {
             const alive = prev.filter(p => p.alive);
             const maxVotes = Math.max(...alive.map(p => p.votes));
-            let toDie = alive.filter(p => p.votes === maxVotes);
-            let victim = toDie.find(p => p.name === "You") || toDie[0];
+            const toDie = alive.filter(p => p.votes === maxVotes);
+            const victim = toDie.find(p => p.name === "You") || toDie[0];
             log("💥 " + victim.name + " was voted out.");
             const updated = prev.map(p => p.id === victim.id ? { ...p, alive: false, action: "VOTED OUT" } : p);
             if (victim.name === "You") setTimeout(() => { setWinner("The Bots"); setPhase("gameover"); }, 2000);
