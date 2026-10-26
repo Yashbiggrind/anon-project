@@ -5,7 +5,7 @@ const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 
-const DB_PATH = path.join(__dirname, "anon.db");
+const DB_PATH = process.env.ANON_DB_PATH || path.join(__dirname, "anon.db");
 const CONFIGURED_IP_HASH_SECRET = String(process.env.IP_HASH_SECRET || "").trim();
 const IS_PRODUCTION = process.env.NODE_ENV === "production";
 if (IS_PRODUCTION && (CONFIGURED_IP_HASH_SECRET.length < 32 || /change-me|your-secret/i.test(CONFIGURED_IP_HASH_SECRET))) {
