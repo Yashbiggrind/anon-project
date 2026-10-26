@@ -132,9 +132,9 @@ export default function ConfessionPage() {
       <style>{CSS}</style>
       <div className="cwRoot">
         <div className="cwHead">
-          <div className="eyebrow">// CONFESSION WALL</div>
+          <div className="eyebrow">{"// CONFESSION WALL"}</div>
           <h1>Say it. Then it disappears.</h1>
-          <p>Anonymous posts. Auto-expire in 24 hours. No accounts, no trace.</p>
+          <p>Local-only preview. Posts stay in this browser and expire after 24 hours; this is not the shared Confession Wall.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
