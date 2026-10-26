@@ -55,6 +55,20 @@ const DM_TTL_MS = 60 * 60 * 1000;
 const DM_MAX_MESSAGES = 200;
 const rateBuckets = new Map();
 const reports = [];
+const confessions = new Map();
+const CONFESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const MAX_CONFESSIONS = 500;
+const MAX_CONFESSION_REPLIES = 50;
+const CONFESSION_MAX_LENGTH = 1000;
+const CONFESSION_REPLY_MAX_LENGTH = 400;
+const ELECTION_DURATION_MS = 24 * 60 * 60 * 1000;
+const electionVotes = new Map();
+const electionState = {
+  status: "voting",
+  startedAt: Date.now(),
+  endsAt: Date.now() + ELECTION_DURATION_MS,
+  winner: null,
+};
 const reactions = new Map();
 const reactionTimes = new Map();
 const REACTION_RATE = 20;
@@ -179,6 +193,19 @@ setInterval(() => {
       dmThreads.delete(threadId);
     }
   }
+  let confessionChanged = false;
+  for (const [id, post] of confessions) {
+    if (post.expiresAt <= now) {
+      confessions.delete(id);
+      confessionChanged = true;
+    }
+  }
+  if (electionState.status === "voting" && electionState.endsAt <= now) {
+    finishElection();
+    confessionChanged = true;
+  }
+  if (confessionChanged) io.emit("confession:update");
+
   decayStrikes();
   // v21.3 â€” purge session log entries older than 180 days
   {
@@ -225,6 +252,52 @@ const publicChatMessage = (message) => {
   delete safeMessage.senderSpamKey;
   return safeMessage;
 };
+
+function publicConfession(post) {
+  return {
+    id: post.id,
+    text: post.text,
+    author: post.author,
+    createdAt: post.createdAt,
+    expiresAt: post.expiresAt,
+    upvotes: post.upvotes,
+    downvotes: post.downvotes,
+    replies: post.replies.map((reply) => ({ ...reply })),
+  };
+}
+
+function publicElection() {
+  return {
+    status: electionState.status,
+    startedAt: electionState.startedAt,
+    endsAt: electionState.endsAt,
+    winner: electionState.winner,
+    voteCount: electionVotes.size,
+  };
+}
+
+function getConfessionFeed() {
+  return [...confessions.values()]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .map(publicConfession);
+}
+
+function finishElection() {
+  if (electionState.status !== "voting") return false;
+  const tally = new Map();
+  for (const candidate of electionVotes.values()) {
+    tally.set(candidate, (tally.get(candidate) || 0) + 1);
+  }
+  let winner = null;
+  let highest = 0;
+  for (const [candidate, count] of tally) {
+    if (count > highest) { winner = candidate; highest = count; }
+  }
+  electionState.status = "finished";
+  electionState.winner = winner || "No votes";
+  electionState.endsAt = Date.now();
+  return true;
+}
 
 const publicRoom = (r) => ({
   roomId: r.roomId,
@@ -1642,6 +1715,133 @@ io.on("connection", (socket) => {
 
   // ---------- DM: close thread ----------
   socket.on("dm:close", ({ threadId } = {}, ack) => {
+    ack?.({ ok: true });
+  });
+
+  // ---------- confession feed (ephemeral server-memory feature) ----------
+  socket.on("confession:list", (_payload, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:list:${s.spamKey}`, 60, 60000)) {
+      return ack?.({ ok: false, error: "Too many refreshes. Slow down." });
+    }
+    ack?.({ ok: true, confessions: getConfessionFeed(), election: publicElection() });
+  });
+
+  socket.on("confession:create", ({ text } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:create:${s.spamKey}`, 5, 60000)) {
+      return ack?.({ ok: false, error: "Too many posts. Try again later." });
+    }
+    const content = clean(String(text ?? "")).trim();
+    if (!content) return ack?.({ ok: false, error: "Write something first." });
+    if (content.length > CONFESSION_MAX_LENGTH) {
+      return ack?.({ ok: false, error: `Maximum length is ${CONFESSION_MAX_LENGTH} characters.` });
+    }
+    const now = Date.now();
+    const post = {
+      id: makeId(),
+      text: content,
+      author: s.username,
+      authorSessionId: s.sessionId,
+      createdAt: now,
+      expiresAt: now + CONFESSION_TTL_MS,
+      upvotes: 0,
+      downvotes: 0,
+      votesBySession: new Map(),
+      replies: [],
+    };
+    confessions.set(post.id, post);
+    while (confessions.size > MAX_CONFESSIONS) {
+      const oldest = [...confessions.values()].sort((a, b) => a.createdAt - b.createdAt)[0];
+      if (!oldest) break;
+      confessions.delete(oldest.id);
+    }
+    io.emit("confession:update");
+    ack?.({ ok: true, confession: publicConfession(post) });
+  });
+
+  socket.on("confession:reply", ({ confessionId, text } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:reply:${s.spamKey}`, 10, 60000)) {
+      return ack?.({ ok: false, error: "Too many replies. Try again later." });
+    }
+    const post = confessions.get(String(confessionId || ""));
+    if (!post || post.expiresAt <= Date.now()) {
+      return ack?.({ ok: false, error: "That confession has expired." });
+    }
+    if (post.replies.length >= MAX_CONFESSION_REPLIES) {
+      return ack?.({ ok: false, error: "This confession has reached its reply limit." });
+    }
+    const content = clean(String(text ?? "")).trim();
+    if (!content) return ack?.({ ok: false, error: "Write a reply first." });
+    if (content.length > CONFESSION_REPLY_MAX_LENGTH) {
+      return ack?.({ ok: false, error: `Maximum reply length is ${CONFESSION_REPLY_MAX_LENGTH} characters.` });
+    }
+    post.replies.push({
+      id: makeId(),
+      author: s.username,
+      text: content,
+      createdAt: Date.now(),
+    });
+    io.emit("confession:update");
+    ack?.({ ok: true });
+  });
+
+  socket.on("confession:vote", ({ confessionId, dir } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (!rateLimit(`confession:vote:${s.spamKey}`, 30, 60000)) {
+      return ack?.({ ok: false, error: "Too many votes. Slow down." });
+    }
+    const post = confessions.get(String(confessionId || ""));
+    if (!post || post.expiresAt <= Date.now()) {
+      return ack?.({ ok: false, error: "That confession has expired." });
+    }
+    if (post.authorSessionId === s.sessionId) {
+      return ack?.({ ok: false, error: "You cannot vote on your own confession." });
+    }
+    const vote = Number(dir);
+    if (vote !== 1 && vote !== -1) return ack?.({ ok: false, error: "Invalid vote." });
+    const previous = post.votesBySession.get(s.sessionId) || 0;
+    if (previous === vote) {
+      if (vote === 1) post.upvotes = Math.max(0, post.upvotes - 1);
+      else post.downvotes = Math.max(0, post.downvotes - 1);
+      post.votesBySession.delete(s.sessionId);
+    } else {
+      if (previous === 1) post.upvotes = Math.max(0, post.upvotes - 1);
+      if (previous === -1) post.downvotes = Math.max(0, post.downvotes - 1);
+      if (vote === 1) post.upvotes += 1;
+      else post.downvotes += 1;
+      post.votesBySession.set(s.sessionId, vote);
+    }
+    io.emit("confession:update");
+    ack?.({ ok: true });
+  });
+
+  socket.on("election:vote", ({ candidate } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    if (electionState.status !== "voting" || electionState.endsAt <= Date.now()) {
+      finishElection();
+      io.emit("confession:update");
+      return ack?.({ ok: false, error: "The election is closed." });
+    }
+    if (!rateLimit(`election:vote:${s.spamKey}`, 5, 60000)) {
+      return ack?.({ ok: false, error: "Too many votes. Slow down." });
+    }
+    const name = clean(String(candidate || "")).trim().slice(0, 40);
+    const choices = getConfessionFeed().slice(0, 3);
+    if (!name || !choices.some((post) => post.author === name)) {
+      return ack?.({ ok: false, error: "Choose one of the current candidates." });
+    }
+    if (electionVotes.has(s.sessionId)) {
+      return ack?.({ ok: false, error: "You have already voted in this election." });
+    }
+    electionVotes.set(s.sessionId, name);
+    io.emit("confession:update");
     ack?.({ ok: true });
   });
 
