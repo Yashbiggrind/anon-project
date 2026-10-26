@@ -39,16 +39,10 @@ export default function IslandPreview() {
     return () => clearInterval(timer);
   }, [clock.isVotingOpen]);
 
-  // Announce the winner after voting has closed, using the final current tally.
-  useEffect(() => {
-    if (clock.isVotingOpen) return;
-    const winner = players.reduce((max, player) => player.votes > max.votes ? player : max, players[0]);
-    const timer = window.setTimeout(() => {
-      const announcement = `👑 ELECTION CLOSED. ${winner.name} (#${winner.num}) WINS.`;
-      setLog((current) => current.includes(announcement) ? current : [...current, announcement]);
-    }, 0);
-    return () => window.clearTimeout(timer);
-  }, [clock.isVotingOpen, players]);
+  const electionWinner = players.reduce(
+    (max, player) => player.votes > max.votes ? player : max,
+    players[0]
+  );
 
   // Bots vote randomly every three seconds; no state updates happen inside a state updater.
   useEffect(() => {
@@ -106,6 +100,11 @@ export default function IslandPreview() {
           <div className="panel-title">SYSTEM LOG</div>
           <div className="log-content">
             {log.map((l, i) => <div key={i} className="log-line">{l}</div>)}
+            {!clock.isVotingOpen && (
+              <div className="log-line">
+                👑 ELECTION CLOSED. {electionWinner.name} (#{electionWinner.num}) WINS.
+              </div>
+            )}
           </div>
         </div>
 
