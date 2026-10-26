@@ -483,11 +483,13 @@ export default function Home() {
     socket.on("message:edited", ({ messageId, content, editedAt }: { messageId: string; content: string; editedAt: number }) => {
       setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
       setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
+      void persistUpdate(messageId, { content, editedAt });
     });
 
     socket.on("message:deleted", ({ messageId }: { messageId: string }) => {
-      setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)));
-      setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "" } : m)));
+      setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
+      setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
+      void persistUpdate(messageId, { deleted: true, content: "", image: undefined });
     });
 
     socket.on("invite:received", (inv: Invite) => {
@@ -552,7 +554,8 @@ export default function Home() {
     });
 
     socket.on("room:ended", (e: { reason: string }) => {
-      // v24.5 — messages persist in localStorage; only admin purge or lifetime will remove them
+      const endedRoomId = roomRef.current?.roomId;
+      if (endedRoomId) void persistClearScope("room", endedRoomId);
       setRoom(null); setPrivateMessages([]); setInviteOpen(false);
       setRoomSystemLines([]);
       setMemberMenuFor(null);
@@ -683,6 +686,7 @@ export default function Home() {
       expired.forEach((m) => {
         const el = document.querySelector(`[data-mid="${m.id}"]`);
         if (el) el.classList.add("expiring");
+        void persistRemove(m.id);
       });
       setTimeout(() => {
         setPrivateMessages((p) => p.filter((m) => m.createdAt >= cut));
@@ -719,8 +723,16 @@ export default function Home() {
   useEffect(() => {
     const tmr = setInterval(() => {
       const cut = Date.now() - 60 * 60 * 1000;
-      setMessages((p) => p.map((m) => (m.image && m.createdAt < cut ? { ...m, image: undefined } : m)));
-      setPrivateMessages((p) => p.map((m) => (m.image && m.createdAt < cut ? { ...m, image: undefined } : m)));
+      setMessages((p) => p.map((m) => {
+        if (!m.image || m.createdAt >= cut) return m;
+        void persistUpdate(m.id, { image: undefined });
+        return { ...m, image: undefined };
+      }));
+      setPrivateMessages((p) => p.map((m) => {
+        if (!m.image || m.createdAt >= cut) return m;
+        void persistUpdate(m.id, { image: undefined });
+        return { ...m, image: undefined };
+      }));
     }, 60 * 1000);
     return () => clearInterval(tmr);
   }, []);
