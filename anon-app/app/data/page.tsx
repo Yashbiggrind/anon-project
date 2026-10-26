@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { destroyStore } from "@/lib/messageStore";
+import { clearAll, destroyStore } from "@/lib/messageStore";
 
 type Snapshot = {
   exportedAt: string;
@@ -105,7 +105,10 @@ export default function DataPage() {
     // stored message contents are removed from the current database.
     try { localStorage.clear(); } catch { failures.push("local storage"); }
     try { sessionStorage.clear(); } catch { failures.push("session storage"); }
-    try { await destroyStore(); } catch (error) {
+    try {
+      await clearAll();
+      await destroyStore();
+    } catch (error) {
       failures.push(error instanceof Error ? error.message : "IndexedDB");
     }
 
