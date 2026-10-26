@@ -87,14 +87,43 @@ function init() {
     `);
     try { db.exec("ALTER TABLE reports ADD COLUMN target_username TEXT"); } catch { /* exists */ }
 
-    // Remove legacy IP-based strike keys written by older versions. Current IP keys
-    // must be "ip:" + 32 hex chars (the truncated HMAC), never a literal IP address.
-    const oldIpKeys = db.prepare("SELECT spam_key FROM strikes WHERE spam_key LIKE 'ip:%'").all();
-    const deleteOldIpKey = db.prepare("DELETE FROM strikes WHERE spam_key = ?");
-    for (const row of oldIpKeys) {
-      if (!/^ip:[a-f0-9]{32}$/i.test(String(row.spam_key))) {
-        deleteOldIpKey.run(row.spam_key);
-      }
+    // Migrate legacy raw-IP strike keys to keyed hashes without discarding moderation state.
+    // Enable secure_delete before removing old rows, then compact the database if migration was needed.
+    db.exec("PRAGMA secure_delete = ON");
+    const legacyIpKeys = db.prepare("SELECT * FROM strikes WHERE spam_key LIKE 'ip:%'").all();
+    const upsertHashedStrike = db.prepare(`
+      INSERT INTO strikes
+        (spam_key, count, level, last_offense, cooldown_until, shadow_banned_until, warnings_shown, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(spam_key) DO UPDATE SET
+        count = MAX(strikes.count, excluded.count),
+        level = MAX(strikes.level, excluded.level),
+        last_offense = MAX(strikes.last_offense, excluded.last_offense),
+        cooldown_until = MAX(strikes.cooldown_until, excluded.cooldown_until),
+        shadow_banned_until = MAX(strikes.shadow_banned_until, excluded.shadow_banned_until),
+        warnings_shown = MAX(strikes.warnings_shown, excluded.warnings_shown),
+        updated_at = MAX(strikes.updated_at, excluded.updated_at)
+    `);
+    const deleteLegacyStrike = db.prepare("DELETE FROM strikes WHERE spam_key = ?");
+    let migratedLegacyKeys = 0;
+    for (const row of legacyIpKeys) {
+      const oldKey = String(row.spam_key || "");
+      if (!oldKey.startsWith("ip:") || /^ip:[a-f0-9]{32}$/i.test(oldKey)) continue;
+      const hashedKey = "ip:" + hashIp(oldKey.slice(3));
+      upsertHashedStrike.run(
+        hashedKey, row.count || 0, row.level || 0, row.last_offense || 0,
+        row.cooldown_until || 0, row.shadow_banned_until || 0,
+        row.warnings_shown || 0, row.updated_at || Date.now()
+      );
+      deleteLegacyStrike.run(oldKey);
+      migratedLegacyKeys += 1;
+    }
+    if (migratedLegacyKeys > 0) {
+      // This reduces residual deleted-cell data in the active DB file; it cannot erase
+      // older deployment backups, copied databases, or hosting-provider logs.
+      db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+      db.exec("VACUUM");
+      console.log(`[db] migrated ${migratedLegacyKeys} legacy IP-based strike key(s)`);
     }
 
     ready = true;
