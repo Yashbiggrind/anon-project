@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 
 type Phase = "portal" | "visa" | "game1" | "game2" | "game3" | "gameover";
@@ -21,6 +21,8 @@ export default function Borderland() {
     { id: 3, name: "Bot_Beta", alive: true, isTraitor: false, action: "Standing still...", score: 0, votes: 0 },
     { id: 4, name: "Bot_Gamma", alive: true, isTraitor: false, action: "Sweating...", score: 0, votes: 0 }
   ]);
+  const playersRef = useRef(players);
+  useEffect(() => { playersRef.current = players; }, [players]);
 
   const log = (msg: string) => setLogs(prev => [...prev.slice(-4), msg]);
 
@@ -96,24 +98,35 @@ export default function Borderland() {
   // GAME 3: TRAITOR
   useEffect(() => {
     if (phase !== "game3") return;
-    log("Host: One of you is a traitor. Find them.");
-    const traitor = players.find(p => p.isTraitor && p.alive);
-    if (!traitor) return;
 
-    const attackTimer = setTimeout(() => {
-      setPlayers(prev => {
-        const aliveTargets = prev.filter(p => !p.isTraitor && p.alive);
-        if (aliveTargets.length === 0) return prev;
-        const victim = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
-        const updated = prev.map(p => p.id === victim.id ? { ...p, alive: false, action: "STABBED IN THE DARK" } : p);
-        log("🩸 " + victim.name + " was murdered.");
-        setClues(prev => [...prev, "Clue: A trail of dark pixels leads to the bottom right corner."]);
-        if (victim.name === "You") setTimeout(() => { setWinner("The Traitor"); setPhase("gameover"); }, 2000);
-        return updated;
-      });
+    const introTimer = window.setTimeout(() => {
+      log("Host: One of you is a traitor. Find them.");
+    }, 0);
+    const traitor = playersRef.current.find((player) => player.isTraitor && player.alive);
+    if (!traitor) return () => window.clearTimeout(introTimer);
+
+    const attackTimer = window.setTimeout(() => {
+      const currentPlayers = playersRef.current;
+      const aliveTargets = currentPlayers.filter((player) => !player.isTraitor && player.alive);
+      if (aliveTargets.length === 0) return;
+      const victim = aliveTargets[Math.floor(Math.random() * aliveTargets.length)];
+      const updated = currentPlayers.map((player) =>
+        player.id === victim.id ? { ...player, alive: false, action: "STABBED IN THE DARK" } : player
+      );
+      playersRef.current = updated;
+      setPlayers(updated);
+      log("🩸 " + victim.name + " was murdered.");
+      setClues((current) => [...current, "Clue: A trail of dark pixels leads to the bottom right corner."]);
+      if (victim.name === "You") {
+        window.setTimeout(() => { setWinner("The Traitor"); setPhase("gameover"); }, 2000);
+      }
     }, 6000);
-    return () => clearTimeout(attackTimer);
-  }, [phase, players]);
+
+    return () => {
+      window.clearTimeout(introTimer);
+      window.clearTimeout(attackTimer);
+    };
+  }, [phase]);
 
   const spamClick = () => {
     if (gameTimer <= 0 || !players.find(p => p.name === "You")?.alive) return;
