@@ -758,7 +758,7 @@ io.on("connection", (socket) => {
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
 
-  // v21.3 â€” log connection for 180-day retention (Rule 3(1)(h))
+  // Store only a keyed hash of the network address plus bounded session metadata.
   db.logConnect(clientIp, session.sessionId, socket.handshake.headers["user-agent"] || "");
 
   socket.emit("session:ready", publicUser(session));
@@ -770,13 +770,25 @@ io.on("connection", (socket) => {
   ]);
   socket.use((event, next) => {
     if (!Array.isArray(event)) return next();
-    const name = event[0];
-    if (!SENSITIVE_EVENTS.has(name)) return next();
+    const name = typeof event[0] === "string" ? event[0] : "";
+
+    // A null/non-object payload can throw in handlers that destructure arguments.
+    // Normalize malformed payloads so they fail normal validation instead of crashing a handler.
+    if (event.length > 1 && (event[1] === null || typeof event[1] !== "object")) event[1] = {};
+
     const s = sessions.get(socket.id);
-    if (!s) return next();
+    if (!s || !name) return next();
+
+    // General per-event flood ceiling complements tighter action-specific limits below.
+    const ack = event[event.length - 1];
+    if (!rateLimit(`event:${name}:${s.spamKey}`, 240, 60000)) {
+      if (typeof ack === "function") ack({ ok: false, error: "Too many requests. Slow down." });
+      return;
+    }
+
+    if (!SENSITIVE_EVENTS.has(name)) return next();
     const limit = name === "report:user" ? 10 : 30;
     if (!rateLimit(`sens:${name}:${s.spamKey}`, limit, 60000)) {
-      const ack = event[event.length - 1];
       if (typeof ack === "function") ack({ ok: false, error: "Slow down — too many requests." });
       return;
     }
