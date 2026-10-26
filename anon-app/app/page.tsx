@@ -2315,7 +2315,7 @@ export default function Home() {
             </section>
 
             <section className={`app-view ${section === "confession" ? "active" : ""}`}>
-              <ConfessionTab socket={socketRef.current} identity={identity} connected={connected} />
+              <ConfessionTab socket={socketRef.current} connected={connected} />
             </section>
             <section className={`app-view ${section === "content" ? "active" : ""}`}>
               <div className="hero">
