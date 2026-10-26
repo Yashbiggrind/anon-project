@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import { LEGAL, LegalPage } from "@/lib/legal";
 import { Lang, translate, isRTL } from "@/lib/i18n";
 
@@ -33,7 +34,7 @@ export default function LegalRoute() {
         <div className={`legalRoot ${ready ? "in" : ""}`}>
           <div className="scan" />
           <div className="legalCard">
-            <a className="legalBack" href="/">← Back</a>
+            <Link className="legalBack" href="/">← Back</Link>
             <div className="legalTitle" data-text="NOT FOUND">NOT FOUND</div>
             <div className="legalDivider" />
             <div className="legalBody">
@@ -42,9 +43,9 @@ export default function LegalRoute() {
             {/* v22 — show the doc nav even on 404 so users can find the right page */}
             <nav className="legalDocNav" aria-label="Legal documents">
               {(Object.keys(LEGAL) as LegalPage[]).map((k) => (
-                <a key={k} href={`/legal/${k}`} className="legalDocNavLink">
+                <Link key={k} href={`/legal/${k}`} className="legalDocNavLink">
                   {LEGAL[k].title}
-                </a>
+                </Link>
               ))}
             </nav>
           </div>
@@ -59,9 +60,9 @@ export default function LegalRoute() {
       <div className={`legalRoot ${ready ? "in" : ""}`}>
         <div className="scan" />
         <div className="legalCard">
-          <a className="legalBack" href="/">
+          <Link className="legalBack" href="/">
             ← {translate(lang, "close")}
-          </a>
+          </Link>
 
           <h1 className="legalTitle" data-text={data.title.toUpperCase()}>
             {data.title}
@@ -108,9 +109,9 @@ export default function LegalRoute() {
             {(Object.keys(LEGAL) as LegalPage[])
               .filter((k) => k !== key)
               .map((k) => (
-                <a key={k} href={`/legal/${k}`} className="legalDocNavLink">
+                <Link key={k} href={`/legal/${k}`} className="legalDocNavLink">
                   {LEGAL[k].title}
-                </a>
+                </Link>
               ))}
           </nav>
         </div>
