@@ -9,10 +9,12 @@ export default function ConsentBanner() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const seen = localStorage.getItem(LS_KEY);
-    if (!seen) setShow(true);
-    setReady(true);
+    const timer = window.setTimeout(() => {
+      const seen = localStorage.getItem(LS_KEY);
+      if (!seen) setShow(true);
+      setReady(true);
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, []);
 
   const accept = () => {
