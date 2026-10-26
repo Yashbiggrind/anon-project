@@ -1525,7 +1525,7 @@ export default function Home() {
                 <circle cx="38" cy="22" r="1.5" fill="#ff2d55"/>
               </svg>
               <div className="brandText">
-                <div className="brandLogo">ANON<i>//</i></div>
+                <div className="brandLogo">ANON<i>{"//"}</i></div>
                 <div className="brandTag">{t("brandTagline")}</div>
               </div>
             </div>
@@ -1603,7 +1603,7 @@ export default function Home() {
 
             <div className="heroGrid">
               <div className="heroLeft">
-                <h1 className="bigLogo">ANON<i>//</i></h1>
+                <h1 className="bigLogo">ANON<i>{"//"}</i></h1>
                 <div className="bigTag">{t("brandTagline")}</div>
 
                 <div className="anonPanel">
@@ -1672,7 +1672,7 @@ export default function Home() {
         <div className="app in" style={{ display: "block" }}>
           <header className="app-head">
             <button className="back" onClick={goBack} title={t("backTitle")}>←</button>
-            <div className="app-brand">ANON<i>//</i></div>
+            <div className="app-brand">ANON<i>{"//"}</i></div>
             <nav className="app-nav">
               {(["chat", "private", "content"] as Section[]).map((v) => (
                 <button key={v} className={section === v ? "active" : ""} onClick={() => setSection(v)}>
