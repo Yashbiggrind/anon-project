@@ -8,12 +8,23 @@ const { Server } = require("socket.io");
 const db = require("./db");
 const { registerAdmin } = require("./admin");
 const PORT = parseInt(process.env.PORT || "4000", 10);
-const CLIENT_ORIGIN = process.env.CLIENT_ORIGIN || "*";
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+const CLIENT_ORIGINS = (process.env.CLIENT_ORIGIN || (IS_PRODUCTION ? "" : "http://localhost:3000"))
+  .split(",").map((origin) => origin.trim()).filter(Boolean);
+const TRUST_PROXY = process.env.TRUST_PROXY === "true";
 const MAX_MSG = parseInt(process.env.MAX_MSG_LENGTH || "1000", 10);
 const RATE_MSG = parseInt(process.env.RATE_MSG_PER_10S || "15", 10);
 const RATE_INV = parseInt(process.env.RATE_INVITE_PER_MIN || "5", 10);
 const RATE_ROOM = parseInt(process.env.RATE_ROOM_CREATE_PER_MIN || "3", 10);
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+if (IS_PRODUCTION) {
+  if (!CLIENT_ORIGINS.length || CLIENT_ORIGINS.includes("*")) {
+    throw new Error("Production requires CLIENT_ORIGIN to list explicit allowed frontend origins.");
+  }
+  if (ADMIN_TOKEN.length < 32 || /change-me|your-secret/i.test(ADMIN_TOKEN)) {
+    throw new Error("Production requires ADMIN_TOKEN to be a unique random value of at least 32 characters.");
+  }
+}
 
 // ---------- v20 room config ----------
 const MIN_ROOM_CAPACITY = 2;
@@ -25,11 +36,12 @@ const ROOM_TOPIC_MAX = 40;
 // ---------- CORS origin checker ----------
 const PRIVATE_IP = /^https?:\/\/(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)(:\d+)?$/;
 function corsOrigin(origin, cb) {
+  // Non-browser clients may omit Origin; authorization is enforced separately.
   if (!origin) return cb(null, true);
-  if (CLIENT_ORIGIN === "*") return cb(null, true);
-  if (origin === CLIENT_ORIGIN) return cb(null, true);
-  if (PRIVATE_IP.test(origin)) return cb(null, true);
-  return cb(new Error(`CORS blocked: ${origin}`), false);
+  if (CLIENT_ORIGINS.includes(origin)) return cb(null, true);
+  // LAN convenience is development-only and never overrides a production allowlist.
+  if (!IS_PRODUCTION && PRIVATE_IP.test(origin)) return cb(null, true);
+  return cb(new Error("CORS blocked"), false);
 }
 
 // ---------- state ----------
@@ -107,8 +119,15 @@ function isEmoji(str) {
 }
 
 function getClientIp(socket) {
-  const fwd = socket.handshake.headers["x-forwarded-for"];
-  if (typeof fwd === "string" && fwd.length) return fwd.split(",")[0].trim();
+  // Forwarded headers are client-controlled unless the ingress proxy overwrites them.
+  // Enable TRUST_PROXY only when the deployed proxy is configured to sanitize X-Forwarded-For.
+  if (TRUST_PROXY) {
+    const fwd = socket.handshake.headers["x-forwarded-for"];
+    if (typeof fwd === "string" && fwd.length) {
+      const candidate = fwd.split(",")[0].trim();
+      if (candidate && candidate.length <= 64) return candidate;
+    }
+  }
   return socket.handshake.address || "unknown";
 }
 
@@ -200,6 +219,12 @@ const publicUser = (s) => ({
   sessionId: s.sessionId, username: s.username, accent: s.accent, status: s.status || "available",
 });
 
+// Internal spam identifiers must never cross the Socket.IO boundary.
+const publicChatMessage = (message) => {
+  const { senderSpamKey: _privateSpamKey, ...safeMessage } = message;
+  return safeMessage;
+};
+
 const publicRoom = (r) => ({
   roomId: r.roomId,
   host: r.host,
@@ -255,7 +280,7 @@ function broadcastPublicMessage(msg) {
       (session.blocked.has(msg.senderSessionId) || isBlocked(msg.senderSessionId, session.sessionId))
     ) continue;
     if (shadowed && session.sessionId !== msg.senderSessionId) continue;
-    io.to(socketId).emit("chat:public:message", msg);
+    io.to(socketId).emit("chat:public:message", publicChatMessage(msg));
   }
 }
 
@@ -276,7 +301,7 @@ function broadcastRoomMessage(room, msg) {
     ) continue;
     if (shadowed && p.sessionId !== msg.senderSessionId) continue;
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:message", msg);
+    if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
   }
 }
 
@@ -646,12 +671,11 @@ io.on("connection", (socket) => {
   const validName = /^[A-Za-z]+\d{1,4}$/.test(provided) && provided.length <= 20 ? provided : null;
 
   const clientIp = getClientIp(socket);
-  const spamKey = `ip:${clientIp}`;
+  const spamKey = `ip:${db.hashIp(clientIp)}`;
 
   const session = {
     sessionId: makeId(),
     spamKey,
-    ip: clientIp,
     username: validName || makeUsername(),
     accent: pick(ACCENTS),
     status: "available",
@@ -663,7 +687,7 @@ io.on("connection", (socket) => {
   // v21.3 â€” log connection for 180-day retention (Rule 3(1)(h))
   db.logConnect(clientIp, session.sessionId, socket.handshake.headers["user-agent"] || "");
 
-  socket.emit("session:ready", session);
+  socket.emit("session:ready", publicUser(session));
   // v24.7 — global rate limit for sensitive actions
   const SENSITIVE_EVENTS = new Set([
     "room:kick", "room:purge", "room:set-lifetime", "room:set-topic",
@@ -750,7 +774,7 @@ io.on("connection", (socket) => {
       if (isShadowBanned(m.senderSpamKey)) continue;
       if (s.blocked.has(m.senderSessionId)) continue;
       if (isBlocked(m.senderSessionId, s.sessionId)) continue;
-      out.push(m);
+      out.push(publicChatMessage(m));
     }
     const awayFor = ts > 0 ? Math.max(0, now - ts) : 0;
     ack?.({ ok: true, messages: out, awayFor });
@@ -883,7 +907,7 @@ io.on("connection", (socket) => {
     }
     const old = s.username;
     s.username = name;
-    socket.emit("session:ready", s);
+    socket.emit("session:ready", publicUser(s));
     broadcastOnline();
     broadcastSystemFor(s.sessionId, { type: "rename", oldName: old, username: name });
 
@@ -1228,24 +1252,30 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, room: publicRoom(room) });
   });
 
-  socket.on("invite:decline", ({ inviteId } = {}) => {
-    const inv = invites.get(inviteId);
-    if (!inv) return;
-    invites.delete(inviteId);
+  socket.on("invite:decline", ({ inviteId } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+    const inv = invites.get(String(inviteId || ""));
+    if (!inv) return ack?.({ ok: false, error: "Invitation expired" });
+    if (inv.recipientSessionId !== s.sessionId) {
+      return ack?.({ ok: false, error: "Not your invitation" });
+    }
+    invites.delete(inv.inviteId);
     const sid = findSocketBySession(inv.senderSessionId);
-    if (sid) io.to(sid).emit("invite:declined", { inviteId });
+    if (sid) io.to(sid).emit("invite:declined", { inviteId: inv.inviteId });
 
     const room = rooms.get(inv.roomId);
     if (room && room.status === "active") {
       for (const p of room.participants) {
         const psid = findSocketBySession(p.sessionId);
         if (psid) io.to(psid).emit("room:invite:resolved", {
-          inviteId,
+          inviteId: inv.inviteId,
           accepted: false,
           at: Date.now(),
         });
       }
     }
+    ack?.({ ok: true });
   });
 
   // ---------- room message ----------
@@ -1298,7 +1328,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", msg);
+      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
@@ -1360,7 +1390,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", msg);
+      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
@@ -1447,6 +1477,11 @@ io.on("connection", (socket) => {
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
 
     const payload = { messageId: String(messageId), content: text, editedAt: Date.now() };
+    // Keep the in-memory history consistent so edits are not reverted on reconnect.
+    if (!meta.roomId) {
+      const historical = publicHistory.find((message) => message.id === String(messageId));
+      if (historical) { historical.content = text; historical.editedAt = payload.editedAt; }
+    }
 
     if (meta.roomId) {
       const room = rooms.get(meta.roomId);
@@ -1475,6 +1510,11 @@ io.on("connection", (socket) => {
     if (!meta) return ack?.({ ok: false, error: "Message not found" });
     if (meta.senderSessionId !== s.sessionId) return ack?.({ ok: false, error: "Not your message" });
     messageOwners.delete(String(messageId));
+    // A deleted public message must not reappear through messages:since.
+    if (!meta.roomId) {
+      const historyIndex = publicHistory.findIndex((message) => message.id === String(messageId));
+      if (historyIndex >= 0) publicHistory.splice(historyIndex, 1);
+    }
 
     const payload = { messageId: String(messageId) };
 
@@ -1837,7 +1877,7 @@ async function botPublicChat() {
       if (publicHistory.length > PUBLIC_HISTORY_MAX) publicHistory.shift();
 
       for (const [socketId, session] of sessions) {
-        if (!session.isBot) io.to(socketId).emit("chat:public:message", msg);
+        if (!session.isBot) io.to(socketId).emit("chat:public:message", publicChatMessage(msg));
       }
       BOT_ACTIVITY.lastCall = Date.now();
     } catch (e) {
@@ -1925,6 +1965,6 @@ server.listen(port, "0.0.0.0", () => {
     }
   }
   console.log("");
-  console.log(`  CORS allowed: ${CLIENT_ORIGIN === "*" ? "any origin" : CLIENT_ORIGIN + " + localhost + private LAN"}`);
+  console.log(`  CORS allowed: ${CLIENT_ORIGINS.join(", ") || "none"}; proxy trust: ${TRUST_PROXY ? "enabled" : "disabled"}`);
   console.log("");
 });
