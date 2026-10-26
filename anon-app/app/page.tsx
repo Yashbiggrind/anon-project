@@ -690,86 +690,99 @@ export default function Home() {
     const el = msgsRef.current;
     if (!el) return;
 
-    const prevLen = pubPrevLenRef.current;
-    const curLen = messages.length;
-    pubPrevLenRef.current = curLen;
+    const previousLength = pubPrevLenRef.current;
+    const currentLength = messages.length;
+    pubPrevLenRef.current = currentLength;
 
-    if (!pubInitRef.current && curLen > 0) {
+    if (!pubInitRef.current && currentLength > 0) {
       pubInitRef.current = true;
       el.scrollTop = el.scrollHeight;
       return;
     }
+    if (currentLength <= previousLength) return;
 
-    if (curLen <= prevLen) return;
-
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    if (near) {
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottom) {
       el.scrollTop = el.scrollHeight;
-    } else {
-      const latest = messages[curLen - 1];
-      if (latest && !latest.localSent) setScrollBadge((n) => n + 1);
-      setShowScrollBtn(true);
+      return;
     }
+
+    const latest = messages[currentLength - 1];
+    const updateTimer = window.setTimeout(() => {
+      if (latest && !latest.localSent) setScrollBadge((count) => count + 1);
+      setShowScrollBtn(true);
+    }, 0);
+    return () => window.clearTimeout(updateTimer);
   }, [messages]);
 
   useEffect(() => {
     const el = privMsgsRef.current;
     if (!el) return;
 
-    const prevLen = privPrevLenRef.current;
-    const curLen = privateMessages.length;
-    privPrevLenRef.current = curLen;
+    const previousLength = privPrevLenRef.current;
+    const currentLength = privateMessages.length;
+    privPrevLenRef.current = currentLength;
 
-    if (!privInitRef.current && curLen > 0) {
+    if (!privInitRef.current && currentLength > 0) {
       privInitRef.current = true;
       el.scrollTop = el.scrollHeight;
       return;
     }
+    if (currentLength <= previousLength) return;
 
-    if (curLen <= prevLen) return;
-
-    const near = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
-    if (near) {
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+    if (nearBottom) {
       el.scrollTop = el.scrollHeight;
-    } else {
-      const latest = privateMessages[curLen - 1];
-      if (latest && !latest.localSent) setPrivateScrollBadge((n) => n + 1);
-      setShowPrivateScrollBtn(true);
+      return;
     }
+
+    const latest = privateMessages[currentLength - 1];
+    const updateTimer = window.setTimeout(() => {
+      if (latest && !latest.localSent) setPrivateScrollBadge((count) => count + 1);
+      setShowPrivateScrollBtn(true);
+    }, 0);
+    return () => window.clearTimeout(updateTimer);
   }, [privateMessages]);
+
   useEffect(() => {
     if (!room) return;
-    setNowTick(Date.now());
-    const t = setInterval(() => setNowTick(Date.now()), 1000);
-    return () => clearInterval(t);
+    const initialTick = window.setTimeout(() => setNowTick(Date.now()), 0);
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => {
+      window.clearTimeout(initialTick);
+      window.clearInterval(timer);
+    };
   }, [room]);
 
-  // Auto-remove expired messages when lifetime is on
+  // Auto-remove expired messages from both the visible list and IndexedDB.
   useEffect(() => {
     if (!room || !messageLifetime) return;
-    const cut = Date.now() - messageLifetime;
-    setPrivateMessages((prev) => {
-      const expired = prev.filter((m) => m.createdAt < cut);
-      if (expired.length === 0) return prev;
-      expired.forEach((m) => {
-        const el = document.querySelector(`[data-mid="${m.id}"]`);
-        if (el) el.classList.add("expiring");
-        void persistRemove(m.id);
-      });
-      setTimeout(() => {
-        setPrivateMessages((p) => p.filter((m) => m.createdAt >= cut));
-      }, 800);
-      return prev;
-    });
-  }, [nowTick, messageLifetime, room]);
+    const cutoff = Date.now() - messageLifetime;
+    const expired = privateMessages.filter((message) => message.createdAt < cutoff);
+    if (expired.length === 0) return;
 
-  // Sync local messageLifetime from room object
-  useEffect(() => {
-    if (room && typeof room.messageLifetime === "number") {
-      setMessageLifetime(room.messageLifetime * 1000);
+    for (const message of expired) {
+      const element = document.querySelector('[data-mid="' + message.id + '"]');
+      if (element) element.classList.add("expiring");
+      void persistRemove(message.id);
     }
+
+    const expiredIds = new Set(expired.map((message) => message.id));
+    const timer = window.setTimeout(() => {
+      setPrivateMessages((current) => current.filter((message) =>
+        !expiredIds.has(message.id) && message.createdAt >= cutoff
+      ));
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [nowTick, messageLifetime, room, privateMessages]);
+
+  // Synchronize the local timer display when room settings change.
+  useEffect(() => {
+    if (!room || typeof room.messageLifetime !== "number") return;
+    const timer = window.setTimeout(() => setMessageLifetime(room.messageLifetime! * 1000), 0);
+    return () => window.clearTimeout(timer);
   }, [room]);
-  
+
   useEffect(() => { roomRef.current = room; }, [room]);
   useEffect(() => {
     const el = dmMsgsRef.current;
