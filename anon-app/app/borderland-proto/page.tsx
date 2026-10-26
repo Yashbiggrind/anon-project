@@ -166,7 +166,6 @@ export default function BorderlandProto() {
     // Bots vote randomly after you
     setTimeout(() => {
       setPlayers(prev => {
-        const aliveBots = prev.filter(p => p.name !== "You" && p.alive);
         return prev.map(p => {
           if (p.alive && Math.random() > 0.5) return { ...p, votes: p.votes + 1 };
           return p;
