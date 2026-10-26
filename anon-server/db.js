@@ -6,18 +6,30 @@ const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
 
 const DB_PATH = path.join(__dirname, "anon.db");
-const IP_HASH_SECRET = process.env.IP_HASH_SECRET || "change-me-in-env";
+const CONFIGURED_IP_HASH_SECRET = String(process.env.IP_HASH_SECRET || "").trim();
+const IS_PRODUCTION = process.env.NODE_ENV === "production";
+if (IS_PRODUCTION && (CONFIGURED_IP_HASH_SECRET.length < 32 || /change-me|your-secret/i.test(CONFIGURED_IP_HASH_SECRET))) {
+  throw new Error("Production requires IP_HASH_SECRET to be a unique random secret of at least 32 characters.");
+}
+// A process-local random secret keeps development usable without a hard-coded persistent key.
+const IP_HASH_SECRET = CONFIGURED_IP_HASH_SECRET || crypto.randomBytes(32).toString("hex");
 const RETENTION_DAYS = 180;
 
 let db = null;
 let ready = false;
 
 // ---- IP hashing (HMAC-SHA256, 32 hex chars = 128 bits) ----
+function normalizeIp(rawIp) {
+  const ip = String(rawIp || "").trim().toLowerCase();
+  if (!ip) return "unknown";
+  // Treat IPv4-mapped IPv6 addresses consistently with their IPv4 form.
+  return ip.startsWith("::ffff:") ? ip.slice(7) : ip.slice(0, 64);
+}
+
 function hashIp(rawIp) {
-  if (!rawIp) return "unknown";
   return crypto
     .createHmac("sha256", IP_HASH_SECRET)
-    .update(String(rawIp))
+    .update(normalizeIp(rawIp))
     .digest("hex")
     .slice(0, 32);
 }
@@ -74,10 +86,20 @@ function init() {
       CREATE INDEX IF NOT EXISTS idx_sessions_session ON sessions_log(session_id);
     `);
     try { db.exec("ALTER TABLE reports ADD COLUMN target_username TEXT"); } catch { /* exists */ }
+
+    // Remove legacy IP-based strike keys written by older versions. Current IP keys
+    // must be "ip:" + 32 hex chars (the truncated HMAC), never a literal IP address.
+    const oldIpKeys = db.prepare("SELECT spam_key FROM strikes WHERE spam_key LIKE 'ip:%'").all();
+    const deleteOldIpKey = db.prepare("DELETE FROM strikes WHERE spam_key = ?");
+    for (const row of oldIpKeys) {
+      if (!/^ip:[a-f0-9]{32}$/i.test(String(row.spam_key))) {
+        deleteOldIpKey.run(row.spam_key);
+      }
+    }
+
     ready = true;
     console.log("[db] ready at", DB_PATH);
-    console.log("[db] IP retention: 180 days, HMAC secret =",
-      IP_HASH_SECRET === "change-me-in-env" ? "DEFAULT (change in .env!)" : "set");
+    console.log("[db] connection-metadata retention: 180 days; HMAC secret =", CONFIGURED_IP_HASH_SECRET ? "configured" : "ephemeral development key");
   } catch (err) {
     console.error("[db] failed to initialize:", err.message);
     console.error(err.stack);
