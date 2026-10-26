@@ -2725,8 +2725,7 @@ export default function Home() {
    v20.7 — Adds onOpenDm + click-to-DM on avatar.
    v22 — Adds onOpenProfile.
    ============================================================ */
-const MessageBubble = memo(
-  type MessageBubbleProps = {
+type MessageBubbleProps = {
   m: ChatMessage;
   mine: boolean;
   isEditing: boolean;
@@ -2912,7 +2911,7 @@ const MessageBubble = memo(
             {!isEditing && (
               <div className="msgFoot">
                 <div className="reactionRow">
-                  {(reactions[m.id] ?? []).map((r: ServerAck) => (
+                  {(reactions[m.id] ?? []).map((r) => (
                     <button
                       key={r.emoji}
                       className={`reactionPill ${r.mine ? "mine" : ""}`}
