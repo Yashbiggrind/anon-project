@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { clearAll, destroyStore } from "@/lib/messageStore";
 
@@ -58,6 +59,7 @@ function toCsv(snap: Snapshot): string {
 }
 
 export default function DataPage() {
+  const router = useRouter();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [toast, setToast] = useState("");
   const [confirm, setConfirm] = useState(false);
@@ -139,7 +141,7 @@ export default function DataPage() {
     flash(failures.length
       ? "Wipe completed with limits: " + failures.join(", ") + ". Close other ANON tabs and retry."
       : "ANON local data cleared. Close other ANON tabs to finish a full device wipe.");
-    setTimeout(() => { location.href = "/"; }, 1800);
+    window.setTimeout(() => router.replace("/"), 1800);
   }
 
   const kb = snap ? (snap.totalBytes / 1024).toFixed(1) : "0";
