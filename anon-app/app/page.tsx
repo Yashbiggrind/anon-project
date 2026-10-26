@@ -645,7 +645,7 @@ export default function Home() {
           startTransition(() => setPrivateMessages((prev) => {
             const seen = new Set(prev.map((m) => m.id));
             const merged = [...prev];
-            for (const m of roomMsgs) if (!seen.has(m.id)) merged.push(m as any);
+            for (const m of roomMsgs) if (!seen.has(m.id)) merged.push(m);
             return merged.slice(-500);
           }));
         }
