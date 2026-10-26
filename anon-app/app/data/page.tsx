@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { destroyStore } from "@/lib/messageStore";
 
 type Snapshot = {
   exportedAt: string;
@@ -96,14 +97,45 @@ export default function DataPage() {
     }
   }
 
-  function wipe() {
+  async function wipe() {
     if (typeof window === "undefined") return;
-    localStorage.clear();
-    sessionStorage.clear();
+    const failures: string[] = [];
+
+    // Clear first so even if deletion of the database is blocked by another tab,
+    // stored message contents are removed from the current database.
+    try { localStorage.clear(); } catch { failures.push("local storage"); }
+    try { sessionStorage.clear(); } catch { failures.push("session storage"); }
+    try { await destroyStore(); } catch (error) {
+      failures.push(error instanceof Error ? error.message : "IndexedDB");
+    }
+
+    try {
+      if ("caches" in window) {
+        const keys = await caches.keys();
+        const appCaches = keys.filter((key) => key.startsWith("anon-"));
+        const results = await Promise.allSettled(appCaches.map((key) => caches.delete(key)));
+        if (results.some((result) => result.status === "rejected" || (result.status === "fulfilled" && !result.value))) {
+          failures.push("service-worker cache");
+        }
+      }
+    } catch { failures.push("service-worker cache"); }
+
+    try {
+      if ("serviceWorker" in navigator) {
+        const registration = await navigator.serviceWorker.getRegistration();
+        if (registration) {
+          const removed = await registration.unregister();
+          if (!removed) failures.push("service worker registration");
+        }
+      }
+    } catch { failures.push("service worker registration"); }
+
     refresh();
     setConfirm(false);
-    flash("Everything cleared.");
-    setTimeout(() => { location.href = "/"; }, 900);
+    flash(failures.length
+      ? "Wipe completed with limits: " + failures.join(", ") + ". Close other ANON tabs and retry."
+      : "ANON local data cleared. Close other ANON tabs to finish a full device wipe.");
+    setTimeout(() => { location.href = "/"; }, 1800);
   }
 
   const kb = snap ? (snap.totalBytes / 1024).toFixed(1) : "0";
@@ -166,7 +198,7 @@ export default function DataPage() {
           <div className="modalBg" onClick={() => setConfirm(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>Wipe everything?</h3>
-              <p>This clears localStorage, sessionStorage, and any cached room state. Your name and identicon will be regenerated on next visit. This cannot be undone.</p>
+              <p>This clears ANON localStorage, sessionStorage, saved chat messages in IndexedDB, app cache entries, and the service-worker registration. Another open ANON tab may temporarily prevent database deletion. This cannot be undone.</p>
               <div className="modalRow">
                 <button className="btn" onClick={() => setConfirm(false)}>CANCEL</button>
                 <button className="btn danger" onClick={wipe}>YES, WIPE</button>
