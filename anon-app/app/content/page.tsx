@@ -83,7 +83,7 @@ export default function ContentPage() {
       <style>{CSS}</style>
       <div className="ctRoot">
         <div className="ctHead">
-          <div className="eyebrow">// CONTENT</div>
+          <div className="eyebrow">{"// CONTENT"}</div>
           <h1>Notes on anonymity, timers, and trust.</h1>
           <p>Real text about how ANON works and why we built it this way.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
