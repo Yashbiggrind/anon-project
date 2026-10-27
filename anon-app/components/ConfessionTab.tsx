@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import type { Socket } from "socket.io-client";
 import Identicon from "@/components/Identicon";
 
@@ -182,7 +183,7 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
     return result;
   }, [posts, sortBy, timeWindow, query, now]);
 
-  const post = (event?: React.FormEvent<HTMLFormElement>) => {
+  const post = (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
     const text = draft.trim();
     if (!socket || !connected || !text || posting) return;
