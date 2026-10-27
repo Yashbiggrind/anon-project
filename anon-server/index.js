@@ -263,7 +263,7 @@ const publicChatMessage = (message) => {
   return safeMessage;
 };
 
-function publicConfession(post) {
+function publicConfession(post, viewerSessionId = "") {
   return {
     id: post.id,
     text: post.text,
@@ -273,6 +273,9 @@ function publicConfession(post) {
     upvotes: post.upvotes,
     downvotes: post.downvotes,
     replies: post.replies.map((reply) => ({ ...reply })),
+    // Only viewer-specific interaction state is exposed; session IDs stay server-side.
+    myVote: viewerSessionId ? (post.votesBySession.get(viewerSessionId) || 0) : 0,
+    isMine: Boolean(viewerSessionId) && post.authorSessionId === viewerSessionId,
   };
 }
 
@@ -286,10 +289,10 @@ function publicElection() {
   };
 }
 
-function getConfessionFeed() {
+function getConfessionFeed(viewerSessionId = "") {
   return [...confessions.values()]
     .sort((a, b) => b.createdAt - a.createdAt)
-    .map(publicConfession);
+    .map((post) => publicConfession(post, viewerSessionId));
 }
 
 function finishElection() {
@@ -1758,7 +1761,7 @@ io.on("connection", (socket) => {
     if (!rateLimit(`confession:list:${s.spamKey}`, 60, 60000)) {
       return ack?.({ ok: false, error: "Too many refreshes. Slow down." });
     }
-    ack?.({ ok: true, confessions: getConfessionFeed(), election: publicElection() });
+    ack?.({ ok: true, confessions: getConfessionFeed(s.sessionId), election: publicElection() });
   });
 
   socket.on("confession:create", ({ text } = {}, ack) => {
@@ -1792,7 +1795,7 @@ io.on("connection", (socket) => {
       confessions.delete(oldest.id);
     }
     io.emit("confession:update");
-    ack?.({ ok: true, confession: publicConfession(post) });
+    ack?.({ ok: true, confession: publicConfession(post, s.sessionId) });
   });
 
   socket.on("confession:reply", ({ confessionId, text } = {}, ack) => {
