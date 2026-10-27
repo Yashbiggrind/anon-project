@@ -110,19 +110,18 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
   const [now, setNow] = useState(0);
 
   useEffect(() => {
-    setNow(Date.now());
+    const firstTick = window.setTimeout(() => setNow(Date.now()), 0);
     const timer = window.setInterval(() => setNow(Date.now()), 30_000);
-    return () => window.clearInterval(timer);
+    return () => {
+      window.clearTimeout(firstTick);
+      window.clearInterval(timer);
+    };
   }, []);
 
   useEffect(() => {
-    if (!socket || !connected) {
-      setLoading(false);
-      return;
-    }
+    if (!socket || !connected) return;
 
     let active = true;
-    setLoading(true);
 
     const fetchList = () => {
       socket.emit("confession:list", {}, (response: ConfessionListResponse) => {
@@ -265,7 +264,7 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
       {!connected && (
         <div className="cfConnectionNotice" role="status">
           <span className="cfConnectionDot" />
-          Reconnecting to the live wall. Posting, voting and replies are paused until you're back online.
+          Reconnecting to the live wall. Posting, voting and replies are paused until you&apos;re back online.
         </div>
       )}
 
@@ -390,7 +389,7 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
           </div>
         )}
 
-        {!loading && visiblePosts.length === 0 && (
+        {!loading && connected && visiblePosts.length === 0 && (
           <div className="cfEmptyState">
             <span className="cfEmptyGlyph" aria-hidden="true">∿</span>
             <b>{query ? "Nothing matches that search." : timeWindow !== "all" ? "Nothing in this time window yet." : "The wall is quiet. For now."}</b>
