@@ -1,6 +1,47 @@
-﻿/** @type {import('next').NextConfig} */
-const apiUrl = process.env.NEXT_PUBLIC_SERVER_URL || "";
+/** @type {import('next').NextConfig} */
+const DEFAULT_PRODUCTION_SERVER_URL =
+  "https://balanced-creativity-production-515b.up.railway.app";
 const isDevelopment = process.env.NODE_ENV === "development";
+
+function resolveServerUrl() {
+  const configured = (process.env.NEXT_PUBLIC_SERVER_URL || "").trim();
+
+  if (!configured) {
+    return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
+  }
+
+  const candidate = configured.replace(/\/$/, "");
+  try {
+    const url = new URL(candidate);
+    const host = url.hostname.toLowerCase();
+    const isLocalOrPrivate =
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "::1" ||
+      host.endsWith(".railway.internal");
+    const hasUnsafeParts =
+      Boolean(url.username) ||
+      Boolean(url.password) ||
+      Boolean(url.search) ||
+      Boolean(url.hash);
+
+    // Production CSP must permit the same public backend the client uses.
+    // Ignore missing, invalid, private, localhost, or non-HTTPS production config.
+    if (
+      !isDevelopment &&
+      (url.protocol !== "https:" || isLocalOrPrivate || hasUnsafeParts)
+    ) {
+      return DEFAULT_PRODUCTION_SERVER_URL;
+    }
+
+    if (hasUnsafeParts) return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
+    return candidate;
+  } catch {
+    return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
+  }
+}
+
+const apiUrl = resolveServerUrl();
 const scriptSources = isDevelopment
   ? "'self' 'unsafe-inline' 'unsafe-eval'"
   : "'self' 'unsafe-inline'";
