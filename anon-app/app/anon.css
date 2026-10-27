@@ -3699,3 +3699,357 @@ a:focus-visible {
 .elCand:hover { border-color: #ff2d55; transform: scale(1.05); }
 .elWinner { font-size: 15px; color: #fff; margin-top: 8px; }
 .elWinner b { color: #35d27c; font-size: 18px; }
+
+/* ==========================================
+   ANON CONFESSION WALL — EPHEMERAL FEED v2
+   Appended overrides for the connected live feed.
+   ========================================== */
+.confessionWrap.cfStudio {
+  width: min(1120px, 100%);
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: clamp(18px, 3vw, 34px) clamp(12px, 2.2vw, 24px) 56px;
+  gap: 18px;
+  color: #f5e9ed;
+}
+.confessionWrap.cfStudio * { box-sizing: border-box; }
+.cfStudio .cfIntro {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(250px, .75fr);
+  gap: 18px;
+  align-items: stretch;
+  padding: clamp(20px, 3vw, 34px);
+  border: 1px solid rgba(255,45,85,.22);
+  border-radius: 15px;
+  background:
+    radial-gradient(ellipse at 15% 0%, rgba(107,12,35,.28), transparent 58%),
+    linear-gradient(135deg, rgba(15,5,9,.97), rgba(5,3,5,.98));
+  box-shadow: 0 22px 70px rgba(0,0,0,.2), inset 0 1px rgba(255,255,255,.025);
+  position: relative;
+  overflow: hidden;
+}
+.cfStudio .cfIntro::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: .18;
+  background-image: linear-gradient(rgba(255,45,85,.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,45,85,.1) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: linear-gradient(90deg, black, transparent 82%);
+}
+.cfStudio .cfIntroMain, .cfStudio .cfPrivacyCard { position: relative; z-index: 1; min-width: 0; }
+.cfStudio .cfEyebrow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 11px;
+  color: #ff5b79;
+  font: 700 10px/1.4 "IBM Plex Mono", "Courier New", monospace;
+  letter-spacing: 2.3px;
+  text-transform: uppercase;
+}
+.cfStudio .cfLivePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 8px;
+  border: 1px solid rgba(255,45,85,.25);
+  border-radius: 99px;
+  color: #b8909c;
+  background: rgba(255,45,85,.055);
+  letter-spacing: 1.2px;
+  font-size: 9px;
+}
+.cfStudio .cfLivePill i, .cfStudio .cfConnectionDot {
+  width: 6px;
+  height: 6px;
+  display: inline-block;
+  border-radius: 50%;
+  background: #ff4269;
+  box-shadow: 0 0 12px rgba(255,45,85,.75);
+}
+.cfStudio .cfIntro h2 {
+  margin: 18px 0 11px;
+  color: #fff0f2;
+  font: 800 clamp(31px, 4.8vw, 55px)/.98 "Bodoni Moda", Georgia, serif;
+  letter-spacing: -1.8px;
+}
+.cfStudio .cfIntro h2 em { color: #ff456c; font-weight: 700; }
+.cfStudio .cfIntroMain > p {
+  max-width: 560px;
+  margin: 15px 0 18px;
+  color: #a68a94;
+  font: 400 13px/1.8 "IBM Plex Mono", "Courier New", monospace;
+}
+.cfStudio .cfIntroStats {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  color: #78616a;
+  font: 10px/1.5 "IBM Plex Mono", "Courier New", monospace;
+  letter-spacing: .4px;
+}
+.cfStudio .cfIntroStats b { color: #f1cad4; font-size: 12px; }
+.cfStudio .cfStatDot { color: #f23b61; }
+.cfStudio .cfPrivacyCard {
+  align-self: stretch;
+  padding: 18px;
+  border: 1px solid rgba(255,45,85,.17);
+  border-radius: 11px;
+  background: rgba(3,2,4,.56);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.cfStudio .cfPrivacyIcon {
+  width: 35px;
+  height: 35px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255,45,85,.4);
+  border-radius: 9px;
+  background: rgba(255,45,85,.08);
+  color: #ff5878;
+  font: 25px/1 Georgia, serif;
+}
+.cfStudio .cfPrivacyTitle {
+  margin: 13px 0 8px;
+  color: #f8dce4;
+  font: 700 10px/1.5 "IBM Plex Mono", "Courier New", monospace;
+  letter-spacing: 1.5px;
+}
+.cfStudio .cfPrivacyCard p {
+  margin: 0;
+  color: #a88a94;
+  font: 11px/1.75 "IBM Plex Mono", "Courier New", monospace;
+}
+.cfStudio .cfPrivacyFoot {
+  border-top: 1px solid rgba(255,255,255,.07);
+  margin-top: 12px;
+  padding-top: 11px;
+  color: #745b65;
+  font: 10px/1.65 "IBM Plex Mono", "Courier New", monospace;
+}
+.cfStudio .cfConnectionNotice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  color: #e2b6c2;
+  background: rgba(255,45,85,.07);
+  border: 1px solid rgba(255,45,85,.2);
+  border-radius: 9px;
+  font: 11px/1.6 "IBM Plex Mono", "Courier New", monospace;
+}
+.cfStudio .cfConnectionDot { background: #e7aa51; box-shadow: 0 0 10px rgba(231,170,81,.55); flex: none; }
+.cfStudio .cfElectionCard { padding: 15px 18px; text-align: left; box-shadow: none; background: linear-gradient(100deg, rgba(42,7,16,.8), rgba(6,1,3,.9)); }
+.cfStudio .cfElectionCard .elHead { display: flex; gap: 7px; align-items: center; margin-bottom: 9px; }
+.cfStudio .cfElectionCard .elMsg { text-align: left; }
+.cfStudio .cfElectionCard .elCandidates { justify-content: flex-start; flex-wrap: wrap; }
+.cfStudio .cfElectionCard .elCand { flex-direction: row; padding: 7px 10px; }
+.cfStudio .cfElectionCard .elWinner { text-align: left; color: #f7dce4; }
+.cfStudio .cfElectionCard .elWinner p { color: #8a7276; font-size: 11px; margin-bottom: 0; }
+
+.confessionWrap.cfStudio .cfComposer {
+  margin: 0;
+  padding: clamp(14px, 2vw, 22px);
+  gap: 12px;
+  border-radius: 13px;
+  border-color: rgba(255,45,85,.2);
+  background: linear-gradient(145deg, rgba(15,5,9,.98), rgba(5,2,4,.98));
+  box-shadow: 0 12px 38px rgba(0,0,0,.15);
+}
+.cfStudio .cfComposerTop, .cfStudio .cfComposerBottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.cfStudio .cfComposerIdentity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.cfStudio .cfComposerAvatar {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: none;
+  border: 1px solid rgba(255,45,85,.34);
+  border-radius: 10px;
+  background: rgba(255,45,85,.09);
+  color: #ff5d7c;
+  font-size: 20px;
+}
+.cfStudio .cfComposerIdentity > div { display: flex; flex-direction: column; gap: 4px; }
+.cfStudio .cfComposerIdentity b { color: #f4dce3; font: 700 12px/1.4 "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfComposerIdentity span { color: #745d66; font: 10px/1.5 "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfComposerLimit { color: #765e68; font: 10px "IBM Plex Mono", "Courier New", monospace; }
+.confessionWrap.cfStudio .cfComposer textarea {
+  width: 100%;
+  min-height: 112px;
+  padding: 15px 16px;
+  resize: vertical;
+  border-radius: 9px;
+  border-color: #30101a;
+  background: rgba(5,2,4,.83);
+  color: #f7e9ed;
+  font: 13px/1.75 "IBM Plex Mono", "Courier New", monospace;
+}
+.confessionWrap.cfStudio .cfComposer textarea::placeholder { color: #614b54; }
+.confessionWrap.cfStudio .cfComposer textarea:focus { border-color: rgba(255,45,85,.6); box-shadow: 0 0 0 3px rgba(255,45,85,.07); outline: none; }
+.cfStudio .cfComposerHint { display: inline-flex; align-items: center; gap: 7px; color: #715762; font: 10px/1.6 "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfComposerHint span { color: #ff5073; }
+.confessionWrap.cfStudio .cfComposer button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  align-self: auto;
+  min-height: 39px;
+  padding: 10px 14px;
+  border-radius: 7px;
+  background: linear-gradient(120deg, #8f112c, #4a0718);
+  border: 1px solid #ff365f;
+  color: white;
+  font: 700 10px/1 "IBM Plex Mono", "Courier New", monospace;
+  letter-spacing: 1.2px;
+  transition: transform .18s ease, box-shadow .18s ease, opacity .18s ease;
+}
+.confessionWrap.cfStudio .cfComposer button:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 5px 22px rgba(255,45,85,.16); }
+.confessionWrap.cfStudio .cfComposer button:disabled { opacity: .38; cursor: not-allowed; }
+.cfStudio .cfStatus { margin: -5px 0 0; padding: 10px 12px; border: 1px solid rgba(255,45,85,.18); border-radius: 8px; color: #d6b6c0; background: rgba(255,45,85,.055); font: 11px/1.6 "IBM Plex Mono", "Courier New", monospace; }
+
+.cfStudio .cfFeedTools { display: flex; flex-direction: column; gap: 16px; margin-top: 10px; padding-bottom: 15px; border-bottom: 1px solid rgba(255,45,85,.18); }
+.cfStudio .cfFeedTitle { display: flex; align-items: flex-end; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+.cfStudio .cfSectionEyebrow { color: #8e5968; font: 700 9px/1.5 "IBM Plex Mono", "Courier New", monospace; letter-spacing: 1.7px; }
+.cfStudio .cfFeedTitle h3 { margin: 5px 0 0; color: #f6e9ee; font: 800 28px/1.1 "Bodoni Moda", Georgia, serif; letter-spacing: -.4px; }
+.cfStudio .cfFeedTitle h3 span {
+  display: inline-grid; place-items: center; min-width: 23px; height: 22px; margin-left: 6px; padding: 0 6px;
+  border: 1px solid rgba(255,45,85,.2); border-radius: 99px; background: rgba(255,45,85,.08); color: #ff7891;
+  vertical-align: middle; font: 700 10px "IBM Plex Mono", "Courier New", monospace;
+}
+.cfStudio .cfSearch { display: flex; align-items: center; gap: 8px; width: min(280px, 100%); min-height: 38px; padding: 0 11px; border: 1px solid #2c111a; border-radius: 8px; background: rgba(10,3,6,.8); color: #ac7587; }
+.cfStudio .cfSearch > span { font-size: 22px; line-height: 1; }
+.cfStudio .cfSearch input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #f6e9ee; font: 11px "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfSearch input::placeholder { color: #654d57; }
+.cfStudio .cfSearch button { padding: 1px 4px; border: 0; background: transparent; color: #b78393; cursor: pointer; font-size: 19px; }
+
+.cfStudio .cfControlRow { display: flex; flex-direction: column; gap: 12px; }
+.cfStudio .cfSortTabs, .cfStudio .cfTimeFilters { display: flex; align-items: center; gap: 7px; flex-wrap: wrap; }
+.cfStudio .cfSortTab, .cfStudio .cfTimeChip {
+  min-height: 32px; padding: 7px 11px; border: 1px solid #2b1019; border-radius: 7px; background: rgba(10,3,6,.7); color: #987783;
+  cursor: pointer; font: 700 10px/1.2 "IBM Plex Mono", "Courier New", monospace; transition: color .16s ease, border-color .16s ease, background .16s ease;
+}
+.cfStudio .cfSortTab:hover, .cfStudio .cfTimeChip:hover { border-color: #663044; color: #f1dce3; }
+.cfStudio .cfSortTab.isActive, .cfStudio .cfTimeChip.isActive { border-color: rgba(255,45,85,.62); background: rgba(255,45,85,.1); color: #ffe6ec; box-shadow: inset 0 0 16px rgba(255,45,85,.035); }
+.cfStudio .cfTimeLabel { margin-right: 2px; color: #6d515d; font: 700 9px "IBM Plex Mono", "Courier New", monospace; letter-spacing: 1px; }
+
+.confessionWrap.cfStudio .cfFeed { gap: 13px; }
+.confessionWrap.cfStudio .cfPost {
+  position: relative;
+  padding: clamp(15px, 2.5vw, 22px);
+  border: 1px solid #29101a;
+  border-radius: 12px;
+  background: linear-gradient(145deg, rgba(14,5,9,.97), rgba(5,2,4,.98));
+  box-shadow: 0 10px 35px rgba(0,0,0,.11);
+  transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+}
+.confessionWrap.cfStudio .cfPost:hover { border-color: #492031; box-shadow: 0 15px 38px rgba(0,0,0,.18); transform: translateY(-1px); }
+.cfStudio .cfPostTop { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.cfStudio .cfPostIdentity { display: flex; align-items: center; gap: 11px; min-width: 0; }
+.cfStudio .cfPostAvatar { display: grid; place-items: center; width: 42px; height: 42px; flex: none; border: 1px solid #3e1b2a; border-radius: 11px; background: #10060b; overflow: hidden; }
+.cfStudio .cfPostAvatar svg { display: block; border-radius: 7px; }
+.cfStudio .cfPostByline { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.cfStudio .cfAuthorLine { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cfStudio .cfAuthorLine b { color: #f2dce4; font: 700 12px "IBM Plex Mono", "Courier New", monospace; overflow-wrap: anywhere; }
+.cfStudio .cfAnonymousBadge { padding: 3px 5px; border: 1px solid rgba(255,45,85,.22); border-radius: 4px; color: #c37a8c; background: rgba(255,45,85,.05); font: 700 8px "IBM Plex Mono", "Courier New", monospace; letter-spacing: .8px; }
+.cfStudio .cfPostMeta { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: #725863; font: 10px "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfExpiry { color: #986779; }
+.cfStudio .cfPostMark { flex: none; color: rgba(255,73,110,.48); font: 800 17px "IBM Plex Mono", "Courier New", monospace; letter-spacing: -2px; }
+.confessionWrap.cfStudio .cfText { margin: 18px 0 17px; color: #f4e7ec; font: 400 14px/1.85 "IBM Plex Mono", "Courier New", monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
+.cfStudio .cfPostActions { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 9px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,.055); }
+.cfStudio .cfVoteActions { display: flex; align-items: center; gap: 6px; }
+.cfStudio .cfAction {
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 33px; padding: 7px 10px;
+  border: 1px solid transparent; border-radius: 7px; background: transparent; color: #91717d; cursor: pointer;
+  font: 600 10px/1.2 "IBM Plex Mono", "Courier New", monospace; transition: color .16s ease, border-color .16s ease, background .16s ease;
+}
+.cfStudio .cfAction b { color: #c6a5b1; font-size: 10px; font-weight: 700; }
+.cfStudio .cfAction > span:first-child { font-size: 16px; line-height: 1; }
+.cfStudio .cfAction:hover:not(:disabled) { border-color: #432031; background: rgba(255,45,85,.045); color: #f6dce4; }
+.cfStudio .cfAction:disabled { opacity: .38; cursor: not-allowed; }
+.cfStudio .cfLikeAction.isLiked { color: #ff5476; border-color: rgba(255,45,85,.2); background: rgba(255,45,85,.075); }
+.cfStudio .cfLikeAction.isLiked b { color: #ff9aaf; }
+.cfStudio .cfLikeAction .cfHeart { font-size: 18px; }
+.cfStudio .cfDownAction.isDown { color: #e6a0b2; border-color: rgba(255,45,85,.22); }
+.cfStudio .cfCommentAction { margin-left: auto; }
+.cfStudio .cfCommentAction.isOpen { color: #ffe6ec; border-color: #4a1b2d; background: rgba(255,45,85,.07); }
+.cfStudio .cfReplies { margin-top: 16px; padding: 14px 0 0; border-top: 1px dashed rgba(255,45,85,.16); border-left: 0; gap: 14px; }
+.cfStudio .cfRepliesLabel { display: flex; align-items: center; gap: 7px; color: #815867; font: 700 9px "IBM Plex Mono", "Courier New", monospace; letter-spacing: 1.3px; }
+.cfStudio .cfRepliesLabel span { color: #d58ba0; letter-spacing: 0; }
+.confessionWrap.cfStudio .cfReply { align-items: flex-start; gap: 10px; color: #d8c0c9; font: 12px/1.65 "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfReplyAvatar { display: grid; place-items: center; flex: none; width: 28px; height: 28px; border: 1px solid #321723; border-radius: 8px; background: #10060b; overflow: hidden; }
+.cfStudio .cfReplyAvatar svg { display: block; }
+.cfStudio .cfReplyContent { min-width: 0; flex: 1; }
+.cfStudio .cfReplyByline { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cfStudio .cfReplyByline b { color: #c99eae; font-size: 10px; }
+.cfStudio .cfReplyByline span { color: #674e59; font-size: 9px; }
+.cfStudio .cfReplyContent p { margin: 4px 0 0; color: #cdb8c1; font-size: 11px; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.confessionWrap.cfStudio .cfReplyBox {
+  display: flex; align-items: center; gap: 9px; margin-top: 14px; padding: 8px 9px;
+  border: 1px solid #351321; border-radius: 9px; background: rgba(4,2,4,.7);
+}
+.cfStudio .cfReplyPrompt { flex: none; color: #ff5274; font-size: 17px; }
+.confessionWrap.cfStudio .cfReplyBox input { min-width: 0; flex: 1; border: 0; outline: 0; background: transparent; color: #f4e7ec; font: 11px/1.5 "IBM Plex Mono", "Courier New", monospace; }
+.confessionWrap.cfStudio .cfReplyBox input::placeholder { color: #614955; }
+.cfStudio .cfReplyCounter { flex: none; color: #604854; font: 9px "IBM Plex Mono", "Courier New", monospace; }
+.confessionWrap.cfStudio .cfReplyBox button { flex: none; border: 1px solid #512032; border-radius: 6px; padding: 8px 10px; background: #210811; color: #f08da5; font: 700 9px "IBM Plex Mono", "Courier New", monospace; cursor: pointer; }
+.confessionWrap.cfStudio .cfReplyBox button:disabled { opacity: .35; cursor: not-allowed; }
+.cfStudio .cfEmptyState { display: flex; min-height: 210px; padding: 28px 18px; flex-direction: column; align-items: center; justify-content: center; text-align: center; border: 1px dashed #321520; border-radius: 12px; background: rgba(9,3,6,.5); }
+.cfStudio .cfEmptyGlyph { color: #f04a70; font: 34px/1 Georgia, serif; margin-bottom: 12px; }
+.cfStudio .cfEmptyState b { color: #e8cbd5; font: 700 13px "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio .cfEmptyState p { max-width: 420px; color: #806571; font: 11px/1.8 "IBM Plex Mono", "Courier New", monospace; margin: 8px 0 0; }
+.cfStudio .cfEmptyState button { margin-top: 14px; border: 1px solid #592138; border-radius: 6px; padding: 8px 11px; background: #19060d; color: #ff8aa3; font: 700 9px "IBM Plex Mono", "Courier New", monospace; cursor: pointer; }
+.cfStudio .cfSpinner { width: 21px; height: 21px; border: 2px solid #451c2c; border-top-color: #ff4c70; border-radius: 50%; animation: cfSpin .8s linear infinite; margin-bottom: 13px; }
+@keyframes cfSpin { to { transform: rotate(360deg); } }
+.cfStudio .cfEndNote { display: flex; align-items: center; justify-content: center; gap: 9px; padding-top: 4px; color: #654a56; text-align: center; }
+.cfStudio .cfEndNote > span { color: #b32b50; }
+.cfStudio .cfEndNote p { margin: 0; font: 10px/1.7 "IBM Plex Mono", "Courier New", monospace; }
+.cfStudio button:focus-visible, .cfStudio input:focus-visible, .cfStudio textarea:focus-visible { outline: 2px solid #ff6685; outline-offset: 3px; }
+
+@media (max-width: 760px) {
+  .cfStudio .cfIntro { grid-template-columns: 1fr; padding: 21px; }
+  .cfStudio .cfPrivacyCard { display: grid; grid-template-columns: 38px 1fr; column-gap: 11px; align-items: center; padding: 13px; }
+  .cfStudio .cfPrivacyIcon { grid-row: span 2; }
+  .cfStudio .cfPrivacyTitle { margin: 0 0 4px; }
+  .cfStudio .cfPrivacyCard p, .cfStudio .cfPrivacyFoot { grid-column: 1 / -1; }
+  .cfStudio .cfIntro h2 { font-size: clamp(32px, 8vw, 48px); }
+  .cfStudio .cfFeedTitle { align-items: stretch; }
+  .cfStudio .cfSearch { width: 100%; }
+}
+@media (max-width: 520px) {
+  .confessionWrap.cfStudio { padding: 13px 10px 38px; gap: 13px; }
+  .cfStudio .cfIntro { border-radius: 11px; gap: 17px; padding: 17px; }
+  .cfStudio .cfIntro h2 { margin-top: 15px; letter-spacing: -1px; }
+  .cfStudio .cfIntroMain > p { font-size: 11px; }
+  .cfStudio .cfIntroStats { gap: 6px; font-size: 9px; }
+  .cfStudio .cfPrivacyFoot { font-size: 9px; }
+  .cfStudio .cfComposerIdentity b { font-size: 10px; }
+  .cfStudio .cfComposerIdentity span { max-width: 225px; font-size: 9px; }
+  .confessionWrap.cfStudio .cfComposer textarea { min-height: 100px; font-size: 12px; }
+  .cfStudio .cfComposerHint { width: 100%; }
+  .confessionWrap.cfStudio .cfComposer button { width: 100%; }
+  .cfStudio .cfControlRow { gap: 10px; }
+  .cfStudio .cfSortTabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .cfStudio .cfSortTab { padding: 8px 4px; font-size: 9px; }
+  .cfStudio .cfTimeFilters { gap: 5px; }
+  .cfStudio .cfTimeLabel { width: 100%; }
+  .cfStudio .cfTimeChip { min-height: 29px; padding: 6px 8px; font-size: 9px; }
+  .confessionWrap.cfStudio .cfPost { padding: 14px 12px; }
+  .cfStudio .cfPostAvatar { width: 36px; height: 36px; }
+  .cfStudio .cfPostMark { font-size: 14px; }
+  .confessionWrap.cfStudio .cfText { margin: 15px 0; font-size: 12px; }
+  .cfStudio .cfAction { gap: 5px; padding: 7px 7px; font-size: 9px; }
+  .cfStudio .cfReplyCounter { display: none; }
+  .confessionWrap.cfStudio .cfReplyBox { flex-wrap: wrap; }
+  .confessionWrap.cfStudio .cfReplyBox input { min-width: calc(100% - 40px); }
+  .confessionWrap.cfStudio .cfReplyBox button { margin-left: auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cfStudio *, .cfStudio *::before, .cfStudio *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
