@@ -1,17 +1,17 @@
 "use client";
 
 /**
- * Identicon — GitHub-style pixel avatar.
+ * ANON deterministic pixel identicon.
  *
- * 5x5 mirrored grid. Sparse patterns. Solid bright colors on dark bg.
- * Matches the reference design exactly.
- *
- * Uniqueness: 2^15 patterns x 12 colors = ~393k combos.
- * For higher collision resistance we mix two hashes for the bit pattern.
+ * Reference style: a solid vivid square, hard dark pixel blocks, sharp corners,
+ * and no gradients or antialiasing. A stable identity seed keeps an avatar
+ * consistent across screens; session IDs can be used as seeds without exposing
+ * them in the rendered markup.
  */
 
 type Props = {
   name: string;
+  seed?: string;
   size?: number;
   className?: string;
 };
@@ -25,69 +25,90 @@ function fnv1a(str: string, seed = 2166136261): number {
   return h >>> 0;
 }
 
-// 12 bright solid colors — no gradients, punchy, readable on dark
+// Bold, flat colors inspired by the ANON identity chooser reference.
 const PALETTE = [
-  "#ff2d55", // red
-  "#ff8a5b", // orange
-  "#ffd166", // yellow
-  "#8ee06e", // green
-  "#7dd3fc", // sky
-  "#a78bfa", // violet
-  "#f472b6", // pink
-  "#fb7185", // rose
-  "#fbbf24", // amber
-  "#4ade80", // emerald
-  "#38bdf8", // cyan
-  "#c084fc", // purple
+  "#ffb84d", // amber
+  "#56d8ff", // cyan
+  "#ff4f7f", // hot pink
+  "#9aef61", // lime
+  "#b9a0ff", // violet
+  "#ffe45b", // bright yellow
+  "#ff8960", // coral
+  "#53e2b7", // mint
+  "#78a7ff", // electric blue
+  "#ff91cd", // candy pink
+  "#d5f263", // acid lime
+  "#8ce8f2", // ice teal
+  "#ffa45e", // orange
+  "#c5efff", // pale cyan
+  "#ee74b2", // rose
+  "#a5ef77", // neon green
 ];
 
-export default function Identicon({ name, size = 32, className = "" }: Props) {
-  const colorSeed = fnv1a(name);
-  const color = PALETTE[colorSeed % PALETTE.length];
+const FRAME = "#17070d";
+const PIXEL = "#10070b";
+const GRID_MASK = 0x0fffffff;
 
-  // Bits come from a mixed hash so patterns feel less correlated to color
-  const bits = fnv1a(name + "#grid") ^ fnv1a(name, 5381);
-
-  // 5x5 grid, mirror columns 0-1 to columns 4-3. Column 2 is center.
-  // We only decide the left 3 columns (15 bits total).
-  const cells: { x: number; y: number }[] = [];
-  let bit = 0;
-  for (let x = 0; x < 3; x++) {
-    for (let y = 0; y < 5; y++) {
-      const on = (bits >> bit) & 1;
-      bit++;
-      if (on) {
-        cells.push({ x, y });
-        if (x < 2) cells.push({ x: 4 - x, y });
-      }
-    }
+function countBits(value: number): number {
+  let v = value & GRID_MASK;
+  let count = 0;
+  while (v !== 0) {
+    v &= v - 1;
+    count++;
   }
+  return count;
+}
 
-  // Guarantee a visible pattern — never fully blank
-  if (cells.length < 4) {
-    cells.length = 0;
-    cells.push(
-      { x: 2, y: 1 },
-      { x: 2, y: 2 },
-      { x: 2, y: 3 },
-      { x: 1, y: 2 },
-      { x: 3, y: 2 }
-    );
+function makePattern(identity: string): number {
+  // Retry very sparse or very dense masks so each avatar remains visually legible.
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const variant = identity + "#pixel-grid-" + attempt;
+    const bits = (fnv1a(variant) ^ fnv1a(identity, 5381)) & GRID_MASK;
+    const density = countBits(bits);
+    if (density >= 8 && density <= 20) return bits;
+  }
+  return (fnv1a(identity + "#pixel-grid-fallback") ^ 0x05a35c7d) & GRID_MASK;
+}
+
+export default function Identicon({
+  name,
+  seed,
+  size = 32,
+  className = "",
+}: Props) {
+  const identity = (seed?.trim() || name.trim() || "anon").normalize("NFKC");
+  const color = PALETTE[fnv1a(identity + "#color") % PALETTE.length];
+  const bits = makePattern(identity);
+
+  // 7x7 mirrored pixel mask (28 independent decisions) inside a one-pixel frame.
+  const cells: Array<{ x: number; y: number }> = [];
+  let bit = 0;
+  for (let x = 0; x < 4; x++) {
+    for (let y = 0; y < 7; y++) {
+      const on = (bits >>> bit) & 1;
+      bit++;
+      if (!on) continue;
+      cells.push({ x: x + 1, y: y + 1 });
+      if (x < 3) cells.push({ x: 7 - x, y: y + 1 });
+    }
   }
 
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 5 5"
+      viewBox="0 0 9 9"
       shapeRendering="crispEdges"
       className={className}
+      style={{ display: "block", flex: "none", borderRadius: 0 }}
       aria-hidden="true"
+      focusable="false"
     >
-      <rect width="5" height="5" fill="#160409" />
-      <g fill={color}>
-        {cells.map((c, i) => (
-          <rect key={i} x={c.x} y={c.y} width="1" height="1" />
+      <rect width="9" height="9" fill={FRAME} />
+      <rect x="1" y="1" width="7" height="7" fill={color} />
+      <g fill={PIXEL}>
+        {cells.map((cell, index) => (
+          <rect key={index} x={cell.x} y={cell.y} width="1" height="1" />
         ))}
       </g>
     </svg>

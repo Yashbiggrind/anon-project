@@ -4053,3 +4053,78 @@ a:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .cfStudio *, .cfStudio *::before, .cfStudio *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
 }
+
+
+/* ANON PIXEL IDENTITIES — sharp-edged avatars, consistently applied */
+.app-ava,
+.mini,
+.profileAvatar,
+.dmAvatar,
+.memberAvatar,
+.cfStudio .cfPostAvatar,
+.cfStudio .cfReplyAvatar {
+  border-radius: 0 !important;
+  overflow: visible !important;
+}
+.app-ava {
+  padding: 2px !important;
+  background: transparent !important;
+}
+.app-ava svg,
+.mini svg,
+.profileAvatar svg,
+.dmAvatar svg,
+.memberAvatar svg,
+.cfStudio .cfPostAvatar svg,
+.cfStudio .cfReplyAvatar svg,
+.nameOption .nameOptionAvatar,
+.keepName .keepNameAvatar {
+  display: block;
+  border-radius: 0 !important;
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}
+.profileAvatar {
+  border-radius: 0 !important;
+  box-shadow: 0 0 24px -9px rgba(255,45,85,.55);
+}
+.profileAvatar svg { border-radius: 0 !important; }
+.nameOption {
+  border-radius: 2px !important;
+  min-height: 190px;
+  justify-content: flex-start;
+  gap: 10px !important;
+  padding: 18px 12px !important;
+}
+.nameOption .nameOptionAvatar {
+  width: 76px;
+  height: 76px;
+  margin: 2px 0 3px;
+  flex: none;
+}
+.nameOption > span {
+  display: block;
+  width: 100%;
+  overflow-wrap: anywhere;
+  color: #ff6b8c;
+  font-weight: 700;
+  letter-spacing: .35px;
+  text-align: center;
+}
+.nameOption:hover .nameOptionAvatar { transform: translateY(-1px); }
+.keepName {
+  width: 100%;
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  border-radius: 2px !important;
+}
+.keepName .keepNameAvatar { width: 26px; height: 26px; flex: none; }
+.keepName > span { min-width: 0; overflow-wrap: anywhere; text-align: left; }
+@media (max-width: 560px) {
+  .nameOptions { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .nameOption { min-height: 160px; padding: 13px 8px !important; }
+  .nameOption .nameOptionAvatar { width: 64px; height: 64px; }
+}
