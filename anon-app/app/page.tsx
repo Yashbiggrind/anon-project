@@ -1568,14 +1568,22 @@ export default function Home() {
             <p>{t("chooseOneOrKeep", { name: identity?.username || t("keepMyName") })}</p>
             <div className="nameOptions">
               <button className="nameOption" onClick={() => chooseName(nameOffer.a)}>
+                <Identicon name={nameOffer.a} seed={nameOffer.a} size={76} className="nameOptionAvatar" />
                 <span>{nameOffer.a}</span><small>{t("chooseThis")}</small>
               </button>
               <button className="nameOption" onClick={() => chooseName(nameOffer.b)}>
+                <Identicon name={nameOffer.b} seed={nameOffer.b} size={76} className="nameOptionAvatar" />
                 <span>{nameOffer.b}</span><small>{t("chooseThis")}</small>
               </button>
             </div>
             <button className="keepName" onClick={keepCurrentName}>
-              {t("keepName", { name: identity?.username || t("keepMyName") })}
+              <Identicon
+                name={identity?.username || "anon"}
+                seed={identity?.sessionId ?? identity?.username ?? "anon"}
+                size={26}
+                className="keepNameAvatar"
+              />
+              <span>{t("keepName", { name: identity?.username || t("keepMyName") })}</span>
             </button>
           </div>
         </div>
@@ -1758,7 +1766,7 @@ export default function Home() {
               ))}
             </nav>
             <div className="app-id">
-              <div className="app-ava" style={{ padding: 2 }}><Identicon name={identity?.username ?? "anon"} size={32} /></div>
+              <div className="app-ava" style={{ padding: 2 }}><Identicon name={identity?.username ?? "anon"} seed={identity?.sessionId ?? identity?.username ?? "anon"} size={32} /></div>
               <div className="txt">
                 <small>{t("anonymousIdentity")}</small>
                 <b>{identity?.username ?? "…"}</b>
@@ -1820,7 +1828,7 @@ export default function Home() {
 
                   {missed.map((m) => (
                     <div className="msg missed" key={`missed-${m.id}`}>
-                      <div className="mini"><Identicon name={m.senderName} size={30} /></div>
+                      <div className="mini"><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>
                       <div className="bubble">
                         <div className="meta">
                           <b>{m.senderName}</b>
@@ -1841,7 +1849,7 @@ export default function Home() {
                         </div>
                         <div className="text">{q.content}</div>
                       </div>
-                      <div className="mini"><Identicon name={identity?.username ?? "you"} size={30} /></div>
+                      <div className="mini"><Identicon name={identity?.username ?? "you"} seed={identity?.sessionId ?? identity?.username ?? "you"} size={30} /></div>
                     </div>
                   ))}
 
@@ -2590,7 +2598,7 @@ export default function Home() {
         return (
           <div className="modalbg show" onClick={() => setProfileOpen(null)}>
             <div className="modal profileCard" onClick={(e) => e.stopPropagation()}>
-              <div className="profileAvatar" style={{ padding: 6 }}><Identicon name={profileOpen.username} size={58} /></div>
+              <div className="profileAvatar" style={{ padding: 6 }}><Identicon name={profileOpen.username} seed={profileOpen.sessionId} size={58} /></div>
               <h2 className="profileName">{profileOpen.username}</h2>
               <div className="profileMeta">anonymous session</div>
               <div className="profileMeta dim">{profileOpen.sessionId.slice(0, 12)}…</div>
@@ -2649,7 +2657,7 @@ export default function Home() {
       {dmPanel && (
         <div className="dmPanel">
           <div className="dmHeader">
-            <div className="dmAvatar" style={{ padding: 2 }}><Identicon name={dmPanel.target.username} size={30} /></div>
+            <div className="dmAvatar" style={{ padding: 2 }}><Identicon name={dmPanel.target.username} seed={dmPanel.target.sessionId} size={30} /></div>
             <div className="dmTitle">
               <b>{dmPanel.target.username}</b>
               {dmTypingFrom
@@ -2848,7 +2856,7 @@ const MessageBubble = memo(
               className="mini clickable"
               onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
               title="Private message"
-            ><Identicon name={m.senderName} size={30} /></div>
+            ><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>
           )}
 
           <div className="bubble">
@@ -2962,7 +2970,7 @@ const MessageBubble = memo(
             )}
           </div>
 
-          {mine && <div className="mini"><Identicon name={m.senderName} size={30} /></div>}
+          {mine && <div className="mini"><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>}
         </div>
 
         {showSheet && typeof document !== "undefined" && createPortal(
