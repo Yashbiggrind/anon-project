@@ -329,6 +329,14 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const onPrivacyEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPrivacyToolsOpen(false);
+    };
+    window.addEventListener("keydown", onPrivacyEscape);
+    return () => window.removeEventListener("keydown", onPrivacyEscape);
+  }, []);
+
+  useEffect(() => {
     const onStorage = (event: StorageEvent) => {
       if (event.key !== "anon_ephemeral_mode") return;
       const enabled = event.newValue === "on";
@@ -1746,7 +1754,7 @@ export default function Home() {
             <p className="privacyDockFoot">These tools improve local privacy, but they do not make live chats end-to-end encrypted.</p>
           </div>
         )}
-        <button type="button" className="privacyDockTrigger" onClick={() => setPrivacyToolsOpen((open) => !open)} aria-expanded={privacyToolsOpen} aria-controls="privacy-dock-panel">
+        <button type="button" className="privacyDockTrigger" onClick={() => setPrivacyToolsOpen((open) => !open)} aria-expanded={privacyToolsOpen} aria-controls={privacyToolsOpen ? "privacy-dock-panel" : undefined}>
           <span className="privacyDockTriggerIcon" aria-hidden="true">⌑</span>
           <span>Privacy tools</span>
           <span className="privacyDockTriggerCount">{(localPrivacyGuard ? 1 : 0) + (ephemeralMode ? 1 : 0)}/2 active</span>
@@ -1756,8 +1764,8 @@ export default function Home() {
       <div className="marquee">
         <div className="marquee-track">
           <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
-          <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
-          <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
+          <span aria-hidden="true">{t("marqueeA")} <b>{t("marqueeB")}</b></span>
+          <span aria-hidden="true">{t("marqueeA")} <b>{t("marqueeB")}</b></span>
         </div>
       </div>
 
@@ -1871,8 +1879,8 @@ export default function Home() {
               </div>
             </div>
 
-            <nav className="centerNav">
-              <button className="navItem active">{t("navHome")}</button>
+            <nav className="centerNav" aria-label="Main navigation">
+              <button className="navItem active" type="button" aria-current="page">{t("navHome")}</button>
               <button className="navItem" onClick={() => openDoor("chat")}>{t("navConnect")}</button>
               <button className="navItem" onClick={() => openDoor("content")}>{t("navExplore")}</button>
               <button className="navItem" onClick={() => openDoor("confession")}>CONFESS</button>
@@ -2006,7 +2014,7 @@ export default function Home() {
           </div>
 
           <footer className="foot">
-            <div className="footLeft">ANON// v10 · cyber</div>
+            <div className="footLeft">ANON// · Pseudonymous conversations</div>
             <div className="footRight">
               <Link className="footLink accent" href="/data">◉ {t("dataLogTitle")}</Link>
               <span className="sep">/</span>
