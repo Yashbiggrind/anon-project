@@ -583,7 +583,7 @@ export default function Home() {
     });
 
     socket.on("chat:public:message", (m: ChatMessage) => {
-      const isMine = m.senderSessionId === selfRef.current;
+      const isMine = m.identityScope === "room" ? m.senderSessionId === roomRef.current?.myMemberId : m.senderSessionId === selfRef.current;
       if (!isMine) { playSound("message"); bumpSeen(); }
       startTransition(() => setMessages((p) => {
         if (p.some((x) => x.id === m.id)) return p;
