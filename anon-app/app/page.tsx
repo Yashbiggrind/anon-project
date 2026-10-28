@@ -206,6 +206,7 @@ export default function Home() {
 
   const [toast, setToast] = useState<string | null>(null);
   const [privacyReview, setPrivacyReview] = useState<{ scope: "public" | "room" | "dm"; text: string; findings: string[] } | null>(null);
+  const [privacyToolsOpen, setPrivacyToolsOpen] = useState(false);
   const [localPrivacyGuard, setLocalPrivacyGuard] = useState(true);
   const [ephemeralMode, setEphemeralMode] = useState(false);
   const ephemeralModeRef = useRef(false);
@@ -1715,11 +1716,41 @@ export default function Home() {
     <>
       {!connected && <div className="reconnectBar">{t("connectionLost")}</div>}
 
-      <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1500, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", justifyContent: "flex-end", maxWidth: "calc(100vw - 24px)" }}>
-        <Link href="/privacy-center" title="Privacy controls" style={{ border: "1px solid #48202d", background: "rgba(12,5,9,.94)", color: "#f5dce4", borderRadius: 999, padding: "8px 11px", fontSize: 11, textDecoration: "none", backdropFilter: "blur(12px)" }}>🛡 Privacy</Link>
-        <button type="button" onClick={() => { const next = !localPrivacyGuard; setLocalPrivacyGuard(next); try { localStorage.setItem("anon_local_privacy_guard", next ? "on" : "off"); } catch {} showToast(next ? "Local Privacy Guard enabled." : "Local Privacy Guard disabled.", 2200, "success"); }} title="Toggle the on-device sensitive-text check" aria-pressed={localPrivacyGuard} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: localPrivacyGuard ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◈ Guard {localPrivacyGuard ? "ON" : "OFF"}</button>
-        <button type="button" onClick={toggleEphemeralMode} title="Clear local chat history and unsent offline messages; stop saving new history. Other preferences remain." aria-pressed={ephemeralMode} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: ephemeralMode ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◌ Ephemeral History {ephemeralMode ? "ON" : "OFF"}</button>
-        <button type="button" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)" style={{ border: "1px solid #6b263a", background: "rgba(25,7,14,.96)", color: "#ff9db2", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◉ Quick Veil</button>
+      <div className="privacyDock">
+        {privacyToolsOpen && (
+          <div className="privacyDockPanel" id="privacy-dock-panel" role="dialog" aria-label="Privacy controls">
+            <div className="privacyDockPanelHead">
+              <div>
+                <strong>PRIVACY CONTROLS</strong>
+                <span>Tools you can use right now</span>
+              </div>
+              <button type="button" className="privacyDockClose" onClick={() => setPrivacyToolsOpen(false)} aria-label="Close privacy controls">×</button>
+            </div>
+            <Link href="/privacy-center" className="privacyDockAction" onClick={() => setPrivacyToolsOpen(false)}>
+              <span><strong>Privacy Center</strong><small>How ANON handles information</small></span><b aria-hidden="true">↗</b>
+            </Link>
+            <button type="button" className="privacyDockAction" onClick={() => {
+              const next = !localPrivacyGuard;
+              setLocalPrivacyGuard(next);
+              try { localStorage.setItem("anon_local_privacy_guard", next ? "on" : "off"); } catch {}
+              showToast(next ? "Local Privacy Guard enabled." : "Local Privacy Guard disabled.", 2200, "success");
+            }} title="Toggle the on-device sensitive-text check" aria-pressed={localPrivacyGuard}>
+              <span><strong>Local Privacy Guard</strong><small>Check messages before sending</small></span><b className={localPrivacyGuard ? "privacyStateOn" : ""}>{localPrivacyGuard ? "ON" : "OFF"}</b>
+            </button>
+            <button type="button" className="privacyDockAction" onClick={toggleEphemeralMode} title="Clear local chat history and unsent offline messages; stop saving new history." aria-pressed={ephemeralMode}>
+              <span><strong>Ephemeral History</strong><small>Clear and stop saving local history</small></span><b className={ephemeralMode ? "privacyStateOn" : ""}>{ephemeralMode ? "ON" : "OFF"}</b>
+            </button>
+            <button type="button" className="privacyDockAction" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)">
+              <span><strong>Quick Veil</strong><small>Cover screen · Alt + Shift + V</small></span><b aria-hidden="true">◉</b>
+            </button>
+            <p className="privacyDockFoot">These tools improve local privacy, but they do not make live chats end-to-end encrypted.</p>
+          </div>
+        )}
+        <button type="button" className="privacyDockTrigger" onClick={() => setPrivacyToolsOpen((open) => !open)} aria-expanded={privacyToolsOpen} aria-controls="privacy-dock-panel">
+          <span className="privacyDockTriggerIcon" aria-hidden="true">⌑</span>
+          <span>Privacy tools</span>
+          <span className="privacyDockTriggerCount">{(localPrivacyGuard ? 1 : 0) + (ephemeralMode ? 1 : 0)}/2 active</span>
+        </button>
       </div>
 
       <div className="marquee">
@@ -1845,7 +1876,7 @@ export default function Home() {
               <button className="navItem" onClick={() => openDoor("chat")}>{t("navConnect")}</button>
               <button className="navItem" onClick={() => openDoor("content")}>{t("navExplore")}</button>
               <button className="navItem" onClick={() => openDoor("confession")}>CONFESS</button>
-              <button className="navItem" onClick={() => openDoor("content")}>{t("navLearn")}</button>
+              <Link className="navItem" href="/privacy-center">PRIVACY</Link>
               <Link className="navItem" href="/data">DATA</Link>
               
             </nav>
@@ -1858,6 +1889,17 @@ export default function Home() {
                   <div className="onlinePillBot">{online.length} {t("usersLabel")}</div>
                 </div>
               </div>
+
+              <button
+                type="button"
+                className="profileTopBtn"
+                onClick={() => setAvatarEditorOpen(true)}
+                aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
+                title="Customize your anonymous profile"
+              >
+                <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={25} />
+                <span>{identity?.username ?? "Your profile"}</span>
+              </button>
 
               <div className="langWrap">
                 <button
@@ -1906,45 +1948,7 @@ export default function Home() {
                 {muted ? "🔇" : "🔊"}
               </button>
 
-              {typeof document !== "undefined" && createPortal(
-                <button
-                  type="button"
-                  className="globalProfileDock"
-                  style={{
-                    position: "fixed",
-                    top: "38px",
-                    right: "12px",
-                    zIndex: 2147483647,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "9px",
-                    maxWidth: "min(220px, calc(100vw - 24px))",
-                    padding: "7px 11px 7px 7px",
-                    border: "2px solid #ff2d55",
-                    borderRadius: "10px",
-                    color: "#fff",
-                    background: "linear-gradient(135deg, #4a0719, #090308)",
-                    boxShadow: "0 0 24px rgba(255,45,85,.75)",
-                    visibility: "visible",
-                    opacity: 1,
-                    pointerEvents: "auto",
-                  }}
-                  onClick={() => setAvatarEditorOpen(true)}
-                  aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
-                  title="Open your pixel profile"
-                >
-                  <span className="globalProfileDockAvatar">
-                    <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={34} />
-                    <span className="globalProfileDockStatus" />
-                  </span>
-                  <span className="globalProfileDockCopy">
-                    <b>{identity?.username ?? "YOUR PROFILE"}</b>
-                    <small>PROFILE / EDIT BLOCKS</small>
-                  </span>
-                  <span className="globalProfileDockChevron">↗</span>
-                </button>,
-                document.body
-              )}
+
             </div>
           </header>
 
