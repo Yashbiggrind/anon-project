@@ -967,8 +967,13 @@ io.on("connection", (socket) => {
       if (inv.roomId !== roomId) continue;
       list.push({
         inviteId: inv.inviteId,
-        from: { sessionId: inv.senderSessionId, username: inv.senderName },
-        recipientSessionId: inv.recipientSessionId,
+        from: {
+          sessionId: getRoomMemberId(room, inv.senderSessionId),
+          username: getRoomAlias(room, inv.senderSessionId, inv.senderName),
+        },
+        recipientSessionId: getRoomMemberId(room, inv.recipientSessionId),
+        recipientUsername: getRoomAlias(room, inv.recipientSessionId, sessions.get(findSocketBySession(inv.recipientSessionId) || inv.recipientSessionId)?.username || "Guest"),
+        identityScope: "room",
         message: inv.message || "",
         createdAt: inv.createdAt,
       });
@@ -1425,7 +1430,8 @@ io.on("connection", (socket) => {
     });
     io.to(targetSocketId).emit("invite:received", {
       inviteId,
-      from: { sessionId: s.sessionId, username: s.username },
+      from: { sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username) },
+      identityScope: "room",
       roomTopic: room.topic,
       capacity: room.capacity,
       occupancy: room.participants.length,
