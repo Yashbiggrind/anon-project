@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pixel Profile Editor</title>
+<style>
+:root{color-scheme:dark;--bg:#0a0306;--card:#16050a;--line:#3a0f1a;--txt:#e9dfe4;--dim:#8a7a80;--red:#ff5c7c;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:"Courier New",ui-monospace,monospace;padding:18px}
+.wrap{max-width:880px;margin:0 auto}
+h1{font-family:Georgia,serif;font-size:26px;margin:6px 0 2px}
+.s{color:var(--dim);margin:0 0 16px;font-size:13px}
+.row{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start}
+.panel{border:1px solid var(--line);background:var(--card);padding:14px}
+#fr{width:min(340px,84vw);aspect-ratio:1;border:2px solid var(--red);border-radius:0;overflow:auto;background:#0a0306;display:flex}
+#cv{display:block;flex:none;margin:auto;touch-action:none;image-rendering:pixelated;cursor:crosshair}
+.side{flex:1;min-width:250px;display:flex;flex-direction:column;gap:12px}
+.lab{font-size:11px;letter-spacing:.15em;color:var(--dim);text-transform:uppercase;margin-bottom:6px}
+.bt{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+button{background:transparent;color:var(--dim);border:1px solid var(--line);border-radius:0;padding:8px 10px;font:bold 12px inherit;letter-spacing:.08em;text-transform:uppercase;cursor:pointer}
+button.on{background:#4a0612;color:#fff;border-color:var(--red)}
+button:active{border-color:var(--red)}
+.sw{width:28px;height:28px;padding:0;border:2px solid var(--line)}
+.sw.on{border-color:#fff;outline:2px solid var(--red)}
+input[type=color]{width:34px;height:28px;padding:0;border:1px solid var(--line);background:none;border-radius:0}
+.val{min-width:64px;text-align:center;color:#fff;font-weight:bold}
+.pv{display:flex;gap:14px;align-items:flex-end}
+.pv canvas{border:1px solid var(--red);display:block;image-rendering:pixelated}
+textarea{width:100%;background:#0a0306;color:var(--txt);border:1px solid var(--line);border-radius:0;font:12px inherit;padding:8px;resize:vertical}
+#ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);align-items:center;justify-content:center;z-index:9;padding:20px}.ob{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:100%}#oc{border:2px solid var(--red);background:#000a04;image-rendering:pixelated}#os{margin:0;color:#3dff8a;font:12px/1.5 "Courier New",monospace;min-height:96px;width:100%;white-space:pre-wrap}</style></head><body><div class="wrap">
+<h1>Your Profile Block</h1>
+<p class="s">One click = one block. The profile square is always the same size, whatever grid you pick.</p>
+<div class="row">
+<div class="panel"><div id="fr"><canvas id="cv"></canvas></div>
+<div class="bt" style="margin-top:10px"><button id="zo">Zoom −</button><span class="val" id="zv">1×</span><button id="zi">Zoom +</button><button id="zf">Fit</button></div></div>
+<div class="side">
+<div class="panel"><div class="lab">Tool</div><div class="bt" id="tools">
+<button data-t="paint" class="on">Paint</button><button data-t="erase">Erase</button><button data-t="stamp">Stamp</button></div></div>
+<div class="panel"><div class="lab">Colour</div><div class="bt" id="pal"></div></div>
+<div class="panel" id="pcp" style="display:none"><div class="lab">Piece</div><div class="bt" id="pcs"></div><div class="bt" style="margin-top:6px"><button id="rot">Rotate ↻</button></div></div>
+<div class="panel"><div class="lab">Grid</div>
+<div class="bt"><button id="gm">Grid −</button><span class="val" id="gv"></span><button id="gp">Grid +</button></div>
+<div class="bt" id="sizes" style="margin-top:6px"></div></div>
+<div class="panel"><div class="lab">Options</div><div class="bt">
+<button id="gl" class="on">Grid lines</button><button id="mir">Mirror</button><button id="drg">Drag paint</button>
+<button id="und">Undo</button><button id="rnd">Random</button><button id="clr">Clear</button></div></div>
+<div class="panel"><div class="lab">Preview (same size for every grid)</div><div class="pv"><canvas id="p1"></canvas><canvas id="p2"></canvas><canvas id="p3"></canvas></div></div>
+</div></div>
+<button id="cf" class="on" style="width:100%;margin-top:18px;padding:14px">Confirm profile</button>
+<div class="panel" style="margin-top:12px"><div class="lab">Profile code (save this in your database)</div>
+<textarea id="code" rows="2"></textarea><div class="bt" style="margin-top:6px"><button id="load">Load code</button></div></div>
+</div>
+<div id="ov"><div class="ob"><canvas id="oc"></canvas><pre id="os"></pre><button id="ob" class="on">Continue</button></div></div>
+<script>
+var PAL=["#ffb65c","#6fd3ff","#ff5c7c","#2ecc71","#b78cff","#ffe066","#ff8a4c","#5cf2c8","#ffffff","#8a7a80"];
+var PCS={I:[[0,0],[1,0],[2,0],[3,0]],O:[[0,0],[1,0],[0,1],[1,1]],T:[[0,0],[1,0],[2,0],[1,1]],L:[[0,0],[0,1],[0,2],[1,2]],J:[[1,0],[1,1],[1,2],[0,2]],S:[[1,0],[2,0],[0,1],[1,1]],Z:[[0,0],[1,0],[1,1],[2,1]]};
+var CH="0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ",MIN=4,MAX=32;
+var n=8,cells=[],tool="paint",color=PAL[2],mirror=false,lines=true,dragOn=false,hist=[],piece="T",rot=0,down=false,last=-1,zoom=1;
+var cv=document.getElementById("cv"),$=function(i){return document.getElementById(i)};
+function blank(m){var a=[];for(var i=0;i<m*m;i++)a.push(null);return a}
+function only(box,el){[].forEach.call(box.children,function(b){b.classList.toggle("on",b===el)})}
+function draw(c,px,grid){
+ var s=px/n;c.width=c.height=px;var x=c.getContext("2d");x.fillStyle="#0a0306";x.fillRect(0,0,px,px);
+ for(var i=0;i<n*n;i++)if(cells[i]){x.fillStyle=cells[i];var cx=Math.floor((i%n)*s),cy=Math.floor(Math.floor(i/n)*s);
+  x.fillRect(cx,cy,Math.floor(((i%n)+1)*s)-cx,Math.floor((Math.floor(i/n)+1)*s)-cy)}
+ if(grid&&lines){x.fillStyle="rgba(255,92,124,.28)";for(var k=1;k<n;k++){x.fillRect(Math.round(k*s),0,1,px);x.fillRect(0,Math.round(k*s),px,1)}}
+}
+function enc(){var u=[],i;for(i=0;i<n*n;i++)if(cells[i]&&u.indexOf(cells[i])<0)u.push(cells[i]);
+ var s="";for(i=0;i<n*n;i++)s+=cells[i]?CH[u.indexOf(cells[i])]:".";
+ return "v1|"+n+"|"+u.map(function(c){return c.slice(1)}).join(",")+"|"+s}
+function dec(t){var p=t.trim().split("|");if(p[0]!="v1")return;var m=+p[1],u=p[2]?p[2].split(",").map(function(c){return"#"+c}):[],a=[];
+ if(!(m>=MIN&&m<=MAX)||p[3].length!=m*m)return;
+ for(var i=0;i<p[3].length;i++)a.push(p[3][i]=="."?null:(u[CH.indexOf(p[3][i])]||null));n=m;cells=a;hist=[];sync()}
+function sync(){
+ var d=window.devicePixelRatio||1,w=($("fr").offsetWidth-4)*d,cp=Math.max(2,Math.floor(w*zoom/n)),px=n*cp;draw(cv,px,true);
+ cv.style.width=cv.style.height=px/d+"px";
+ [["p1",96],["p2",48],["p3",24]].forEach(function(q){draw($(q[0]),n*Math.max(1,Math.round(q[1]/n)))});$("code").value=enc();
+ $("gv").textContent=n+"×"+n;$("zv").textContent=zoom+"×";
+ [].forEach.call($("sizes").children,function(b){b.classList.toggle("on",+b.dataset.n==n)});
+}
+function setN(m){m=Math.max(MIN,Math.min(MAX,m));if(m==n)return;var o=cells,on=n,a=blank(m);
+ for(var y=0;y<Math.min(on,m);y++)for(var x=0;x<Math.min(on,m);x++)a[y*m+x]=o[y*on+x];n=m;cells=a;hist=[];sync()}
+function set(x,y,c){if(x<0||y<0||x>=n||y>=n)return;cells[y*n+x]=c;if(mirror)cells[y*n+(n-1-x)]=c}
+function shape(){var s=PCS[piece].map(function(p){return p.slice()});
+ for(var r=0;r<rot;r++)s=s.map(function(p){return[-p[1],p[0]]});
+ var mx=Math.min.apply(0,s.map(function(p){return p[0]})),my=Math.min.apply(0,s.map(function(p){return p[1]}));
+ return s.map(function(p){return[p[0]-mx,p[1]-my]})}
+function act(e,first){var r=cv.getBoundingClientRect(),x=Math.floor((e.clientX-r.left)/r.width*n),y=Math.floor((e.clientY-r.top)/r.height*n);
+ if(x<0||y<0||x>=n||y>=n)return;var id=y*n+x;if(id===last)return;last=id;
+ if(tool=="stamp"){if(first)shape().forEach(function(p){set(x+p[0],y+p[1],color)})}
+ else set(x,y,tool=="erase"?null:color);sync()}
+cv.onpointerdown=function(e){down=true;last=-1;hist.push(cells.slice());if(hist.length>50)hist.shift();cv.setPointerCapture(e.pointerId);act(e,true)};
+cv.onpointermove=function(e){if(down&&dragOn&&tool!="stamp")act(e,false)};
+cv.onpointerup=cv.onpointercancel=function(){down=false;last=-1};
+function pal(){[].forEach.call($("pal").children,function(b){if(b.dataset.c)b.classList.toggle("on",b.dataset.c==color)});$("cc").value=color}
+PAL.forEach(function(c){var b=document.createElement("button");b.className="sw";b.dataset.c=c;b.style.background=c;b.onclick=function(){color=c;pal()};$("pal").appendChild(b)});
+var ci=document.createElement("input");ci.type="color";ci.id="cc";ci.oninput=function(){color=ci.value;pal()};$("pal").appendChild(ci);pal();
+Object.keys(PCS).forEach(function(k){var b=document.createElement("button");b.textContent=k;if(k==piece)b.className="on";b.onclick=function(){piece=k;rot=0;only($("pcs"),b)};$("pcs").appendChild(b)});
+[6,8,10,12,16,24,32].forEach(function(m){var b=document.createElement("button");b.textContent=m;b.dataset.n=m;b.onclick=function(){setN(m)};$("sizes").appendChild(b)});
+[].forEach.call($("tools").children,function(b){b.onclick=function(){tool=b.dataset.t;only($("tools"),b);$("pcp").style.display=tool=="stamp"?"block":"none"}});
+function tog(id,get,set){$(id).onclick=function(){set(!get());this.classList.toggle("on",get());sync()}}
+tog("gl",function(){return lines},function(v){lines=v});
+tog("mir",function(){return mirror},function(v){mirror=v});
+tog("drg",function(){return dragOn},function(v){dragOn=v});
+$("gm").onclick=function(){setN(n-1)};$("gp").onclick=function(){setN(n+1)};
+$("zi").onclick=function(){zoom=Math.min(6,zoom+1);sync()};$("zo").onclick=function(){zoom=Math.max(1,zoom-1);sync()};$("zf").onclick=function(){zoom=1;$("fr").scrollTo(0,0);sync()};
+$("rot").onclick=function(){rot=(rot+1)%4};
+$("und").onclick=function(){if(hist.length){cells=hist.pop();sync()}};
+$("clr").onclick=function(){hist.push(cells.slice());cells=blank(n);sync()};
+$("rnd").onclick=function(){hist.push(cells.slice());cells=blank(n);var c=PAL[Math.floor(Math.random()*8)],h=Math.ceil(n/2);
+ for(var y=0;y<n;y++)for(var x=0;x<h;x++)if(Math.random()<.6){cells[y*n+x]=c;cells[y*n+n-1-x]=c}sync()};
+$("load").onclick=function(){dec($("code").value)};
+window.onresize=sync;
+var GL="01ABCDEF23456789#$%<>/|ｱｲｳｴｵｶｷﾅﾆ",run=0;
+function hx(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16).toUpperCase().padStart(8,"0")}
+function rc(){return GL[Math.floor(Math.random()*GL.length)]}
+$("cf").onclick=function(){
+ var ov=$("ov"),c=$("oc"),st=$("os"),bt=$("ob"),id=++run;ov.style.display="flex";bt.style.display="none";st.textContent="";
+ var d=window.devicePixelRatio||1,S=Math.min(360,innerWidth-44)*d,cp=Math.max(3,Math.floor(S/n)),px=n*cp,i;
+ c.width=c.height=px;c.style.width=c.style.height=px/d+"px";
+ var x=c.getContext("2d"),fs=Math.max(10,Math.floor(14*d)),cols=Math.floor(px/fs),dr=[],rv=[];
+ for(i=0;i<cols;i++)dr[i]=-Math.random()*30;
+ for(i=0;i<n*n;i++)rv[i]=1800+Math.random()*2600;
+ var L=["> generating session key...","> mapping "+n+"x"+n+" blocks...","> hashing identity...","> sealing profile..."],T=[0,1200,2600,3800],li=0,t0=performance.now();
+ function cell(t,done){
+  for(var k=0;k<n*n;k++){var cx=(k%n)*cp,cy=Math.floor(k/n)*cp,r=rv[k];
+   if(done||t>=r){ if(cells[k]){x.fillStyle=cells[k];x.fillRect(cx,cy,cp,cp);if(!done&&t<r+300){x.fillStyle="rgba(255,255,255,"+(1-(t-r)/300)*.9+")";x.fillRect(cx,cy,cp,cp)}}}
+   else if(t>1200){x.fillStyle="rgba(0,18,8,.88)";x.fillRect(cx,cy,cp,cp);x.fillStyle="#3dff8a";x.font=Math.floor(cp*.7)+"px monospace";x.textAlign="center";x.textBaseline="middle";x.fillText(rc(),cx+cp/2,cy+cp/2)}
+  }}
+ function fr(now){if(id!=run)return;var t=now-t0;
+  while(li<4&&t>=T[li]){st.textContent+=L[li++]+"\n"}
+  if(t<4900){
+   x.fillStyle="rgba(0,10,4,.22)";x.fillRect(0,0,px,px);x.font=fs+"px monospace";x.textAlign="left";x.textBaseline="top";
+   for(i=0;i<cols;i++){var y=dr[i]*fs;x.fillStyle="#16a34a";x.fillText(rc(),i*fs,y-fs);x.fillStyle="#d4ffe2";x.fillText(rc(),i*fs,y);dr[i]+=.6+(i%3)*.15;if(y>px&&Math.random()>.97)dr[i]=-Math.random()*10}
+   cell(t,false);requestAnimationFrame(fr)
+  }else{
+   x.fillStyle="#000a04";x.fillRect(0,0,px,px);cell(t,true);
+   st.textContent+="> IDENTITY CONFIRMED\n> ID: "+hx(enc())+"  ["+n+"x"+n+"]";bt.style.display="block"}
+ }
+ requestAnimationFrame(fr)};
+$("ob").onclick=function(){run++;$("ov").style.display="none"};
+cells=blank(n);
+[[2,1],[5,1],[1,2],[2,2],[5,2],[6,2],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[2,4],[5,4],[1,5],[6,5]].forEach(function(p){cells[p[1]*n+p[0]]="#ff5c7c"});
+sync();
+</script></body></html>
