@@ -123,7 +123,7 @@ export default function PrivacyCenterPage() {
               <p>Honest, calm, and in plain English</p>
             </div>
             <div className="pc-note">
-              <strong>Your alias is meant to keep the focus on what you say—not on your offline identity.</strong> ANON keeps some technical connection and anti-abuse records to operate the service and respond to misuse. As with any chat service, avoid sharing passwords, payment details or other information you would not want copied.
+              <strong>Your alias is meant to keep the focus on what you say—not on your offline identity.</strong> The draft backend leaves persistent connection/session logs off by default. Limited anti-abuse records, such as reports or spam-prevention entries, can still be kept to operate the service. As with any chat service, avoid sharing passwords, payment details or other information you would not want copied.
             </div>
 
             <details className="pc-details">
@@ -135,7 +135,7 @@ export default function PrivacyCenterPage() {
                 </div>
                 <div className="pc-detail-row">
                   <strong>Connection records</strong>
-                  <span>The inspected database records a keyed IP-derived hash, session ID, connection times and a shortened browser user-agent. The code sets a 180-day window for session-record cleanup; production cleanup and hosting-provider retention still need to be verified.</span>
+                  <span>In this draft branch, persistent session logging is off by default. Unless the operator explicitly sets ANON_SESSION_LOGS=on, new connection/session rows are not written and existing session rows in the active database are cleared at startup. When logging is intentionally enabled, the 180-day cleanup setting applies. This cannot erase older backups or independent hosting-provider records.</span>
                 </div>
                 <div className="pc-detail-row">
                   <strong>Safety and abuse handling</strong>
