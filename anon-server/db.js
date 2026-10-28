@@ -286,7 +286,8 @@ function listSessions({ since = 0, until = Date.now(), ipHash = null, limit = 50
 }
 
 function getSessionCount() {
-  if (!ready) return 0;
+  // Match the public stats contract and avoid revealing stale rows when logging is off.
+  if (!ready || !STORE_SESSION_LOGS) return 0;
   try { return db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c; }
   catch { return 0; }
 }
