@@ -122,7 +122,7 @@ export default function PrivacyCenterPage() {
               </article>
               <article className="pc-card">
                 <div className="pc-icon" aria-hidden="true">✳</div>
-                <h3>AI bots are labelled—and user text stays local</h3>
+                <h3>AI bots are labelled. External sharing is off by default</h3>
                 <p>Bot names carry an AI label rather than pretending to be human. External model generation is off by default. If the operator enables it, provider requests are limited to fixed, bot-initiated opener prompts; user-written messages and custom room topics are not forwarded by the bot path.</p>
                 <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Provider processing may still apply to static opener prompts when enabled</p>
               </article>
