@@ -114,6 +114,12 @@ export default function PrivacyCenterPage() {
                 <p>Cover the chat screen and mute app sound in one tap, or use Alt + Shift + V. This is a shoulder-surfing aid—not a disconnect button; messages may still arrive in the background.</p>
                 <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>No message content is uploaded by this control</p>
               </article>
+              <article className="pc-card">
+                <div className="pc-icon" aria-hidden="true">⌛</div>
+                <h3>Ephemeral History</h3>
+                <p>Turn it on to clear saved chat history and unsent offline messages from this browser, then stop saving new message history locally. It is not a server-side deletion request: anti-abuse records and other people&apos;s copies are separate.</p>
+                <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Choose ON/OFF from the chat toolbar</p>
+              </article>
             </div>
           </section>
 
