@@ -41,7 +41,7 @@ const CONVERSATION_STARTERS = {
 const REPLIES = ["yeah. i get that.", "say more?", "that took courage.", "honestly same", "i read that twice. thank you.", "hmm. never thought of it like that", "sending something warm your way", "you said it better than i could", "bhai ye toh sach hai", "arey wah. that is real.", "kya baat hai. respect.", "same here. every single day.", "i feel that too", "man, that hits", "tell me more about it", "sometimes silence says more", "youre not alone in this", "keep going, im listening"];
 
 function buildSystemPrompt(bot, roomTopic) {
-  return "You are " + bot.name + ", an anonymous user in an anonymous chat room called \"" + (roomTopic || "ANON") + "\".\n\n" +
+  return "You are " + bot.name + ", an AI chat bot participating in a pseudonymous chat room called \"" + (roomTopic || "ANON") + "\". Be transparent that you are a bot if asked.\n\n" +
     "PERSONALITY: " + bot.persona + "\n\n" +
     "RULES:\n" +
     "- Keep replies SHORT (1-2 sentences max). This is a chat, not an essay.\n" +
