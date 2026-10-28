@@ -4,6 +4,8 @@ import { useEffect, useRef, useState, useCallback, startTransition, memo } from 
 import type { CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
+import AvatarCustomizer from "@/components/AvatarCustomizer";
+import { type AvatarDesign, loadSessionAvatarDesign, saveSessionAvatarDesign, setOwnAvatarSession, setAvatarDesignForSession, syncAvatarPresence } from "@/lib/avatarDesign";
 import ConfessionTab from "@/components/ConfessionTab";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -37,7 +39,7 @@ import {
 import { serverUrl, makeRandomName } from "@/lib/anonUtils";
 
 type Section = "chat" | "private" | "content" | "confession";
-type Identity = { sessionId: string; username: string; accent: string; status?: string };
+type Identity = { sessionId: string; username: string; accent: string; status?: string; avatarDesign?: AvatarDesign | null };
 type ChatMessage = {
   id: string;
   senderSessionId: string;
@@ -50,7 +52,7 @@ type ChatMessage = {
   localSent?: boolean;
   replyTo?: { id: string; senderName: string; content: string };
 };
-type OnlineUser = { sessionId: string; username: string; accent: string; status: string };
+type OnlineUser = { sessionId: string; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null };
 type Invite = { inviteId: string; from: { sessionId: string; username: string }; capacity: number; occupancy: number };
 type RoomParticipant = {
   sessionId: string;
@@ -146,6 +148,7 @@ export default function Home() {
   const selfRef = useRef<string | null>(null);
 
   const [identity, setIdentity] = useState<Identity | null>(null);
+  const [avatarEditorOpen, setAvatarEditorOpen] = useState(false);
   const [connected, setConnected] = useState(false);
   const [codeInput, setCodeInput] = useState("");
 
@@ -515,9 +518,21 @@ export default function Home() {
     socket.on("session:ready", (s: Identity) => {
       selfRef.current = s.sessionId;
       setIdentity(s);
+      setOwnAvatarSession(s.sessionId, s.avatarDesign ?? null);
       if (s.username) localStorage.setItem(LS_USERNAME, s.username);
+      // Carry this tab's session-only avatar into a newly assigned anonymous session.
+      const savedDesign = loadSessionAvatarDesign();
+      if (savedDesign && !s.avatarDesign) {
+        setAvatarDesignForSession(s.sessionId, savedDesign);
+        socket.emit("avatar:update", { design: savedDesign }, (ack: ServerAck) => {
+          if (ack && !ack.ok) console.warn("[avatar] live sync failed:", ack.error);
+        });
+      }
     });
-    socket.on("online:list", (l: OnlineUser[]) => setOnline(l));
+    socket.on("online:list", (l: OnlineUser[]) => {
+      syncAvatarPresence(l);
+      setOnline(l);
+    });
 
     socket.on("chat:public:message", (m: ChatMessage) => {
       const isMine = m.senderSessionId === selfRef.current;
@@ -1208,6 +1223,24 @@ export default function Home() {
     else if (scope === "room" && room) socketRef.current?.emit("typing:room", { roomId: room.roomId });
   }
 
+  function handleSaveAvatarDesign(design: AvatarDesign | null) {
+    saveSessionAvatarDesign(design);
+    if (identity?.sessionId) {
+      setOwnAvatarSession(identity.sessionId, design);
+      setIdentity((current) => current ? { ...current, avatarDesign: design } : current);
+      socketRef.current?.emit("avatar:update", { design }, (res: ServerAck) => {
+        if (res && !res.ok) {
+          showToast(res.error || "Avatar saved locally, but live sync failed.", 3200, "error");
+          return;
+        }
+        showToast(design ? "Block avatar saved for this session." : "Generated avatar restored.", 1800, "success");
+      });
+    } else {
+      showToast("Avatar saved for this tab. It will sync when you connect.", 2200, "info");
+    }
+    setAvatarEditorOpen(false);
+  }
+
   function chooseName(newName: string) {
     localStorage.setItem(LS_USERNAME, newName);
     localStorage.setItem(LS_LAST_OFFER, String(Date.now()));
@@ -1576,6 +1609,9 @@ export default function Home() {
                 <span>{nameOffer.b}</span><small>{t("chooseThis")}</small>
               </button>
             </div>
+            <button className="avatarStudioLaunch" onClick={() => setAvatarEditorOpen(true)}>
+              ▦ CUSTOMIZE YOUR BLOCK AVATAR
+            </button>
             <button className="keepName" onClick={keepCurrentName}>
               <Identicon
                 name={identity?.username || "anon"}
@@ -1772,6 +1808,7 @@ export default function Home() {
                 <b>{identity?.username ?? "…"}</b>
               </div>
             </div>
+            <button className="avatarEditTrigger" onClick={() => setAvatarEditorOpen(true)} title="Customize your pixel-block avatar">▦ EDIT AVATAR</button>
           </header>
 
           <main className="app-main">
@@ -2212,7 +2249,8 @@ export default function Home() {
                                 }}
                               >
                                 <span className="memberAvatar">
-                                  {isPAdmin ? "♛" : "◇"}
+                                  <Identicon name={p.username} seed={p.sessionId} size={24} />
+                                  {isPAdmin && <span className="memberAdminMark">♛</span>}
                                 </span>
                                 <span className="memberName">
                                   {p.username}
@@ -2590,6 +2628,15 @@ export default function Home() {
         </div>
       )}
 
+      {avatarEditorOpen && (
+        <AvatarCustomizer
+          name={identity?.username ?? "anonymous"}
+          initialDesign={identity?.avatarDesign ?? null}
+          onSave={handleSaveAvatarDesign}
+          onClose={() => setAvatarEditorOpen(false)}
+        />
+      )}
+
       {toast && <div className={`toast show toast-${toastKind}`}>{toast}</div>}
 
       {profileOpen && (() => {
@@ -2643,7 +2690,12 @@ export default function Home() {
               )}
 
               {isSelf && (
-                <div className="profileMeta dim" style={{ marginTop: 12 }}>This is you</div>
+                <div style={{ marginTop: 12 }}>
+                  <div className="profileMeta dim">This is you</div>
+                  <button className="avatarStudioLaunch" onClick={() => { setProfileOpen(null); setAvatarEditorOpen(true); }}>
+                    ▦ CUSTOMIZE YOUR BLOCK AVATAR
+                  </button>
+                </div>
               )}
 
               <div className="actions">

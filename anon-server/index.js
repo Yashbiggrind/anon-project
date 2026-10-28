@@ -252,8 +252,31 @@ const io = new Server(server, {
 });
 
 // ---------- helpers ----------
+const AVATAR_COLORS = new Set([
+  "#ffb84d", "#56d8ff", "#ff4f7f", "#9aef61",
+  "#b9a0ff", "#ffe45b", "#ff8960", "#53e2b7",
+  "#78a7ff", "#ff91cd", "#d5f263", "#8ce8f2",
+  "#ffa45e", "#c5efff", "#ee74b2", "#a5ef77",
+  "#17070d", "#10070b",
+]);
+const AVATAR_CELL_COUNT = 49;
+
+function sanitizeAvatarDesign(value) {
+  if (!value || typeof value !== "object") return null;
+  if (typeof value.background !== "string" || !AVATAR_COLORS.has(value.background)) return null;
+  if (!Array.isArray(value.cells) || value.cells.length !== AVATAR_CELL_COUNT) return null;
+  return {
+    background: value.background,
+    cells: value.cells.map((cell) => (
+      cell == null || cell === "" ? null :
+        (typeof cell === "string" && AVATAR_COLORS.has(cell) ? cell : null)
+    )),
+  };
+}
+
 const publicUser = (s) => ({
-  sessionId: s.sessionId, username: s.username, accent: s.accent, status: s.status || "available",
+  sessionId: s.sessionId, username: s.username, accent: s.accent,
+  status: s.status || "available", avatarDesign: s.avatarDesign || null,
 });
 
 // Internal spam identifiers must never cross the Socket.IO boundary.
@@ -766,6 +789,7 @@ io.on("connection", (socket) => {
     username: validName || makeUsername(),
     accent: pick(ACCENTS),
     status: "available",
+    avatarDesign: null,
     blocked: new Map(),
   };
   sessions.set(socket.id, session);
@@ -784,7 +808,8 @@ io.on("connection", (socket) => {
     "reaction:toggle", "report:user", "room:clear-timeout", "room:create", "room:image",
     "room:invite", "room:invites:list", "room:join", "room:kick", "room:leave", "room:list",
     "room:message", "room:purge", "room:set-lifetime", "room:set-slowmode", "room:set-topic",
-    "room:timeout", "room:transfer-admin", "typing:public", "typing:room", "unblock:user", "user:rename"
+    "room:timeout", "room:transfer-admin", "typing:public", "typing:room", "unblock:user", "user:rename",
+    "avatar:update"
   ]);
   // v24.7 — global rate limit for sensitive actions
   const SENSITIVE_EVENTS = new Set([
@@ -1005,6 +1030,24 @@ io.on("connection", (socket) => {
       const sid = findSocketBySession(p.sessionId);
       if (sid) io.to(sid).emit("typing:room", { roomId, sessionId: s.sessionId, username: s.username });
     }
+  });
+
+  // ---------- session-scoped pixel avatar ----------
+  socket.on("avatar:update", ({ design } = {}, ack) => {
+    const s = sessions.get(socket.id);
+    if (!s) return ack?.({ ok: false, error: "No session" });
+
+    if (design === null) {
+      s.avatarDesign = null;
+    } else {
+      const safeDesign = sanitizeAvatarDesign(design);
+      if (!safeDesign) return ack?.({ ok: false, error: "Invalid block avatar design" });
+      s.avatarDesign = safeDesign;
+    }
+
+    socket.emit("session:ready", publicUser(s));
+    broadcastOnline();
+    ack?.({ ok: true });
   });
 
   // ---------- rename ----------
