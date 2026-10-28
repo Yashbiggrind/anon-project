@@ -1,5 +1,5 @@
 // anon-server/bots.js
-// 15 bots — Pollinations (free, no key) → OpenRouter (fallback) → scripted
+// 15 clearly labelled AI bots — local scripted openers by default; optional external provider for static openers only
 
 const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 const OPENROUTER_URL   = "https://openrouter.ai/api/v1/chat/completions";
