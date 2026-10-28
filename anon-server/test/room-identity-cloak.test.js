@@ -104,7 +104,11 @@ test("private-room names and member IDs are scoped to the room", async (t) => {
   t.after(async () => {
     for (const socket of clients) socket.disconnect();
     clients = [];
-    if (child && child.exitCode === null) child.kill("SIGTERM");
+    if (child && child.exitCode === null) {
+      const exited = new Promise((resolve) => child.once("exit", resolve));
+      child.kill("SIGTERM");
+      await Promise.race([exited, delay(1500)]);
+    }
     if (tempDirectory) fs.rmSync(tempDirectory, { recursive: true, force: true });
   });
 
