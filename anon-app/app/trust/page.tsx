@@ -86,7 +86,8 @@ export default function TrustPage() {
         <div className="tHead">
           <div className="eyebrow">{"// TRUST LAYER"}</div>
           <h1>What we promise. What is live.</h1>
-          <p>Status labels are honest: LIVE, READY, or PLANNED.</p>
+          <p>Status labels distinguish prototypes from production protections. The local crypto demo below is not live-message encryption.</p>
+          <Link href="/privacy-center" className="backBtn">Open Privacy Control Room →</Link>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -150,9 +151,9 @@ export default function TrustPage() {
 
           {/* ---------- E2E ---------- */}
           <div className="card">
-            <span className="status ready">READY TO SHIP</span>
-            <h3>End-to-end encryption</h3>
-            <p>Room messages encrypted in the browser with a key derived from the room code. Server stores only ciphertext. Try it here with WebCrypto (AES-GCM).</p>
+            <span className="status plan">LOCAL DEMO ONLY · NOT LIVE E2EE</span>
+            <h3>Browser crypto demonstration</h3>
+            <p>This card encrypts and decrypts sample text locally in this page. It does not encrypt live ANON chats, safely distribute keys, or prove that the server receives ciphertext. Do not use this demo for real secrets.</p>
             <input className="inp" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="message to encrypt" />
             <input className="inp" value={code} onChange={(e) => setCode(e.target.value)} placeholder="room code" />
             <div className="btnRow">
@@ -168,7 +169,7 @@ export default function TrustPage() {
                   <span className="dim">members see: </span>
                   <span className="ok">{decrypted}</span>
                 </div>
-                <div className="note">Demo. Real rollout needs per-member keys.</div>
+                <div className="note">Security status: the live messaging path is not end-to-end encrypted in the inspected server code. A production rollout needs a reviewed protocol, authenticated key exchange, per-device keys, key-change handling, encrypted attachments, migration tests, and independent review.</div>
               </>
             )}
           </div>
