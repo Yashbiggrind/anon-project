@@ -126,6 +126,12 @@ export default function PrivacyCenterPage() {
                 <p>Bot names carry an AI label rather than pretending to be human. External model generation is off by default. If the operator enables it, provider requests are limited to fixed, bot-initiated opener prompts; user-written messages and custom room topics are not forwarded by the bot path.</p>
                 <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Provider processing may still apply to static opener prompts when enabled</p>
               </article>
+              <article className="pc-card">
+                <div className="pc-icon" aria-hidden="true">⌁</div>
+                <h3>Room-only names</h3>
+                <p>Private rooms now use a separate alias and opaque member token for each participant within that room. A different room gets a different alias, and the member list explains that names are room-scoped.</p>
+                <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Reduces direct ID reuse across rooms · Not end-to-end encryption</p>
+              </article>
             </div>
           </section>
 
