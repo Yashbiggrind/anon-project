@@ -49,9 +49,16 @@ test("retention deletes only old reviewed reports and inactive expired strikes",
   assert.deepEqual(remainingStrikes, ["active-ban", "active-cooldown", "recent-strike"]);
 });
 
-test("session logging is off by default and connection writes are skipped", () => {
+test("session logging is off by default, refuses writes, and hides stale counts", () => {
   assert.equal(db.isSessionLoggingEnabled(), false);
   db.logConnect("203.0.113.10", "synthetic-session", "synthetic-agent");
   assert.equal(writer.prepare("SELECT COUNT(*) AS count FROM sessions_log").get().count, 0);
+
+  // Simulate a legacy/stale row appearing after startup. Public session APIs must
+  // still return nothing while logging is disabled, even before the next restart.
+  writer.prepare(
+    "INSERT INTO sessions_log (ip_hash, session_id, connected_at, user_agent) VALUES (?, ?, ?, ?)"
+  ).run("synthetic-hash", "stale-session", Date.now(), "synthetic-agent");
+  assert.equal(db.getSessionCount(), 0);
   assert.deepEqual(db.listSessions(), []);
 });
