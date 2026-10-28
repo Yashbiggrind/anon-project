@@ -2632,6 +2632,7 @@ export default function Home() {
                     {invites.length > 0 && (
                       <div className="invites-list">
                         <h4>{t("incomingInvites")}</h4>
+                        <p className="invitesExpiryHint">Invitations expire after 10 minutes.</p>
                         {invites.map((i) => (
                           <div className="invite-row" key={i.inviteId}>
                             <div>
