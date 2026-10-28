@@ -158,6 +158,7 @@ export default function AvatarCustomizer({ name, initialDesign, onSave, onClose 
               <button type="button" className={tool === "paint" ? "selected" : ""} onClick={() => setTool("paint")}>▦ Paint blocks</button>
               <button type="button" className={tool === "erase" ? "selected" : ""} onClick={() => setTool("erase")}>⌫ Erase blocks</button>
               <button type="button" onClick={() => setDesign((previous) => ({ ...previous, cells: Array(49).fill(null) }))}>Clear canvas</button>
+              <button type="button" onClick={randomize}>Randomize</button>
             </div>
 
             <div className="avatarStudioPaletteGroup">
