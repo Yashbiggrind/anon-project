@@ -102,6 +102,18 @@ export default function PrivacyCenterPage() {
                   <Link className="pc-link" href="/trust">Explore Trust Layer →</Link>
                 </div>
               </article>
+              <article className="pc-card">
+                <div className="pc-icon" aria-hidden="true">⌁</div>
+                <h3>Local Privacy Guard</h3>
+                <p>A browser-only check can flag common patterns such as email addresses, phone numbers, some ID formats and credential-like text before you send. It offers editable redactions; it never guarantees detection of every sensitive detail.</p>
+                <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Runs on this device · Toggle from the chat toolbar</p>
+              </article>
+              <article className="pc-card">
+                <div className="pc-icon" aria-hidden="true">◐</div>
+                <h3>Quick Veil</h3>
+                <p>Cover the chat screen and mute app sound in one tap, or use Alt + Shift + V. This is a shoulder-surfing aid—not a disconnect button; messages may still arrive in the background.</p>
+                <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>No message content is uploaded by this control</p>
+              </article>
             </div>
           </section>
 
