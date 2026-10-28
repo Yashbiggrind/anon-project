@@ -1295,7 +1295,7 @@ export default function Home() {
     setVeilActive(false);
     setMutedState(restoreMute);
     setMuted(restoreMute);
-    localStorage.setItem(LS_MUTED, restoreMute ? "1" : "0");
+    try { localStorage.setItem(LS_MUTED, restoreMute ? "1" : "0"); } catch {}
   }
 
   useEffect(() => {
@@ -1306,7 +1306,7 @@ export default function Home() {
           veilPreviousMuteRef.current = muted;
           setMutedState(true);
           setMuted(true);
-          localStorage.setItem(LS_MUTED, "1");
+          try { localStorage.setItem(LS_MUTED, "1"); } catch {}
           setVeilActive(true);
         }
       }
