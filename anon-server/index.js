@@ -467,6 +467,15 @@ function broadcastSystemFor(userSessionId, payload) {
   }
 }
 
+function publicRoomChatMessage(room, message) {
+  const safeMessage = publicChatMessage(message);
+  // Never send the cross-room session identifier through a room message event.
+  safeMessage.senderSessionId = getRoomMemberId(room, message.senderSessionId);
+  safeMessage.senderName = getRoomAlias(room, message.senderSessionId, message.senderName);
+  safeMessage.identityScope = "room";
+  return safeMessage;
+}
+
 function broadcastRoomMessage(room, msg) {
   const shadowed = isShadowBanned(msg.senderSpamKey);
   for (const p of room.participants) {
@@ -476,21 +485,27 @@ function broadcastRoomMessage(room, msg) {
     ) continue;
     if (shadowed && p.sessionId !== msg.senderSessionId) continue;
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
+    if (sid) io.to(sid).emit("room:message", publicRoomChatMessage(room, msg));
   }
 }
 
 function broadcastRoomUpdate(room) {
   for (const p of room.participants) {
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:update", publicRoom(room));
+    if (sid) io.to(sid).emit("room:update", publicRoom(room, p.sessionId));
   }
 }
 
 function broadcastRoomSystem(room, payload) {
+  const safePayload = { ...payload };
+  for (const key of ["username", "by", "from", "to", "joinedUsername"]) {
+    if (typeof safePayload[key] === "string") {
+      safePayload[key] = getRoomAliasForName(room, safePayload[key]);
+    }
+  }
   for (const p of room.participants) {
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:system", { roomId: room.roomId, at: Date.now(), ...payload });
+    if (sid) io.to(sid).emit("room:system", { roomId: room.roomId, at: Date.now(), identityScope: "room", ...safePayload });
   }
 }
 
