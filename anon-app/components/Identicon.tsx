@@ -1,19 +1,20 @@
 "use client";
 
-/**
- * ANON deterministic pixel identicon.
- *
- * Reference style: a solid vivid square, hard dark pixel blocks, sharp corners,
- * and no gradients or antialiasing. A stable identity seed keeps an avatar
- * consistent across screens; session IDs can be used as seeds without exposing
- * them in the rendered markup.
- */
+import { useSyncExternalStore } from "react";
+import {
+  AVATAR_PALETTE,
+  type AvatarDesign,
+  getAvatarDesign,
+  subscribeAvatarDesign,
+} from "@/lib/avatarDesign";
 
 type Props = {
   name: string;
   seed?: string;
   size?: number;
   className?: string;
+  /** Pass a draft while editing; normal avatars read the live session design store. */
+  design?: AvatarDesign | null;
 };
 
 function fnv1a(str: string, seed = 2166136261): number {
@@ -25,73 +26,37 @@ function fnv1a(str: string, seed = 2166136261): number {
   return h >>> 0;
 }
 
-// Bold, flat colors inspired by the ANON identity chooser reference.
-const PALETTE = [
-  "#ffb84d", // amber
-  "#56d8ff", // cyan
-  "#ff4f7f", // hot pink
-  "#9aef61", // lime
-  "#b9a0ff", // violet
-  "#ffe45b", // bright yellow
-  "#ff8960", // coral
-  "#53e2b7", // mint
-  "#78a7ff", // electric blue
-  "#ff91cd", // candy pink
-  "#d5f263", // acid lime
-  "#8ce8f2", // ice teal
-  "#ffa45e", // orange
-  "#c5efff", // pale cyan
-  "#ee74b2", // rose
-  "#a5ef77", // neon green
-];
-
+const PALETTE = AVATAR_PALETTE.slice(0, 16);
 const FRAME = "#17070d";
 const PIXEL = "#10070b";
-const GRID_MASK = 0x0fffffff;
-
-function countBits(value: number): number {
-  let v = value & GRID_MASK;
-  let count = 0;
-  while (v !== 0) {
-    v &= v - 1;
-    count++;
-  }
-  return count;
-}
-
-function makePattern(identity: string): number {
-  // Retry very sparse or very dense masks so each avatar remains visually legible.
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const variant = identity + "#pixel-grid-" + attempt;
-    const bits = (fnv1a(variant) ^ fnv1a(identity, 5381)) & GRID_MASK;
-    const density = countBits(bits);
-    if (density >= 8 && density <= 20) return bits;
-  }
-  return (fnv1a(identity + "#pixel-grid-fallback") ^ 0x05a35c7d) & GRID_MASK;
-}
+const MOB_PATTERNS = [
+  [".......", ".##.##.", ".##.##.", "...#...", "..###..", "...#...", "...#..."], // creeper-like face
+  [".......", ".#...#.", ".#...#.", ".......", "..###..", "...#...", "......."], // slime
+  [".......", ".......", "##...##", ".......", "...#...", "...#...", "...#..."], // ender
+  [".#####.", "#.....#", "#.#.#.#", "#.....#", ".#...#.", "..###..", "...#..."], // skeleton
+  ["#.....#", "##...##", ".......", "...#...", "..###..", "...#...", "......."], // axolotl
+  [".#...#.", ".......", "...#...", "..###..", "..###..", "...#...", "...#..."], // chicken
+  ["#.#.#.#", ".#####.", "#.#.#.#", ".......", "..###..", "...#...", "...#..."], // bee
+  ["##...##", "#######", ".#...#.", ".......", "..###..", "...#...", "...#..."], // wolf
+] as const;
 
 export default function Identicon({
   name,
   seed,
   size = 32,
   className = "",
+  design,
 }: Props) {
   const identity = (seed?.trim() || name.trim() || "anon").normalize("NFKC");
+  const liveDesign = useSyncExternalStore(
+    subscribeAvatarDesign,
+    () => getAvatarDesign(identity),
+    () => null,
+  );
+  const activeDesign = design === undefined ? liveDesign : design;
   const color = PALETTE[fnv1a(identity + "#color") % PALETTE.length];
-  const bits = makePattern(identity);
-
-  // 7x7 mirrored pixel mask (28 independent decisions) inside a one-pixel frame.
-  const cells: Array<{ x: number; y: number }> = [];
-  let bit = 0;
-  for (let x = 0; x < 4; x++) {
-    for (let y = 0; y < 7; y++) {
-      const on = (bits >>> bit) & 1;
-      bit++;
-      if (!on) continue;
-      cells.push({ x: x + 1, y: y + 1 });
-      if (x < 3) cells.push({ x: 7 - x, y: y + 1 });
-    }
-  }
+  const accent = PALETTE[fnv1a(identity + "#accent") % PALETTE.length];
+  const pattern = MOB_PATTERNS[fnv1a(identity + "#mob-face") % MOB_PATTERNS.length];
 
   return (
     <svg
@@ -105,12 +70,37 @@ export default function Identicon({
       focusable="false"
     >
       <rect width="9" height="9" fill={FRAME} />
-      <rect x="1" y="1" width="7" height="7" fill={color} />
-      <g fill={PIXEL}>
-        {cells.map((cell, index) => (
-          <rect key={index} x={cell.x} y={cell.y} width="1" height="1" />
-        ))}
-      </g>
+      <rect x="1" y="1" width="7" height="7" fill={activeDesign?.background ?? color} />
+      {activeDesign ? (
+        <g>
+          {activeDesign.cells.map((cell, index) => cell ? (
+            <rect
+              key={index}
+              x={(index % 7) + 1}
+              y={Math.floor(index / 7) + 1}
+              width="1"
+              height="1"
+              fill={cell}
+            />
+          ) : null)}
+        </g>
+      ) : (
+        <g>
+          {pattern.map((row, y) => row.split("").map((cell, x) => {
+            if (cell === ".") return null;
+            return (
+              <rect
+                key={`${x}-${y}`}
+                x={x + 1}
+                y={y + 1}
+                width="1"
+                height="1"
+                fill={cell === "+" ? accent : PIXEL}
+              />
+            );
+          }))}
+        </g>
+      )}
     </svg>
   );
 }
