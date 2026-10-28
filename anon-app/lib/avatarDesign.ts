@@ -1,4 +1,4 @@
-"export const AVATAR_GRID_SIZE = 7;
+export const AVATAR_GRID_SIZE = 7;
 export const AVATAR_CELL_COUNT = AVATAR_GRID_SIZE * AVATAR_GRID_SIZE;
 export const AVATAR_SESSION_KEY = "anon.avatar.design.v1";
 
