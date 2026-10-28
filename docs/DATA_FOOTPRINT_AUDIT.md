@@ -20,6 +20,7 @@ ANON currently provides pseudonymous access and local convenience controls, but 
 | Message ownership metadata | In-memory `messageOwners` | Around 24 hours | Server-side session/message relationship exists during the TTL |
 | Confessions and replies | In-memory server map | Posts expire after 7 days; post count capped at 500; reply count capped at 50 | Content is visible to the server and the confession audience |
 | Reactions | In-memory maps | About 1 hour | Interaction metadata exists transiently |
+| Room invitations | In-memory `invites` map | Expire after 10 minutes; removed on accept, decline, or participant disconnect | Sender identity is room-scoped in room notices; non-member invitees are not assigned a room alias/token until they join |
 | Session metadata | SQLite `sessions_log` | Off unless `ANON_SESSION_LOGS=on`; when on, configured code purges records older than 180 days | Uses keyed IP HMAC plus session ID, times, and shortened user-agent; HMAC identifiers can still be linkable |
 | Moderation reports | SQLite `reports` plus an in-memory recent list | New retention policy deletes **reviewed** rows older than 90 days; unreviewed rows are deliberately preserved pending review | Report reason and target/reporter references may be sensitive; moderator access must be restricted |
 | Anti-spam strikes | SQLite `strikes` plus in-memory strike map | New policy deletes entries older than 30 days only if cooldown and shadow-ban expiry times have passed | Internal spam identifiers remain pseudonymous/hashed, not automatically anonymous |
