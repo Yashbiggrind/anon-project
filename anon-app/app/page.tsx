@@ -2142,7 +2142,7 @@ export default function Home() {
                     {imageUploading ? "…" : "📎"}
                   </button>
                   <button className="emojiBtn" onClick={() => setEmojiOpen(!emojiOpen)} title="Emoji">😊</button>
-                  <button className="send" onClick={sendMessage}>{t("send")}</button>
+                  <button className="send" onClick={() => sendMessage()}>{t("send")}</button>
                   {emojiOpen && (
                     <div className="emojiPicker">
                       <div className="emojiTabs">
@@ -2382,7 +2382,7 @@ export default function Home() {
                           {imageUploading ? "…" : "📎"}
                         </button>
                         <button className="emojiBtn" onClick={() => setEmojiOpen(!emojiOpen)} title="Emoji">😊</button>
-                        <button className="send" onClick={sendPrivate}>{t("send")}</button>
+                        <button className="send" onClick={() => sendPrivate()}>{t("send")}</button>
                         {emojiOpen && (
                           <div className="emojiPicker">
                             <div className="emojiTabs">
@@ -2912,7 +2912,7 @@ export default function Home() {
               onChange={notifyDmTyping}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDm(); } }}
             />
-            <button className="dmSend" onClick={sendDm} disabled={dmPanel.loading || !dmPanel.threadId}>
+            <button className="dmSend" onClick={() => sendDm()} disabled={dmPanel.loading || !dmPanel.threadId}>
               Send
             </button>
           </div>
