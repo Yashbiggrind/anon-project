@@ -144,6 +144,31 @@ test("private-room names and member IDs are scoped to the room", async (t) => {
   assert.equal(aliceAliasForBob.username, aliceMember.username);
   assert.notEqual(aliceAliasForBob.sessionId, alice.session.sessionId);
 
+  const bobMember = bobJoined.room.participants.find((p) => p.sessionId === bobJoined.room.myMemberId);
+  assert.ok(bobMember);
+  assert.notEqual(bobMember.sessionId, bob.session.sessionId);
+  assert.notEqual(bobMember.username, bob.session.username);
+
+  // Admin controls accept only the room member token, never the global session ID.
+  const badTarget = await emitAck(alice.socket, "room:timeout", {
+    roomId: firstRoom.roomId,
+    targetSessionId: bob.session.sessionId,
+    durationMs: 60000,
+  });
+  assert.equal(badTarget.ok, false);
+
+  const timeoutAck = await emitAck(alice.socket, "room:timeout", {
+    roomId: firstRoom.roomId,
+    targetSessionId: bobMember.sessionId,
+    durationMs: 60000,
+  });
+  assert.equal(timeoutAck.ok, true);
+  const clearTimeoutAck = await emitAck(alice.socket, "room:clear-timeout", {
+    roomId: firstRoom.roomId,
+    targetSessionId: bobMember.sessionId,
+  });
+  assert.equal(clearTimeoutAck.ok, true);
+
   const incomingRoomMessage = waitForEvent(bob.socket, "room:message", (m) => m.content === "room-scoped message");
   const sendAck = await emitAck(alice.socket, "room:message", {
     roomId: firstRoom.roomId,
