@@ -10,12 +10,13 @@ import {
 
 type Props = {
   name: string;
+  sessionId?: string;
   initialDesign: AvatarDesign | null;
   onSave: (design: AvatarDesign) => void;
   onClose: () => void;
 };
 
-export default function ProfileBlockEditor({ name, initialDesign, onSave, onClose }: Props) {
+export default function ProfileBlockEditor({ name, sessionId, initialDesign, onSave, onClose }: Props) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const lastSavedCode = useRef<string | null>(null);
   const initializedFrame = useRef<HTMLIFrameElement | null>(null);
@@ -108,7 +109,7 @@ export default function ProfileBlockEditor({ name, initialDesign, onSave, onClos
         <header className="globalProfileHeading">
           <div className="globalProfileIdentity">
             <div className="globalProfileBigAvatar">
-              <Identicon name={name} seed="profile-editor-preview" size={44} />
+              <Identicon name={name} seed={sessionId ?? name} size={44} />
             </div>
             <div>
               <div className="globalProfileEyebrow">ANON // PERSONAL IDENTITY</div>
