@@ -15,7 +15,8 @@ export type AvatarDesign = {
   cells: Array<string | null>;
 };
 
-const allowedColors = new Set<string>(AVATAR_PALETTE);
+const isHexColor = (value: unknown): value is string =>
+  typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 const listeners = new Set<() => void>();
 const designs = new Map<string, AvatarDesign>();
 let ownSessionId: string | null = null;
@@ -32,13 +33,13 @@ function notify() {
 export function sanitizeAvatarDesign(value: unknown): AvatarDesign | null {
   if (!value || typeof value !== "object") return null;
   const input = value as { background?: unknown; cells?: unknown };
-  if (typeof input.background !== "string" || !allowedColors.has(input.background)) return null;
+  if (!isHexColor(input.background)) return null;
   if (!Array.isArray(input.cells) || input.cells.length !== AVATAR_CELL_COUNT) return null;
   const cells = input.cells.map((cell) => {
     if (cell === null || cell === undefined || cell === "") return null;
-    return typeof cell === "string" && allowedColors.has(cell) ? cell : null;
+    return isHexColor(cell) ? cell.toLowerCase() : null;
   });
-  return { background: input.background, cells };
+  return { background: input.background.toLowerCase(), cells };
 }
 
 export function getAvatarDesign(seed: string): AvatarDesign | null {
