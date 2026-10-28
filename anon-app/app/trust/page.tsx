@@ -85,8 +85,8 @@ export default function TrustPage() {
       <div className="trustRoot">
         <div className="tHead">
           <div className="eyebrow">{"// TRUST LAYER"}</div>
-          <h1>What we promise. What is live.</h1>
-          <p>Status labels distinguish prototypes from production protections. The local crypto demo below is not live-message encryption.</p>
+          <h1>Privacy is part of the experience.</h1>
+          <p>Explore the controls and experiments behind ANON. We label examples clearly so you can see what each feature does.</p>
           <Link href="/privacy-center" className="backBtn">Open Privacy Control Room →</Link>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
@@ -133,9 +133,9 @@ export default function TrustPage() {
 
           {/* ---------- PWA install ---------- */}
           <div className="card">
-            <span className="status live">LIVE IN PROTOTYPE</span>
+            <span className="status live">AVAILABLE</span>
             <h3>Install as an app</h3>
-            <p>Home-screen install, full screen, no browser history.</p>
+            <p>Add ANON to your home screen for a focused, app-like shortcut. Installing it does not erase your browser history.</p>
             <div className="btnRow">
               <button className="btn sm" onClick={() => alert("On Android Chrome: menu ⋮ → Install app. On iOS Safari: Share → Add to Home Screen.")}>SHOW INSTALL PROMPT</button>
             </div>
@@ -143,17 +143,17 @@ export default function TrustPage() {
 
           {/* ---------- CSP ---------- */}
           <div className="card">
-            <span className="status ready">READY TO SHIP</span>
+            <span className="status plan">CONFIGURATION EXAMPLE</span>
             <h3>Security headers + CSP</h3>
-            <p>Locks scripts, frames and connections to your own origin. Snippet is in the backend file.</p>
+            <p>An example policy for the engineering team to review and configure. This snippet alone does not prove the live deployment uses these headers.</p>
             <pre className="code">{CSP_CODE}</pre>
           </div>
 
           {/* ---------- E2E ---------- */}
           <div className="card">
-            <span className="status plan">LOCAL DEMO ONLY · NOT LIVE E2EE</span>
-            <h3>Browser crypto demonstration</h3>
-            <p>This card encrypts and decrypts sample text locally in this page. It does not encrypt live ANON chats, safely distribute keys, or prove that the server receives ciphertext. Do not use this demo for real secrets.</p>
+            <span className="status plan">LOCAL DEMO</span>
+            <h3>Try a tiny encryption demo</h3>
+            <p>See how sample text can turn into ciphertext and back again, right in your browser. This is a learning example; it does not change the protection on live ANON chats.</p>
             <input className="inp" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="message to encrypt" />
             <input className="inp" value={code} onChange={(e) => setCode(e.target.value)} placeholder="room code" />
             <div className="btnRow">
@@ -162,14 +162,14 @@ export default function TrustPage() {
             {encrypted && (
               <>
                 <div className="encOut">
-                  <span className="dim">server sees: </span>
+                  <span className="dim">encrypted sample: </span>
                   <span className="enc">{encrypted.slice(0, 60)}…</span>
                 </div>
                 <div className="encOut">
-                  <span className="dim">members see: </span>
+                  <span className="dim">decrypted locally: </span>
                   <span className="ok">{decrypted}</span>
                 </div>
-                <div className="note">Security status: the live messaging path is not end-to-end encrypted in the inspected server code. A production rollout needs a reviewed protocol, authenticated key exchange, per-device keys, key-change handling, encrypted attachments, migration tests, and independent review.</div>
+                <div className="note">This is only a local browser demonstration. The actual chat protection is separate from this card, and this demo does not test live-message encryption.</div>
               </>
             )}
           </div>
