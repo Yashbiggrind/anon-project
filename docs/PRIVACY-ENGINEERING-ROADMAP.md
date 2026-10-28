@@ -23,7 +23,8 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 ## P1 — Minimise metadata and improve user controls
 
-- [ ] Document the purpose and retention of every stored field, including session logs, IP-derived abuse keys, reports and strikes.
+- [x] Make persistent connection/session logging opt-in (`ANON_SESSION_LOGS=on`); clear active-database session rows when disabled by default.
+- [ ] Document the purpose and retention of every remaining stored field, including IP-derived abuse keys, reports and strikes.
 - [ ] Verify 180-day purge execution in production and document backup/hosting-provider retention separately.
 - [ ] Restrict moderator access and log access to sensitive operational records.
 - [ ] Add data export/deletion request flow with a plain-language explanation of unavoidable legal/security retention.
@@ -32,6 +33,7 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 ## P2 — Privacy experience
 
+- [x] Add Ephemeral History mode that clears IndexedDB chat history and offline queue, then skips later local message history saves.
 - [x] Add browser-only Local Privacy Guard with heuristic detection, user choice, and editable redaction suggestions.
 - [x] Add Quick Veil to cover the app screen and mute app sound; document that the network session remains active.
 - [ ] Add key fingerprints / verification codes and key-change warnings.
