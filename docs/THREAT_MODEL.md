@@ -17,8 +17,9 @@
 
 - The inspected `anon-server/index.js` public chat handler receives `content` in readable form and places it in a server-side message object.
 - The direct-message helper serialises a message's `content` for recipients. The separate WebCrypto sample in the Trust page is not connected to these live message paths.
-- The inspected SQLite code records an HMAC-derived IP hash, session ID, connection/disconnection timestamps and a truncated user-agent. A 180-day retention period is defined and a purge function exists; deployments still need tests verifying routine execution and backup/log retention.
+- The baseline main branch stores an HMAC-derived IP hash, session ID, connection/disconnection times and a shortened user-agent in a session table. This draft branch makes that persistent session log opt-in (`ANON_SESSION_LOGS=on`); with the default off, startup clears existing session rows from the active database and new session rows are not written. This does not remove external backups, hosting logs or anti-abuse strike records. When explicitly enabled, a 180-day purge setting applies.
 - SQLite persists moderation reports and spam-strike records.
+- The client stores recent public/room messages in IndexedDB by default with a 24-hour content TTL. The draft branch adds Ephemeral History to clear this local message cache and offline queue and skip subsequent local message saves; this does not affect server-side handling or recipient copies.
 - Session names are pseudonymous, but a no-login model alone does not guarantee network anonymity or message confidentiality.
 - The draft branch adds a browser-only sensitive-text preflight (pattern-based) and a Quick Veil UI. These are client-side convenience safeguards, not a substitute for E2EE, and they can miss data or produce false positives.
 - Quick Veil visually covers the app and mutes app-managed sound, but it does not disconnect the socket, stop background messages, block operating-system notifications, or defend against external screen capture.
