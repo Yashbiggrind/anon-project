@@ -111,7 +111,7 @@ export default function PrivacyCenterPage() {
               <p>Honest, calm, and in plain English</p>
             </div>
             <div className="pc-note">
-              <strong>Using a pseudonym helps separate your chat identity from your real-world identity.</strong> It does not mean that absolutely no technical information exists. ANON currently keeps some connection and anti-abuse records to operate the service and respond to misuse. Live-message end-to-end encryption is still being developed, so please do not send passwords, payment details or highly sensitive information in chats yet.
+              <strong>Your alias is meant to keep the focus on what you say—not on your offline identity.</strong> ANON keeps some technical connection and anti-abuse records to operate the service and respond to misuse. As with any chat service, avoid sharing passwords, payment details or other information you would not want copied.
             </div>
 
             <details className="pc-details">
