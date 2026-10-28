@@ -4,6 +4,9 @@
 const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 const OPENROUTER_URL   = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY || "";
+// External model calls are disabled by default. When enabled, they are used only for
+// bot-initiated openers built from static prompts; user-written content is never forwarded.
+const ENABLE_EXTERNAL_BOT_AI = String(process.env.ENABLE_EXTERNAL_BOT_AI || "").trim().toLowerCase() === "on";
 
 const OPENROUTER_MODELS = [
   "openrouter/free"
@@ -43,12 +46,12 @@ function buildSystemPrompt(bot, roomTopic) {
     "RULES:\n" +
     "- Keep replies SHORT (1-2 sentences max). This is a chat, not an essay.\n" +
     "- Speak naturally. Mix English and Hindi/Hinglish when it feels right.\n" +
-    "- Never reveal you are an AI or a bot.\n" +
-    "- Never say your own name.\n" +
-    "- Never mention AI, language models, or break character.\n" +
+    "- You are an AI bot account, not a human. Never claim to be a human or invent real-life experiences.\n" +
+    "- If asked, answer honestly that you are an AI bot.\n" +
+    "- Never say your own name unless asked.\n" +
     "- Do not use hashtags, bullets, or asterisks.\n" +
     "- Do not show thinking steps. Just reply with the message.\n" +
-    "- Be warm, real, human.\n" +
+    "- Be warm and conversational without pretending to be a real person.\n" +
     "- Reply with ONLY the message text. No quotes. No prefixes.";
 }
 
@@ -59,7 +62,6 @@ function isValidReply(text) {
   if (t.length < 3 || t.length > 400) return false;
   if (/^[+\-*._=~`\s]+$/.test(t)) return false;
   if (/^\d+[\.\)]?$/.test(t)) return false;
-  if (/^(as an ai|i am an ai|im an ai|i'm an ai)/i.test(t)) return false;
   if (/thinking process|analyze user|let me think|here'?s a/i.test(t)) return false;
   return true;
 }
@@ -123,31 +125,26 @@ async function callOpenRouter(systemPrompt, userMessage) {
 
 async function generateBotMessage(bot, context) {
   context = context || {};
-  const topic = context.topic;
-  const lastMessage = context.lastMessage;
   const roomType = context.roomType || "public";
 
-  let userMessage;
-  if (lastMessage) {
-    userMessage = "Someone just said: \"" + lastMessage + "\". Reply naturally as " + bot.name + ".";
-  } else {
-    const starters = CONVERSATION_STARTERS[roomType] || CONVERSATION_STARTERS.public;
-    const seed = starters[Math.floor(Math.random() * starters.length)];
-    userMessage = "Open a chat with this thought: \"" + seed + "\". Say it naturally, one line.";
-  }
+  // User-written text and user-controlled room topics stay inside ANON. For a reply
+  // to a real message, use a local scripted response instead of sending that text to
+  // Pollinations/OpenRouter. External calls are only for static, bot-initiated openers.
+  if (context.lastMessage) return fallbackReply();
 
-  const sys = buildSystemPrompt(bot, topic);
+  const starters = CONVERSATION_STARTERS[roomType] || CONVERSATION_STARTERS.public;
+  const seed = starters[Math.floor(Math.random() * starters.length)];
 
-  // Try Pollinations first
+  if (!ENABLE_EXTERNAL_BOT_AI) return seed;
+
+  const sys = buildSystemPrompt(bot, "ANON");
+  const userMessage = "Open a chat with this provided thought: \"" + seed + "\". Say it naturally, one line.";
+
   let reply = await callPollinations(sys, userMessage);
   if (reply) return reply;
-
-  // Fall back to OpenRouter
   reply = await callOpenRouter(sys, userMessage);
   if (reply) return reply;
-
-  // Last resort — scripted reply (always works)
-  return fallbackReply();
+  return seed;
 }
 
 function fallbackReply() {
@@ -155,6 +152,6 @@ function fallbackReply() {
 }
 
 function getRandomBot() { return BOT_PROFILES[Math.floor(Math.random() * BOT_PROFILES.length)]; }
-function getBotByName(name) { return BOT_PROFILES.find(b => b.name === name); }
+function getBotByName(name) { return BOT_PROFILES.find(b => b.name === name || ("AI · " + b.name) === name); }
 
 module.exports = { BOT_PROFILES, generateBotMessage, getRandomBot, getBotByName, fallbackReply };
