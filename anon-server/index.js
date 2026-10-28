@@ -1265,7 +1265,7 @@ io.on("connection", (socket) => {
 
     for (const p of room.participants) {
       const sid = findSocketBySession(p.sessionId);
-      if (sid) io.to(sid).emit("room:purged", { roomId: room.roomId, by: s.username });
+      if (sid) io.to(sid).emit("room:purged", { roomId: room.roomId, by: getRoomAlias(room, s.sessionId, s.username), identityScope: "room" });
     }
 
     broadcastRoomSystem(room, { type: "purge", username: s.username, by: s.username });
@@ -1631,7 +1631,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
+      if (sid) io.to(sid).emit("room:message", publicRoomChatMessage(room, msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
