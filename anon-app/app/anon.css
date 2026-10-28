@@ -4867,3 +4867,10 @@ a:focus-visible {
     top: max(146px, calc(env(safe-area-inset-top) + 146px));
   }
 }
+
+
+.invitesExpiryHint {
+  margin: -5px 0 10px;
+  color: #9c8791;
+  font: 10px/1.5 Inter, ui-sans-serif, system-ui, sans-serif;
+}
