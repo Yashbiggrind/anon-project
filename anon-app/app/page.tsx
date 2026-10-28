@@ -1302,7 +1302,13 @@ export default function Home() {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.altKey && event.shiftKey && event.key.toLowerCase() === "v") {
         event.preventDefault();
-        if (!veilActive) activateVeil();
+        if (!veilActive) {
+          veilPreviousMuteRef.current = muted;
+          setMutedState(true);
+          setMuted(true);
+          localStorage.setItem(LS_MUTED, "1");
+          setVeilActive(true);
+        }
       }
     };
     window.addEventListener("keydown", onKeyDown);
@@ -1656,6 +1662,7 @@ export default function Home() {
 
       <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1500, display: "flex", gap: 8, alignItems: "center" }}>
         <Link href="/privacy-center" title="Privacy controls" style={{ border: "1px solid #48202d", background: "rgba(12,5,9,.94)", color: "#f5dce4", borderRadius: 999, padding: "8px 11px", fontSize: 11, textDecoration: "none", backdropFilter: "blur(12px)" }}>🛡 Privacy</Link>
+        <button type="button" onClick={() => { const next = !localPrivacyGuard; setLocalPrivacyGuard(next); try { localStorage.setItem("anon_local_privacy_guard", next ? "on" : "off"); } catch {} showToast(next ? "Local Privacy Guard enabled." : "Local Privacy Guard disabled.", 2200, "success"); }} title="Toggle the on-device sensitive-text check" aria-pressed={localPrivacyGuard} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: localPrivacyGuard ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◈ Guard {localPrivacyGuard ? "ON" : "OFF"}</button>
         <button type="button" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)" style={{ border: "1px solid #6b263a", background: "rgba(25,7,14,.96)", color: "#ff9db2", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◉ Quick Veil</button>
       </div>
 
