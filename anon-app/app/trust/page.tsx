@@ -21,7 +21,7 @@ const TOR_CODE = `# /etc/tor/torrc
 HiddenServiceDir /var/lib/tor/anon/
 HiddenServicePort 80 127.0.0.1:3000
 HiddenServiceVersion 3
-# same app, no logs on the onion side`;
+# configure the application logging policy explicitly; onion routing alone does not disable app-level logging`;
 
 const PG_CODE = `-- no users table. ever.
 CREATE TABLE rooms (
@@ -125,9 +125,9 @@ export default function TrustPage() {
           <div className="card">
             <span className="status live">LIVE IN PROTOTYPE</span>
             <h3>Delete my data</h3>
-            <p>One flow, with a receipt. Everything erasable is erased. The 180-day log is stated honestly.</p>
+            <p>Review what this browser has saved, export a copy, or clear local data. Server-side safety records and recipients’ copies are separate.</p>
             <div className="btnRow">
-              <Link href="/data" className="btn sm">OPEN DATA LOG →</Link>
+              <Link href="/data" className="btn sm">OPEN LOCAL DATA CONTROLS →</Link>
             </div>
           </div>
 
