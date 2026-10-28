@@ -1775,8 +1775,8 @@ io.on("connection", (socket) => {
   socket.on("dm:open", ({ targetSessionId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    const target = resolveRoomMemberId(room, targetSessionId);
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
+    const target = String(targetSessionId || "");
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
 
     const targetSocketId = findSocketBySession(target);
     if (!targetSocketId) return ack?.({ ok: false, error: "User is offline" });
