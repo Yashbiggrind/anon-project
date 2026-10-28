@@ -1721,6 +1721,25 @@ export default function Home() {
                 <button
                   type="button"
                   className="globalProfileDock"
+                  style={{
+                    position: "fixed",
+                    top: "38px",
+                    right: "12px",
+                    zIndex: 2147483647,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: "9px",
+                    maxWidth: "min(220px, calc(100vw - 24px))",
+                    padding: "7px 11px 7px 7px",
+                    border: "2px solid #ff2d55",
+                    borderRadius: "10px",
+                    color: "#fff",
+                    background: "linear-gradient(135deg, #4a0719, #090308)",
+                    boxShadow: "0 0 24px rgba(255,45,85,.75)",
+                    visibility: "visible",
+                    opacity: 1,
+                    pointerEvents: "auto",
+                  }}
                   onClick={() => setAvatarEditorOpen(true)}
                   aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
                   title="Open your pixel profile"
