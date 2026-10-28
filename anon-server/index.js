@@ -1439,11 +1439,12 @@ io.on("connection", (socket) => {
       if (sid) {
         io.to(sid).emit("room:invite:pending", {
           inviteId,
-          from: { sessionId: s.sessionId, username: s.username },
-          recipientSessionId: found.sessionId,
-          recipientUsername: found.username,
+          from: { sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username) },
+          recipientSessionId: getRoomMemberId(room, found.sessionId),
+          recipientUsername: getRoomAlias(room, found.sessionId, found.username),
           roomId,
           message: inviteMessage,
+          identityScope: "room",
           at: Date.now(),
         });
       }
