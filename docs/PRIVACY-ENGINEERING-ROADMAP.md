@@ -31,7 +31,7 @@ This roadmap records planned work. A box checked in documentation is not proof t
 - [ ] Restrict moderator access and log access to sensitive operational records.
 - [ ] Add data export/deletion request flow with a plain-language explanation of unavoidable legal/security retention.
 - [ ] Ensure deletion controls cover all relevant persistence layers and return receipts that do not overpromise.
-- [ ] Keep per-room aliasing separate from persistent abuse identifiers; review linkability risks.
+- [x] Use ephemeral room-scoped aliases and opaque member tokens in private-room event payloads; remaining timing/network correlation and server-side mapping still need review.
 
 ## P2 — Privacy experience
 
@@ -48,7 +48,7 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 - [x] Clearly label current AI bot accounts and stop instructing them to impersonate humans.
 - [x] Disable external model calls by default; when explicitly enabled, use only static bot-initiated opener prompts and never forward user-written messages/custom room topics through this bot path.
-- [ ] Clearly identify AI participants.
+- [x] Clearly identify AI participants with the `AI ·` prefix in server-side public/room identities and document provider controls.
 - [ ] Obtain explicit consent before sending message content to an external AI provider.
 - [ ] Send only the selected conversation/context; never include hidden IDs or unrelated rooms by default.
 - [ ] Disclose provider retention and data handling.
@@ -57,7 +57,7 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 ## P3 — Differentiators (experiments, not current capabilities)
 
-- [ ] Per-room Identity Cloak / separate aliases.
+- [x] Add per-room aliases and opaque member tokens to private-room events and controls; continue reviewing residual linkability risks.
 - [ ] Privacy-bounded reputation credentials, potentially using zero-knowledge techniques after expert review.
 - [ ] Anonymous interest matching with one-time matchmaking tokens.
 - [ ] Local AI Privacy Shield.
