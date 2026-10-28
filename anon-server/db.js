@@ -14,6 +14,10 @@ if (IS_PRODUCTION && (CONFIGURED_IP_HASH_SECRET.length < 32 || /change-me|your-s
 // A process-local random secret keeps development usable without a hard-coded persistent key.
 const IP_HASH_SECRET = CONFIGURED_IP_HASH_SECRET || crypto.randomBytes(32).toString("hex");
 const RETENTION_DAYS = 180;
+// Retention for operational safety records: reviewed reports age out after 90 days;
+// inactive strikes age out after 30 days only when cooldowns/bans have expired.
+const REVIEWED_REPORT_RETENTION_DAYS = 90;
+const INACTIVE_STRIKE_RETENTION_DAYS = 30;
 // Set ANON_SESSION_LOGS=on only when persistent connection metadata is justified and reviewed.
 const STORE_SESSION_LOGS = String(process.env.ANON_SESSION_LOGS || "").trim().toLowerCase() === "on";
 
@@ -244,6 +248,24 @@ function purgeOldSessions() {
   } catch (e) { console.error("[db] purgeOldSessions:", e.message); return 0; }
 }
 
+// Prune safety records by purpose, retaining unresolved reports and active sanctions.
+// Returns only counts, never identifiers or report contents.
+function purgeOldSafetyRecords(now = Date.now()) {
+  if (!ready) return { reports: 0, strikes: 0 };
+  try {
+    const reportCutoff = now - REVIEWED_REPORT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const strikeCutoff = now - INACTIVE_STRIKE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const deleteReviewed = db.prepare("DELETE FROM reports WHERE reviewed = 1 AND created_at < ?").run(reportCutoff);
+    const deleteInactive = db.prepare(
+      "DELETE FROM strikes WHERE updated_at < ? AND cooldown_until <= ? AND shadow_banned_until <= ?"
+    ).run(strikeCutoff, now, now);
+    return { reports: deleteReviewed.changes, strikes: deleteInactive.changes };
+  } catch (e) {
+    console.error("[db] purgeOldSafetyRecords:", e.message);
+    return { reports: 0, strikes: 0 };
+  }
+}
+
 function listSessions({ since = 0, until = Date.now(), ipHash = null, limit = 500 } = {}) {
   if (!ready || !STORE_SESSION_LOGS) return [];
   try {
@@ -289,7 +311,7 @@ module.exports = {
   hashIp,
   saveReport, listReports, markReportReviewed,
   saveStrike, deleteStrike, loadAllStrikes,
-  logConnect, logDisconnect, purgeOldSessions,
+  logConnect, logDisconnect, purgeOldSessions, purgeOldSafetyRecords,
   listSessions, getSessionCount,
   isSessionLoggingEnabled: () => STORE_SESSION_LOGS,
   getStats,
