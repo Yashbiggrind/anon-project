@@ -13,6 +13,7 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 ## P1 — Real private-message encryption
 
+- [x] Document the E2EE architecture decision gates and Matrix-vs-custom-relay trade-off in `docs/ADR-001-e2ee-architecture.md`; no protocol is selected yet.
 - [ ] Choose a maintained, reviewed E2EE protocol/library after a current compatibility/security review.
 - [ ] Define peer/device identity keys, authenticated key agreement, key-change events and room membership transitions.
 - [ ] Encrypt DMs and private-room payloads client-side; server relays ciphertext only.
