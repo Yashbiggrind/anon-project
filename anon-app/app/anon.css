@@ -4412,3 +4412,249 @@ a:focus-visible {
   .avatarEditTrigger { font-size: 8px; padding: 7px; }
 }
 
+/* ============================================================
+   Global profile identity dock + unchanged supplied editor frame
+   ============================================================ */
+.globalProfileDock {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  max-width: 176px;
+  padding: 5px 9px 5px 6px;
+  border: 1px solid rgba(255, 45, 85, .52);
+  border-radius: 9px;
+  color: #ff5b7c;
+  background: linear-gradient(135deg, rgba(43, 5, 15, .98), rgba(10, 3, 7, .98));
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 45, 85, .08),
+    0 0 16px rgba(255, 45, 85, .18),
+    0 0 30px -14px #ff2d55;
+  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
+  cursor: pointer;
+  text-align: left;
+}
+.globalProfileDock:hover,
+.globalProfileDock:focus-visible {
+  border-color: #ff7892;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 45, 85, .18),
+    0 0 20px rgba(255, 45, 85, .28),
+    0 0 38px -10px #ff2d55;
+  transform: translateY(-1px);
+  outline: none;
+}
+.globalProfileDockAvatar {
+  position: relative;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  align-items: center;
+  justify-content: center;
+  padding: 1px;
+  border: 1px solid rgba(255, 45, 85, .65);
+  background: #090308;
+  box-shadow: 0 0 13px rgba(255, 45, 85, .24);
+}
+.globalProfileDockAvatar svg { image-rendering: pixelated; }
+.globalProfileDockStatus {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  border: 1px solid #050207;
+  border-radius: 50%;
+  background: #35d27c;
+  box-shadow: 0 0 8px #35d27c;
+}
+.globalProfileDockCopy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  gap: 3px;
+}
+.globalProfileDockCopy b {
+  display: block;
+  max-width: 104px;
+  overflow: hidden;
+  color: #ff7892;
+  font: 800 10px/1.2 'Courier New', monospace;
+  letter-spacing: .8px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 9px rgba(255, 45, 85, .55);
+}
+.globalProfileDockCopy small {
+  display: block;
+  color: #98717f;
+  font: 700 7px/1.2 'Courier New', monospace;
+  letter-spacing: 1.05px;
+  white-space: nowrap;
+}
+.globalProfileDockChevron {
+  align-self: flex-start;
+  padding-top: 1px;
+  color: #ff2d55;
+  font: 800 11px/1 'Courier New', monospace;
+}
+.globalProfileBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30000;
+  display: grid;
+  place-items: center;
+  padding: clamp(8px, 2vw, 24px);
+  background: rgba(2, 1, 3, .94);
+  backdrop-filter: blur(14px);
+}
+.globalProfileDialog {
+  display: flex;
+  flex-direction: column;
+  width: min(1160px, 100%);
+  max-height: 94dvh;
+  overflow: hidden;
+  color: #e9dfe4;
+  background: #0a0306;
+  border: 1px solid rgba(255, 92, 124, .65);
+  box-shadow: 0 0 70px -20px rgba(255, 45, 85, .46), 0 25px 100px #000;
+}
+.globalProfileHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 17px;
+  border-bottom: 1px solid #3a0f1a;
+  background: linear-gradient(90deg, #17050b, #080307);
+}
+.globalProfileIdentity {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 12px;
+}
+.globalProfileBigAvatar {
+  display: grid;
+  place-items: center;
+  width: 50px;
+  height: 50px;
+  flex: 0 0 50px;
+  border: 1px solid #ff5c7c;
+  box-shadow: 0 0 20px rgba(255, 45, 85, .22);
+}
+.globalProfileBigAvatar svg { image-rendering: pixelated; }
+.globalProfileEyebrow {
+  color: #ff5c7c;
+  font: 800 9px/1.5 'Courier New', monospace;
+  letter-spacing: .19em;
+}
+.globalProfileHeading h2 {
+  margin: 2px 0 3px;
+  overflow: hidden;
+  color: #f4e8ec;
+  font: 800 clamp(17px, 2.4vw, 24px)/1.15 'Courier New', monospace;
+  letter-spacing: .02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 14px rgba(255, 45, 85, .17);
+}
+.globalProfileHeading p {
+  margin: 0;
+  color: #987b86;
+  font: 10px/1.5 'Courier New', monospace;
+  letter-spacing: .06em;
+}
+.globalProfileClose {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  padding: 0;
+  color: #ff7892;
+  background: #17050b;
+  border: 1px solid #591327;
+  border-radius: 0;
+  font: 25px/1 'Courier New', monospace;
+}
+.globalProfileClose:hover { color: #fff; border-color: #ff5c7c; }
+.globalProfileHint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  padding: 7px 17px;
+  color: #bca5af;
+  background: #0d0509;
+  border-bottom: 1px solid rgba(58, 15, 26, .8);
+  font: 9px/1.3 'Courier New', monospace;
+  letter-spacing: .08em;
+}
+.globalProfileLiveDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: #35d27c;
+  box-shadow: 0 0 8px #35d27c;
+}
+.globalProfileFrame {
+  display: block;
+  width: 100%;
+  height: min(73vh, 760px);
+  min-height: 350px;
+  flex: 1 1 auto;
+  background: #0a0306;
+  border: 0;
+}
+.globalProfileBottom {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 9px 15px;
+  border-top: 1px solid #3a0f1a;
+  color: #805968;
+  background: #080307;
+  font: 8px/1.3 'Courier New', monospace;
+  letter-spacing: .12em;
+}
+.globalProfileBottom button {
+  padding: 7px 15px;
+  color: #fff;
+  background: #53091c;
+  border: 1px solid #ff5c7c;
+  border-radius: 0;
+  font: 800 9px/1 'Courier New', monospace;
+  letter-spacing: .15em;
+}
+.globalProfileBottom button:hover { background: #850d2b; }
+@media (max-width: 1100px) {
+  .rightBar { justify-content: center; flex-wrap: wrap; padding: 9px 0 0; border-left: 0; border-top: 1px solid rgba(225,29,72,.15); }
+  .globalProfileDock { max-width: min(176px, 42vw); }
+}
+@media (max-width: 560px) {
+  .rightBar { gap: 6px; }
+  .globalProfileDock { gap: 6px; max-width: 145px; padding: 4px 6px 4px 4px; }
+  .globalProfileDockAvatar { width: 30px; height: 30px; flex-basis: 30px; }
+  .globalProfileDockAvatar svg { width: 28px; height: 28px; }
+  .globalProfileDockCopy b { max-width: 75px; font-size: 9px; }
+  .globalProfileDockCopy small { font-size: 6px; letter-spacing: .7px; }
+  .globalProfileDockChevron { display: none; }
+  .globalProfileBackdrop { padding: 5px; }
+  .globalProfileDialog { max-height: 97dvh; }
+  .globalProfileHeading { padding: 9px 11px; }
+  .globalProfileBigAvatar { width: 38px; height: 38px; flex-basis: 38px; }
+  .globalProfileBigAvatar svg { width: 34px; height: 34px; }
+  .globalProfileEyebrow { font-size: 7px; }
+  .globalProfileHeading p { font-size: 8px; }
+  .globalProfileHint { padding: 6px 11px; font-size: 8px; }
+  .globalProfileFrame { height: 74vh; min-height: 300px; }
+  .globalProfileBottom { padding: 8px 10px; font-size: 7px; }
+}
+
