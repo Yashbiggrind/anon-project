@@ -938,7 +938,7 @@ io.on("connection", (socket) => {
       list.push({
         roomId: room.roomId,
         topic: room.topic || "",
-        adminName: adminSession?.username || "?",
+        adminName: adminSession ? getRoomAlias(room, room.admin, adminSession.username) : "Anonymous",
         capacity: room.capacity,
         occupancy: room.participants.length,
         full: room.participants.length >= room.capacity,
@@ -1012,7 +1012,7 @@ io.on("connection", (socket) => {
       id: makeId(),
       senderSessionId: s.sessionId,
       senderSpamKey: s.spamKey,
-      senderName: s.username,
+      senderName: getRoomAlias(room, s.sessionId, s.username),
       content: text,
       createdAt: Date.now(),
       replyTo: sanitizeReply(replyTo),
@@ -1056,7 +1056,7 @@ io.on("connection", (socket) => {
       id: makeId(),
       senderSessionId: s.sessionId,
       senderSpamKey: s.spamKey,
-      senderName: s.username,
+      senderName: getRoomAlias(room, s.sessionId, s.username),
       content: cleanCaption,
       image,
       createdAt: Date.now(),
@@ -1108,7 +1108,7 @@ io.on("connection", (socket) => {
       if (p.sessionId === s.sessionId) continue;
       if (isMutuallyBlocked(p.sessionId, s.sessionId)) continue;
       const sid = findSocketBySession(p.sessionId);
-      if (sid) io.to(sid).emit("typing:room", { roomId, sessionId: s.sessionId, username: s.username });
+      if (sid) io.to(sid).emit("typing:room", { roomId, sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username), identityScope: "room" });
     }
   });
 
@@ -1190,7 +1190,7 @@ io.on("connection", (socket) => {
     s.status = "in-room";
     socket.join(roomId);
     broadcastOnline();
-    ack?.({ ok: true, room: publicRoom(room) });
+    ack?.({ ok: true, room: publicRoom(room, s.sessionId) });
   });
 
   // ---------- admin: set topic ----------
@@ -1375,7 +1375,7 @@ io.on("connection", (socket) => {
     broadcastRoomSystem(room, { type: "join", username: s.username });
     broadcastRoomUpdate(room);
     broadcastOnline();
-    ack?.({ ok: true, room: publicRoom(room) });
+    ack?.({ ok: true, room: publicRoom(room, s.sessionId) });
   });
   // ---------- invite ----------
   socket.on("room:invite", ({ roomId, recipientUsername, message } = {}, ack) => {
@@ -1482,7 +1482,7 @@ io.on("connection", (socket) => {
     }
 
     broadcastOnline();
-    ack?.({ ok: true, room: publicRoom(room) });
+    ack?.({ ok: true, room: publicRoom(room, s.sessionId) });
   });
 
   socket.on("invite:decline", ({ inviteId } = {}, ack) => {
@@ -1561,7 +1561,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
+      if (sid) io.to(sid).emit("room:message", publicRoomChatMessage(room, msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
