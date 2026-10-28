@@ -1286,7 +1286,7 @@ export default function Home() {
     veilPreviousMuteRef.current = muted;
     setMutedState(true);
     setMuted(true);
-    localStorage.setItem(LS_MUTED, "1");
+    try { localStorage.setItem(LS_MUTED, "1"); } catch {}
     setVeilActive(true);
   }
 
