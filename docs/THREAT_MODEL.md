@@ -20,6 +20,8 @@
 - The inspected SQLite code records an HMAC-derived IP hash, session ID, connection/disconnection timestamps and a truncated user-agent. A 180-day retention period is defined and a purge function exists; deployments still need tests verifying routine execution and backup/log retention.
 - SQLite persists moderation reports and spam-strike records.
 - Session names are pseudonymous, but a no-login model alone does not guarantee network anonymity or message confidentiality.
+- The draft branch adds a browser-only sensitive-text preflight (pattern-based) and a Quick Veil UI. These are client-side convenience safeguards, not a substitute for E2EE, and they can miss data or produce false positives.
+- Quick Veil visually covers the app and mutes app-managed sound, but it does not disconnect the socket, stop background messages, block operating-system notifications, or defend against external screen capture.
 
 These are source-level observations. They do not verify current production behaviour, infrastructure logs, browser storage, backups or configuration.
 
@@ -59,6 +61,9 @@ Bots must be clearly marked. Give the model only the messages explicitly in scop
 
 ### Metadata and operations
 Inventory IPs, session IDs, user-agent values, room IDs, timestamps, logs, reports, abuse hashes, analytics, CDN/WAF records and backups. Set a purpose and retention period for every field. Hashing an identifier does not automatically make it anonymous. Meet applicable legal obligations while avoiding unrelated permanent records.
+
+### Browser-only convenience protections
+The Local Privacy Guard scans text in the client using a small set of patterns, shows category labels and offers user-reviewed substitutions. It does not send its findings to the server itself, but the message is sent normally if the user chooses to send it. It cannot detect every kind of sensitive information. Quick Veil is an on-screen shoulder-surfing aid; the chat connection remains active while veiled.
 
 ## 6. Release blockers before advertising E2EE
 
