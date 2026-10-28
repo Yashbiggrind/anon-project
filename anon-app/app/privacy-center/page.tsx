@@ -81,7 +81,7 @@ export default function PrivacyCenterPage() {
           <section className="pc-hero">
             <div className="pc-kicker">Transparency before promises</div>
             <h1>Know what stays private.<br/>Know what does not.</h1>
-            <p>This page is a source-review snapshot of ANON's public repository, not a live network scanner, independent audit, or proof of deployed production settings. It is intentionally explicit about current gaps.</p>
+            <p>This page is a source-review snapshot of ANON&apos;s public repository, not a live network scanner, independent audit, or proof of deployed production settings. It is intentionally explicit about current gaps.</p>
             <div className="pc-alert" role="alert">
               <div aria-hidden="true" style={{fontSize:22}}>⚠</div>
               <div>
@@ -145,11 +145,11 @@ export default function PrivacyCenterPage() {
               <table className="pc-table">
                 <thead><tr><th>Data type</th><th>Other users</th><th>ANON server / operator</th><th>What to improve</th></tr></thead>
                 <tbody>
-                  <tr><td>Public chat and confession posts</td><td>Intended to be visible according to the feature's public feed/room rules.</td><td>Readable content reaches server-side handlers.</td><td>Label public content clearly; warn before posting identifiers; define moderation and deletion policy.</td></tr>
+                  <tr><td>Public chat and confession posts</td><td>Intended to be visible according to the feature&apos;s public feed/room rules.</td><td>Readable content reaches server-side handlers.</td><td>Label public content clearly; warn before posting identifiers; define moderation and deletion policy.</td></tr>
                   <tr><td>Private message content</td><td>Intended recipients.</td><td>Readable content is handled by inspected server paths; E2EE is not established.</td><td>Encrypt on sender devices with a reviewed protocol; server should relay ciphertext only.</td></tr>
                   <tr><td>Network metadata</td><td>Not normally displayed as a profile field.</td><td>Keyed IP hash and session metadata are stored for operations/abuse handling.</td><td>Minimise fields, restrict access, test 180-day purge, document legal obligations and deletion limits.</td></tr>
                   <tr><td>AI bot conversations</td><td>Depends on where the bot is added.</td><td>Actual routing/provider behaviour needs a separate audit.</td><td>Make bot presence conspicuous; ask consent before external processing; disclose provider retention and avoid sending hidden identity metadata.</td></tr>
-                  <tr><td>Disappearing content</td><td>May remain in screenshots or a recipient's copies.</td><td>Server-side expiry needs verification per message type and persistence path.</td><td>Test deletion on every layer; never promise global erasure from all recipients and backups.</td></tr>
+                  <tr><td>Disappearing content</td><td>May remain in screenshots or a recipient&apos;s copies.</td><td>Server-side expiry needs verification per message type and persistence path.</td><td>Test deletion on every layer; never promise global erasure from all recipients and backups.</td></tr>
                 </tbody>
               </table>
             </div>
