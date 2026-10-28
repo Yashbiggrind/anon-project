@@ -328,6 +328,22 @@ export default function Home() {
   }, []);
 
   useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== "anon_ephemeral_mode") return;
+      const enabled = event.newValue === "on";
+      ephemeralModeRef.current = enabled;
+      setEphemeralMode(enabled);
+      if (enabled) {
+        void persistClearAll().catch(() => {});
+        for (const queuedMessage of listQueue()) removeQueue(queuedMessage.id);
+        setQueued([]);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
+
+  useEffect(() => {
     if (typeof window === "undefined") return;
     const savedMute = localStorage.getItem(LS_MUTED) === "1";
     const hydrateMuteTimer = window.setTimeout(() => {
@@ -1295,7 +1311,7 @@ export default function Home() {
   async function toggleEphemeralMode() {
     const next = !ephemeralMode;
     if (next) {
-      const confirmed = window.confirm("Turn on Ephemeral Mode? ANON will clear saved chat history in this browser and stop saving new messages to local history. This does not erase server-side anti-abuse records or copies held by other people.");
+      const confirmed = window.confirm("Turn on Ephemeral History? ANON will clear saved chat history and pending offline messages in this browser, then stop saving new chat history locally. This does not erase server-side anti-abuse records or copies held by other people.");
       if (!confirmed) return;
       // Flip the ref before awaiting IndexedDB so socket callbacks do not write during the wipe.
       ephemeralModeRef.current = true;
@@ -1306,12 +1322,14 @@ export default function Home() {
         showToast("Could not clear local history. Close other ANON tabs and try again.", 4500, "error");
         return;
       }
+      for (const queuedMessage of listQueue()) removeQueue(queuedMessage.id);
+      setQueued([]);
     } else {
       ephemeralModeRef.current = false;
     }
     try { localStorage.setItem("anon_ephemeral_mode", next ? "on" : "off"); } catch {}
     setEphemeralMode(next);
-    showToast(next ? "Ephemeral Mode on: local chat history cleared." : "Ephemeral Mode off: new messages may be saved locally.", 3500, "success");
+    showToast(next ? "Ephemeral History on: local chat history cleared." : "Ephemeral History off: new messages may be saved locally.", 3500, "success");
   }
 
   function activateVeil() {
@@ -1395,6 +1413,10 @@ export default function Home() {
     }
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
     if (!connected || isOffline) {
+      if (ephemeralModeRef.current) {
+        showToast("Ephemeral History is on. Messages are not queued offline; reconnect before sending.", 4000, "info");
+        return;
+      }
       try {
         const q = enqueue(text);
         setQueued((p) => [...p.filter((item) => item.id !== q.id), q]);
@@ -1696,7 +1718,7 @@ export default function Home() {
       <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1500, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", justifyContent: "flex-end", maxWidth: "calc(100vw - 24px)" }}>
         <Link href="/privacy-center" title="Privacy controls" style={{ border: "1px solid #48202d", background: "rgba(12,5,9,.94)", color: "#f5dce4", borderRadius: 999, padding: "8px 11px", fontSize: 11, textDecoration: "none", backdropFilter: "blur(12px)" }}>🛡 Privacy</Link>
         <button type="button" onClick={() => { const next = !localPrivacyGuard; setLocalPrivacyGuard(next); try { localStorage.setItem("anon_local_privacy_guard", next ? "on" : "off"); } catch {} showToast(next ? "Local Privacy Guard enabled." : "Local Privacy Guard disabled.", 2200, "success"); }} title="Toggle the on-device sensitive-text check" aria-pressed={localPrivacyGuard} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: localPrivacyGuard ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◈ Guard {localPrivacyGuard ? "ON" : "OFF"}</button>
-        <button type="button" onClick={toggleEphemeralMode} title="Clear saved local chat history and stop saving new message history here" aria-pressed={ephemeralMode} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: ephemeralMode ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◌ Ephemeral {ephemeralMode ? "ON" : "OFF"}</button>
+        <button type="button" onClick={toggleEphemeralMode} title="Clear local chat history and unsent offline messages; stop saving new history. Other preferences remain." aria-pressed={ephemeralMode} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: ephemeralMode ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◌ Ephemeral History {ephemeralMode ? "ON" : "OFF"}</button>
         <button type="button" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)" style={{ border: "1px solid #6b263a", background: "rgba(25,7,14,.96)", color: "#ff9db2", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◉ Quick Veil</button>
       </div>
 
