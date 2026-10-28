@@ -4843,3 +4843,15 @@ a:focus-visible {
   .privacyDockPanel { animation: none; }
   .privacyDockTrigger, .privacyDockAction, .profileTopBtn { transition: none; }
 }
+
+
+/* Room alias explainer */
+.roomAliasNotice {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid rgba(91, 52, 68, .55);
+  border-radius: 9px;
+  color: #a9959e;
+  background: rgba(18, 10, 14, .65);
+  font: 10px/1.55 Inter, ui-sans-serif, system-ui, sans-serif;
+}
