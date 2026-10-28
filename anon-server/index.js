@@ -78,6 +78,8 @@ const REACTION_TTL = 60 * 60 * 1000;
 
 const messageOwners = new Map();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
+const SAFETY_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+let lastSafetyPurgeAt = 0;
 
 // ============================================================
 // v17 â€” ANTI-SPAM ENGINE
@@ -212,7 +214,16 @@ setInterval(() => {
   // v21.3 â€” purge session log entries older than 180 days
   {
     const purged = db.purgeOldSessions();
-    if (purged > 0) console.log(`[db] purged ${purged} expired session log(s)`);
+    if (purged > 0) console.log(`[privacy] purged ${purged} expired session metadata row(s)`);
+  }
+  // Run safety-record retention at startup and then every six hours. Unreviewed reports
+  // and active cooldowns/bans are excluded by the database deletion predicates.
+  if (now - lastSafetyPurgeAt >= SAFETY_PURGE_INTERVAL_MS) {
+    lastSafetyPurgeAt = now;
+    const expired = db.purgeOldSafetyRecords(now);
+    if (expired.reports > 0 || expired.strikes > 0) {
+      console.log(`[privacy] aged out ${expired.reports} reviewed report(s) and ${expired.strikes} inactive strike(s)`);
+    }
   }
 }, 30000);
 
