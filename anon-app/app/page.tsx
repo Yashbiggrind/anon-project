@@ -3150,9 +3150,9 @@ const MessageBubble = memo(
 
           {!mine && (
             <div
-              className="mini clickable"
-              onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
-              title="Private message"
+              className={roomId ? "mini" : "mini clickable"}
+              onClick={roomId ? undefined : () => onOpenDm?.(m.senderSessionId, m.senderName)}
+              title={roomId ? "Room-only alias" : "Private message"}
             ><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>
           )}
 
@@ -3170,6 +3170,8 @@ const MessageBubble = memo(
             <div className="meta">
               {mine ? (
                 <b>{m.senderName}</b>
+              ) : roomId ? (
+                <b title="This name is scoped to the current room">{m.senderName}</b>
               ) : (
                 <b
                   className="msgNameLink"
@@ -3276,8 +3278,8 @@ const MessageBubble = memo(
               <div className="msgSheetHandle" />
               <button onClick={() => act(() => onStartReply(m))}>↩  Reply</button>
               {m.content && <button onClick={() => act(() => onCopyMessage(m.content))}>📋  Copy</button>}
-              {!mine && <button onClick={() => act(() => onOpenDm(m.senderSessionId, m.senderName))}>💬  Private message</button>}
-              {!mine && <button onClick={() => act(() => onOpenProfile?.(m.senderSessionId, m.senderName))}>👤  View profile</button>}
+              {!mine && !roomId && <button onClick={() => act(() => onOpenDm(m.senderSessionId, m.senderName))}>💬  Private message</button>}
+              {!mine && !roomId && <button onClick={() => act(() => onOpenProfile?.(m.senderSessionId, m.senderName))}>👤  View profile</button>}
               {mine && !m.image && <button onClick={() => act(() => roomId ? onStartEdit(m, roomId) : onStartEdit(m))}>✎  Edit</button>}
               {mine && <button className="danger" onClick={() => act(() => roomId ? onDeleteMessage(m, roomId) : onDeleteMessage(m))}>🗑  Delete</button>}
               <button onClick={closeSheet}>✕  Cancel</button>
