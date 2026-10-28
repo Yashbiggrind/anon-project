@@ -45,6 +45,8 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 ## P2 — AI with explicit privacy boundaries
 
+- [x] Clearly label current AI bot accounts and stop instructing them to impersonate humans.
+- [x] Disable external model calls by default; when explicitly enabled, use only static bot-initiated opener prompts and never forward user-written messages/custom room topics through this bot path.
 - [ ] Clearly identify AI participants.
 - [ ] Obtain explicit consent before sending message content to an external AI provider.
 - [ ] Send only the selected conversation/context; never include hidden IDs or unrelated rooms by default.
