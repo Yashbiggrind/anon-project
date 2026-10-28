@@ -73,6 +73,8 @@ type PrivateRoom = {
   participants: RoomParticipant[];
   status: string;
   messageLifetime?: number;
+  myMemberId?: string;
+  identityScope?: "room";
   mode?: "ask" | "open";
 };
 type BlockedUser = { sessionId: string; username: string };
@@ -160,7 +162,7 @@ export default function Home() {
 
   const [invites, setInvites] = useState<Invite[]>([]);
   const [room, setRoom] = useState<PrivateRoom | null>(null);
-  const isAdmin = room ? room.admin === identity?.sessionId : false;
+  const isAdmin = room ? room.admin === room.myMemberId : false;
   const [privateMessages, setPrivateMessages] = useState<ChatMessage[]>([]);
   const privateInputRef = useRef<HTMLInputElement>(null);
 
@@ -1469,8 +1471,8 @@ export default function Home() {
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const tempMsg: ChatMessage = {
       id: tempId,
-      senderSessionId: identity?.sessionId ?? "me",
-      senderName: identity?.username ?? "you",
+      senderSessionId: room.myMemberId ?? identity?.sessionId ?? "me",
+      senderName: room.participants.find((p) => p.sessionId === room.myMemberId)?.username ?? "you",
       content: text,
       createdAt: Date.now(),
       localSent: true,
@@ -2471,16 +2473,17 @@ export default function Home() {
                     {memberListOpen && (
                       <div className="card memberPanel">
                         <div className="memberHeader">
-                          <span>MEMBERS</span>
+                          <span>MEMBERS · ROOM ALIASES</span>
                           <span className="memberCount">{room.participants.length}/{room.capacity}</span>
                         </div>
+                        <div className="roomAliasNotice">These names are unique to this room. Direct messages and public presence use a separate identity.</div>
                         <div className="memberList">
                           {room.participants.map((p) => {
-                            const isMe = p.sessionId === identity?.sessionId;
+                            const isMe = p.sessionId === room.myMemberId;
                             const isPAdmin = p.isAdmin;
                             const isTimedOut = p.timedOutUntil && nowTick > 0 && p.timedOutUntil > nowTick;
                             const canModerate = isAdmin && !isMe;
-                            const canDm = !isMe;
+                            const canDm = false; // Room aliases intentionally cannot open cross-context DMs.
                             return (
                               <div
                                 key={p.sessionId}
