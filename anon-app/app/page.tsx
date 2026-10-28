@@ -1717,23 +1717,26 @@ export default function Home() {
                 {muted ? "🔇" : "🔊"}
               </button>
 
-              <button
-                type="button"
-                className="globalProfileDock"
-                onClick={() => setAvatarEditorOpen(true)}
-                aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
-                title="Open your pixel profile"
-              >
-                <span className="globalProfileDockAvatar">
-                  <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={34} />
-                  <span className="globalProfileDockStatus" />
-                </span>
-                <span className="globalProfileDockCopy">
-                  <b>{identity?.username ?? "YOUR PROFILE"}</b>
-                  <small>PROFILE / EDIT BLOCKS</small>
-                </span>
-                <span className="globalProfileDockChevron">↗</span>
-              </button>
+              {typeof document !== "undefined" && createPortal(
+                <button
+                  type="button"
+                  className="globalProfileDock"
+                  onClick={() => setAvatarEditorOpen(true)}
+                  aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
+                  title="Open your pixel profile"
+                >
+                  <span className="globalProfileDockAvatar">
+                    <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={34} />
+                    <span className="globalProfileDockStatus" />
+                  </span>
+                  <span className="globalProfileDockCopy">
+                    <b>{identity?.username ?? "YOUR PROFILE"}</b>
+                    <small>PROFILE / EDIT BLOCKS</small>
+                  </span>
+                  <span className="globalProfileDockChevron">↗</span>
+                </button>,
+                document.body
+              )}
             </div>
           </header>
 
