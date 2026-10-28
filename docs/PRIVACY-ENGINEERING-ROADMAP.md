@@ -1,0 +1,67 @@
+# ANON Privacy Engineering Roadmap
+
+This roadmap records planned work. A box checked in documentation is not proof that a feature is implemented or secure.
+
+## P0 — Security truth and auditability
+
+- [x] Correct Trust page copy so a local WebCrypto sample is not presented as live E2EE.
+- [x] Add Privacy Control Room showing source-review findings and uncertainty.
+- [x] Add an initial threat model and explicit E2EE release gates.
+- [ ] Verify the exact deployed production commit and environment.
+- [ ] Audit Socket.IO event handlers, message store, edit/delete flows, attachments, notifications, telemetry and crash logs.
+- [ ] Inventory infrastructure logs, backups, database copies and AI-provider data flows.
+
+## P1 — Real private-message encryption
+
+- [ ] Choose a maintained, reviewed E2EE protocol/library after a current compatibility/security review.
+- [ ] Define peer/device identity keys, authenticated key agreement, key-change events and room membership transitions.
+- [ ] Encrypt DMs and private-room payloads client-side; server relays ciphertext only.
+- [ ] Encrypt attachments and ensure thumbnails/previews do not leak plaintext.
+- [ ] Add cryptographic test vectors, wrong-key/tamper/replay tests, membership-rotation tests and cross-device tests.
+- [ ] Review browser local history, notification contents, exports and backup flows.
+- [ ] Independent security review before public E2EE claims.
+
+## P1 — Minimise metadata and improve user controls
+
+- [ ] Document the purpose and retention of every stored field, including session logs, IP-derived abuse keys, reports and strikes.
+- [ ] Verify 180-day purge execution in production and document backup/hosting-provider retention separately.
+- [ ] Restrict moderator access and log access to sensitive operational records.
+- [ ] Add data export/deletion request flow with a plain-language explanation of unavoidable legal/security retention.
+- [ ] Ensure deletion controls cover all relevant persistence layers and return receipts that do not overpromise.
+- [ ] Keep per-room aliasing separate from persistent abuse identifiers; review linkability risks.
+
+## P2 — Privacy experience
+
+- [ ] Add key fingerprints / verification codes and key-change warnings.
+- [ ] Add encrypted local storage and user-controlled encrypted backups after careful recovery design.
+- [ ] Make expiry semantics explicit; explain screenshot and recipient-copy limits.
+- [ ] Redesign reports and moderation to preserve E2EE while limiting abuse.
+- [ ] Optional Tor/onion availability after threat modelling, operational testing and safety review.
+
+## P2 — AI with explicit privacy boundaries
+
+- [ ] Clearly identify AI participants.
+- [ ] Obtain explicit consent before sending message content to an external AI provider.
+- [ ] Send only the selected conversation/context; never include hidden IDs or unrelated rooms by default.
+- [ ] Disclose provider retention and data handling.
+- [ ] Explore an on-device Privacy Shield; do not send content off-device if advertised as local.
+- [ ] Test prompt injection, unsafe suggestions, hallucinated safety claims and model data leakage.
+
+## P3 — Differentiators (experiments, not current capabilities)
+
+- [ ] Per-room Identity Cloak / separate aliases.
+- [ ] Privacy-bounded reputation credentials, potentially using zero-knowledge techniques after expert review.
+- [ ] Anonymous interest matching with one-time matchmaking tokens.
+- [ ] Local AI Privacy Shield.
+- [ ] Privacy-bounded AI rooms/bots.
+- [ ] Expiry receipts tied to real deletion operations.
+- [ ] Public privacy evidence page, versioned threat model, release verification and responsible disclosure.
+
+## Definition of done for any privacy feature
+
+1. Code is integrated into the actual user-facing path, not just a demo.
+2. Threat model and data flows are updated.
+3. Tests cover success, failure, replay/tampering where relevant, and edge cases.
+4. Privacy copy matches behaviour.
+5. Production configuration and logs are checked.
+6. Security-sensitive features receive independent review before high-assurance claims.
