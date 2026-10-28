@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - "fix/**"
+      - "anon-privacy-foundation-2026-10"
   pull_request:
   workflow_dispatch:
 
