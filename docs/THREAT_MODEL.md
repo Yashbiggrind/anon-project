@@ -22,6 +22,7 @@
 - The client stores recent public/room messages in IndexedDB by default with a 24-hour content TTL. The draft branch adds Ephemeral History to clear this local message cache and offline queue and skip subsequent local message saves; this does not affect server-side handling or recipient copies.
 - Session names are pseudonymous, but a no-login model alone does not guarantee network anonymity or message confidentiality.
 - The draft branch adds a browser-only sensitive-text preflight (pattern-based) and a Quick Veil UI. These are client-side convenience safeguards, not a substitute for E2EE, and they can miss data or produce false positives.
+- AI bot accounts are labelled with an `AI ·` prefix. External generation is disabled by default; when enabled, provider calls are limited to static bot-initiated openers. Bot replies to user messages use local scripted responses, and user-authored messages/custom room topics are not forwarded by the current bot code path. Static prompts still leave ANON when the operator enables external generation.
 - Quick Veil visually covers the app and mutes app-managed sound, but it does not disconnect the socket, stop background messages, block operating-system notifications, or defend against external screen capture.
 
 These are source-level observations. They do not verify current production behaviour, infrastructure logs, browser storage, backups or configuration.
