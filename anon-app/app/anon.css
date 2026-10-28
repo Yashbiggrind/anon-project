@@ -4658,3 +4658,35 @@ a:focus-visible {
   .globalProfileBottom { padding: 8px 10px; font-size: 7px; }
 }
 
+/* Visibility fix: keep the profile entry point above the Home hero/header layers.
+   The topbar uses a decorative clip-path; disable clipping so the fixed dock is not
+   cut off by the header's angled corners or responsive layout. */
+.topbar {
+  clip-path: none !important;
+}
+.globalProfileDock {
+  position: fixed !important;
+  top: max(12px, env(safe-area-inset-top)) !important;
+  right: max(12px, env(safe-area-inset-right)) !important;
+  z-index: 50000 !important;
+  width: max-content;
+  max-width: min(220px, calc(100vw - 24px)) !important;
+  flex-shrink: 0 !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+.globalProfileDockCopy {
+  max-width: min(130px, 28vw);
+}
+@media (max-width: 560px) {
+  .globalProfileDock {
+    top: max(8px, env(safe-area-inset-top)) !important;
+    right: max(8px, env(safe-area-inset-right)) !important;
+    max-width: min(164px, calc(100vw - 16px)) !important;
+  }
+  .globalProfileDockCopy {
+    max-width: 82px;
+  }
+}
+
