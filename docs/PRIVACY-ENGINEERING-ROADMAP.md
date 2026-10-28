@@ -32,6 +32,8 @@ This roadmap records planned work. A box checked in documentation is not proof t
 
 ## P2 — Privacy experience
 
+- [x] Add browser-only Local Privacy Guard with heuristic detection, user choice, and editable redaction suggestions.
+- [x] Add Quick Veil to cover the app screen and mute app sound; document that the network session remains active.
 - [ ] Add key fingerprints / verification codes and key-change warnings.
 - [ ] Add encrypted local storage and user-controlled encrypted backups after careful recovery design.
 - [ ] Make expiry semantics explicit; explain screenshot and recipient-copy limits.
