@@ -5,7 +5,7 @@ import type { CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
 import ProfileBlockEditor from "@/components/ProfileBlockEditor";
-import { type AvatarDesign, loadSessionAvatarDesign, saveSessionAvatarDesign, setOwnAvatarSession, setAvatarDesignForSession, syncAvatarPresence } from "@/lib/avatarDesign";
+import { type AvatarDesign, loadSessionAvatarDesign, saveSessionAvatarDesign, setOwnAvatarSession, syncAvatarPresence } from "@/lib/avatarDesign";
 import ConfessionTab from "@/components/ConfessionTab";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
