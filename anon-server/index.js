@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const os = require("os");
+const crypto = require("crypto");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const db = require("./db");
@@ -340,23 +341,82 @@ function finishElection() {
   return true;
 }
 
-const publicRoom = (r) => ({
-  roomId: r.roomId,
-  host: r.host,
-  admin: r.admin,
-  topic: r.topic,
-  capacity: r.capacity,
-  slowMode: r.slowMode,
+// Room-scoped public identity: names and member tokens are recreated for each room
+// and never persisted. Internal moderation continues to use private server-side IDs.
+function ensureRoomPrivacyMaps(room) {
+  if (!(room.roomAliases instanceof Map)) room.roomAliases = new Map();
+  if (!(room.memberIds instanceof Map)) room.memberIds = new Map();
+  if (!(room.sessionsByMemberId instanceof Map)) room.sessionsByMemberId = new Map();
+}
+
+function getRoomAlias(room, sessionId, fallbackName = "Anonymous") {
+  ensureRoomPrivacyMaps(room);
+  if (room.roomAliases.has(sessionId)) return room.roomAliases.get(sessionId);
+  const used = new Set(room.roomAliases.values());
+  const isBot = String(sessionId).startsWith("bot_") || String(fallbackName).startsWith("AI · ");
+  let alias = "";
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const candidate = (isBot ? "AI · " : "") + makeUsername();
+    if (!used.has(candidate)) { alias = candidate; break; }
+  }
+  if (!alias) alias = (isBot ? "AI · " : "") + "Guest" + crypto.randomBytes(5).toString("hex");
+  room.roomAliases.set(sessionId, alias);
+  return alias;
+}
+
+function getRoomMemberId(room, sessionId) {
+  ensureRoomPrivacyMaps(room);
+  if (room.memberIds.has(sessionId)) return room.memberIds.get(sessionId);
+  let token;
+  do { token = crypto.randomBytes(16).toString("base64url"); }
+  while (room.sessionsByMemberId.has(token));
+  room.memberIds.set(sessionId, token);
+  room.sessionsByMemberId.set(token, sessionId);
+  return token;
+}
+
+function resolveRoomMemberId(room, presentedMemberId) {
+  ensureRoomPrivacyMaps(room);
+  const direct = room.sessionsByMemberId.get(String(presentedMemberId || ""));
+  if (!direct) return null;
+  return room.participants.some((p) => p.sessionId === direct) ? direct : null;
+}
+
+function getRoomAliasForName(room, name) {
+  if (typeof name !== "string" || !name) return name;
+  const active = room.participants.find((p) => p.username === name);
+  if (active) return getRoomAlias(room, active.sessionId, active.username);
+  // Keep leave/kick events room-scoped even when the participant was just removed.
+  ensureRoomPrivacyMaps(room);
+  for (const [sessionId, alias] of room.roomAliases) {
+    const socketId = findSocketBySession(sessionId);
+    const session = sessions.get(socketId || sessionId);
+    if (session?.username === name) return alias;
+  }
+  return name;
+}
+
+function publicRoom(r, viewerSessionId) {
+  return {
+    roomId: r.roomId,
+    host: getRoomMemberId(r, r.host),
+    admin: getRoomMemberId(r, r.admin),
+    myMemberId: viewerSessionId ? getRoomMemberId(r, viewerSessionId) : undefined,
+    identityScope: "room",
+    topic: r.topic,
+    capacity: r.capacity,
+    slowMode: r.slowMode,
     messageLifetime: r.messageLifetime || 0,
-  participants: r.participants.map((p) => ({
-    sessionId: p.sessionId,
-    username: p.username,
-    isAdmin: p.sessionId === r.admin,
-    isHost: p.sessionId === r.host,
-    timedOutUntil: r.timeouts.get(p.sessionId) || 0,
-  })),
-  status: r.status,
-});
+    participants: r.participants.map((p) => ({
+      sessionId: getRoomMemberId(r, p.sessionId),
+      username: getRoomAlias(r, p.sessionId, p.username),
+      isAdmin: p.sessionId === r.admin,
+      isHost: p.sessionId === r.host,
+      timedOutUntil: r.timeouts.get(p.sessionId) || 0,
+    })),
+    status: r.status,
+  };
+}
 
 const findSocketBySession = (sid) => socketBySession.get(sid) || null;
 
