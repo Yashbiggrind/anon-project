@@ -1,7 +1,7 @@
 # ANON Threat Model (Initial Engineering Draft)
 
 **Status:** Draft; not an independent audit  
-**Reviewed code snapshot:** public `main` branch on 2026-10-28  
+**Reviewed code snapshot:** `anon-privacy-foundation-2026-10` draft branch on 2026-10-28  
 **Scope:** Next.js browser client, Socket.IO/Express backend, SQLite-backed operational records, future AI integrations  
 **Security claim status:** Live end-to-end encryption is **not established** by the inspected code.
 
@@ -18,7 +18,7 @@
 - The inspected `anon-server/index.js` public chat handler receives `content` in readable form and places it in a server-side message object.
 - The direct-message helper serialises a message's `content` for recipients. The separate WebCrypto sample in the Trust page is not connected to these live message paths.
 - The baseline main branch stores an HMAC-derived IP hash, session ID, connection/disconnection times and a shortened user-agent in a session table. This draft branch makes that persistent session log opt-in (`ANON_SESSION_LOGS=on`); with the default off, startup clears existing session rows from the active database and new session rows are not written. This does not remove external backups, hosting logs or anti-abuse strike records. When explicitly enabled, a 180-day purge setting applies.
-- SQLite persists moderation reports and spam-strike records.
+- SQLite persists moderation reports and spam-strike records. This draft branch expires reviewed reports after 90 days and inactive strikes after 30 days once cooldown and shadow-ban deadlines have elapsed; unreviewed reports and active sanctions are retained. See `docs/DATA_FOOTPRINT_AUDIT.md` for the inventory and limitations.
 - The client stores recent public/room messages in IndexedDB by default with a 24-hour content TTL. The draft branch adds Ephemeral History to clear this local message cache and offline queue and skip subsequent local message saves; this does not affect server-side handling or recipient copies.
 - Session names are pseudonymous, but a no-login model alone does not guarantee network anonymity or message confidentiality.
 - The draft branch adds a browser-only sensitive-text preflight (pattern-based) and a Quick Veil UI. These are client-side convenience safeguards, not a substitute for E2EE, and they can miss data or produce false positives.
