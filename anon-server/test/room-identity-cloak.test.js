@@ -112,6 +112,14 @@ test("private-room names and member IDs are scoped to the room", async (t) => {
   const alice = await connectClient("Alice111");
   const bob = await connectClient("Bob222");
 
+  // Public presence/chat keeps the ordinary pseudonym; the separate room flow must not.
+  const publicMessageEvent = waitForEvent(bob.socket, "chat:public:message", (m) => m.content === "public identity remains separate");
+  const publicAck = await emitAck(alice.socket, "chat:public:send", { content: "public identity remains separate" });
+  assert.equal(publicAck.ok, true);
+  const publicMessage = await publicMessageEvent;
+  assert.equal(publicMessage.senderName, alice.session.username);
+  assert.equal(publicMessage.senderSessionId, alice.session.sessionId);
+
   const created = await emitAck(alice.socket, "room:create", { capacity: 3, topic: "Alias test room" });
   assert.equal(created.ok, true);
   const firstRoom = created.room;
@@ -122,6 +130,9 @@ test("private-room names and member IDs are scoped to the room", async (t) => {
   assert.ok(aliceMember);
   assert.notEqual(aliceMember.username, alice.session.username);
   assert.equal(firstRoom.admin, firstRoom.myMemberId);
+  assert.notEqual(firstRoom.host, alice.session.sessionId);
+  assert.notEqual(firstRoom.admin, alice.session.sessionId);
+  assert.ok(firstRoom.participants.every((p) => p.sessionId !== alice.session.sessionId && p.sessionId !== bob.session.sessionId));
 
   const bobJoined = await emitAck(bob.socket, "room:join", { roomId: firstRoom.roomId });
   assert.equal(bobJoined.ok, true);
