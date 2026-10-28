@@ -151,7 +151,7 @@ export default function PrivacyCenterPage() {
                 </div>
                 <div className="pc-detail-row">
                   <strong>Safety and abuse handling</strong>
-                  <span>User reports and anti-spam records can be stored so abuse can be handled. Their complete retention and deletion behaviour should be confirmed before claiming that no records are kept.</span>
+                  <span>Safety records have a bounded policy in this branch: reviewed reports older than 90 days are purged; inactive anti-spam strikes older than 30 days are purged only after cooldown and shadow-ban periods have expired. Unreviewed reports remain for moderation. These rules apply to the active application database, not older backups or hosting-provider logs.</span>
                 </div>
                 <div className="pc-detail-row">
                   <strong>Private messages</strong>
