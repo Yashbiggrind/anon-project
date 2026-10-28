@@ -24,8 +24,8 @@ This roadmap records planned work. A box checked in documentation is not proof t
 ## P1 — Minimise metadata and improve user controls
 
 - [x] Make persistent connection/session logging opt-in (`ANON_SESSION_LOGS=on`); clear active-database session rows when disabled by default.
-- [ ] Document the purpose and retention of every remaining stored field, including IP-derived abuse keys, reports and strikes.
-- [ ] Verify 180-day purge execution in production and document backup/hosting-provider retention separately.
+- [x] Document the purpose and source-observed retention of stored fields in `docs/DATA_FOOTPRINT_AUDIT.md`, including reports, strikes and IP-derived abuse keys; deployment/provider retention remains to be verified.
+- [x] Add application-level purge rules for reviewed reports (90 days) and inactive/expired strikes (30 days), with regression tests.\n- [ ] Verify scheduled purge execution in production and document backup/hosting-provider retention separately.
 - [ ] Restrict moderator access and log access to sensitive operational records.
 - [ ] Add data export/deletion request flow with a plain-language explanation of unavoidable legal/security retention.
 - [ ] Ensure deletion controls cover all relevant persistence layers and return receipts that do not overpromise.
