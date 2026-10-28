@@ -32,11 +32,12 @@ This roadmap records planned work. A box checked in documentation is not proof t
 - [ ] Add data export/deletion request flow with a plain-language explanation of unavoidable legal/security retention.
 - [ ] Ensure deletion controls cover all relevant persistence layers and return receipts that do not overpromise.
 - [x] Use ephemeral room-scoped aliases and opaque member tokens in private-room event payloads; remaining timing/network correlation and server-side mapping still need review.
+- [x] Expire unanswered invitations after 10 minutes and avoid generating room aliases/tokens for non-member invitees.
 
 ## P2 — Privacy experience
 
 - [x] Add Ephemeral History mode that clears IndexedDB chat history and offline queue, then skips later local message history saves.
-- [x] Add browser-only Local Privacy Guard with heuristic detection, user choice, and editable redaction suggestions.
+- [x] Add browser-only Local Privacy Guard with heuristic detection, user choice and editable redactions for new text, edited messages and image captions (image pixels are not inspected).
 - [x] Add Quick Veil to cover the app screen and mute app sound; document that the network session remains active.
 - [ ] Add key fingerprints / verification codes and key-change warnings.
 - [ ] Add encrypted local storage and user-controlled encrypted backups after careful recovery design.
