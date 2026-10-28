@@ -1860,8 +1860,10 @@ export default function Home() {
         <div role="dialog" aria-modal="true" aria-labelledby="privacy-review-title" style={{ position: "fixed", inset: 0, zIndex: 99998, display: "grid", placeItems: "center", padding: 18, background: "rgba(2,1,4,.84)", backdropFilter: "blur(18px)" }}>
           <section style={{ width: "min(100%, 520px)", border: "1px solid #6b263a", borderRadius: 22, padding: "clamp(20px,5vw,30px)", background: "radial-gradient(ellipse at 100% 0%,rgba(225,29,72,.18),transparent 48%),#0c070a", boxShadow: "0 28px 100px rgba(0,0,0,.55)", color: "#f5e9ed" }}>
             <div style={{ color: "#ff7897", fontSize: 10, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase" }}>ANON · LOCAL PRIVACY GUARD</div>
-            <h2 id="privacy-review-title" style={{ margin: "12px 0 8px", fontSize: 26, lineHeight: 1.1, letterSpacing: "-.04em" }}>A quick check before you send</h2>
+            <h2 id="privacy-review-title" style={{ margin: "12px 0 8px", fontSize: 26, lineHeight: 1.1, letterSpacing: "-.04em" }}>{privacyReview.action === "image" ? "Check the caption before sharing" : privacyReview.action === "edit" ? "Check this edit before saving" : "A quick check before you send"}</h2>
             <p style={{ margin: "0 0 16px", color: "#cbb7c0", fontSize: 13, lineHeight: 1.7 }}>This check runs on your device. It noticed something that may identify you or expose an account detail. Nothing was sent because of this check.</p>
+            {privacyReview.action === "image" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>Only the caption is checked. ANON does not scan the image pixels for names, addresses or other text.</p>}
+            {privacyReview.action === "edit" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>This check applies to edits as well as new messages. You can apply redactions and review the edit before saving it.</p>}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               {privacyReview.findings.map((finding) => <span key={finding} style={{ color: "#ffd7e1", border: "1px solid #512538", borderRadius: 999, padding: "7px 10px", fontSize: 11, background: "#190a10" }}>{finding}</span>)}
             </div>
@@ -1869,10 +1871,10 @@ export default function Home() {
             <p style={{ color: "#95828b", fontSize: 11, lineHeight: 1.6, margin: "12px 0 18px" }}>This is a best-effort pattern check, not a guarantee. You choose what to share. Suggested redactions stay in this browser until you send the edited text.</p>
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
               <button type="button" onClick={redactReviewedMessage} style={{ border: "1px solid #e14568", background: "linear-gradient(135deg,#cf234a,#82112d)", color: "white", borderRadius: 10, padding: "11px 13px", fontSize: 12, fontWeight: 750, cursor: "pointer" }}>Suggest redactions</button>
-              <button type="button" onClick={sendReviewedMessage} style={{ border: "1px solid #4b3540", background: "#180f14", color: "#f1dbe3", borderRadius: 10, padding: "11px 13px", fontSize: 12, cursor: "pointer" }}>Send as written</button>
+              <button type="button" onClick={sendReviewedMessage} style={{ border: "1px solid #4b3540", background: "#180f14", color: "#f1dbe3", borderRadius: 10, padding: "11px 13px", fontSize: 12, cursor: "pointer" }}>{privacyReview.action === "image" ? "Share image with this caption" : privacyReview.action === "edit" ? "Save edit as written" : "Send as written"}</button>
               <button type="button" onClick={() => setPrivacyReview(null)} style={{ border: "1px solid transparent", background: "transparent", color: "#b49da7", borderRadius: 10, padding: "11px 9px", fontSize: 12, cursor: "pointer" }}>Keep editing</button>
             </div>
-            <button type="button" onClick={disableGuardAndSend} style={{ marginTop: 12, border: 0, background: "transparent", color: "#8f7b84", fontSize: 10, cursor: "pointer", textDecoration: "underline", padding: "5px 0" }}>Turn off this check on this device and send</button>
+            <button type="button" onClick={disableGuardAndSend} style={{ marginTop: 12, border: 0, background: "transparent", color: "#8f7b84", fontSize: 10, cursor: "pointer", textDecoration: "underline", padding: "5px 0" }}>{privacyReview.action === "image" ? "Turn off this check and share image" : privacyReview.action === "edit" ? "Turn off this check and save edit" : "Turn off this check on this device and send"}</button>
           </section>
         </div>
       )}
