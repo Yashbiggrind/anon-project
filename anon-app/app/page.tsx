@@ -20,6 +20,7 @@ import {
   updateMessage as persistUpdate,
   removeMessage as persistRemove,
   clearScope as persistClearScope,
+  clearAll as persistClearAll,
 } from "@/lib/messageStore";
 import {
   LS_USERNAME,
@@ -206,6 +207,8 @@ export default function Home() {
   const [toast, setToast] = useState<string | null>(null);
   const [privacyReview, setPrivacyReview] = useState<{ scope: "public" | "room" | "dm"; text: string; findings: string[] } | null>(null);
   const [localPrivacyGuard, setLocalPrivacyGuard] = useState(true);
+  const [ephemeralMode, setEphemeralMode] = useState(false);
+  const ephemeralModeRef = useRef(false);
   const [veilActive, setVeilActive] = useState(false);
   const veilPreviousMuteRef = useRef(false);
   const [nameOffer, setNameOffer] = useState<{ a: string; b: string } | null>(null);
@@ -313,7 +316,14 @@ export default function Home() {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const timer = window.setTimeout(() => setLocalPrivacyGuard(localStorage.getItem("anon_local_privacy_guard") !== "off"), 0);
+    const timer = window.setTimeout(() => {
+      try {
+        setLocalPrivacyGuard(localStorage.getItem("anon_local_privacy_guard") !== "off");
+        const savedEphemeral = localStorage.getItem("anon_ephemeral_mode") === "on";
+        ephemeralModeRef.current = savedEphemeral;
+        setEphemeralMode(savedEphemeral);
+      } catch {}
+    }, 0);
     return () => window.clearTimeout(timer);
   }, []);
 
@@ -563,7 +573,7 @@ export default function Home() {
         return [...p.slice(-499), { ...m, localSent: isMine }];
       }));
       localStorage.setItem(LS_LAST_SEEN_PUBLIC, String(Date.now()));
-      persistSave({ ...m, localSent: isMine, scope: "public" });
+      if (!ephemeralModeRef.current) void persistSave({ ...m, localSent: isMine, scope: "public" });
     });
 
     socket.on("system:public", (s: { type: string; username?: string; oldName?: string }) => {
@@ -583,13 +593,13 @@ export default function Home() {
     socket.on("message:edited", ({ messageId, content, editedAt }: { messageId: string; content: string; editedAt: number }) => {
       setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
       setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
-      void persistUpdate(messageId, { content, editedAt });
+      if (!ephemeralModeRef.current) void persistUpdate(messageId, { content, editedAt });
     });
 
     socket.on("message:deleted", ({ messageId }: { messageId: string }) => {
       setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
       setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
-      void persistUpdate(messageId, { deleted: true, content: "", image: undefined });
+      if (!ephemeralModeRef.current) void persistUpdate(messageId, { deleted: true, content: "", image: undefined });
     });
 
     socket.on("invite:received", (inv: Invite) => {
@@ -633,7 +643,7 @@ export default function Home() {
         }
         return [...p.slice(-499), { ...m, localSent: isMine }];
       }));
-         if (roomRef.current) persistSave({ ...m, localSent: isMine, scope: "room", roomId: roomRef.current.roomId });
+         if (!ephemeralModeRef.current && roomRef.current) void persistSave({ ...m, localSent: isMine, scope: "room", roomId: roomRef.current.roomId });
     });
     socket.on("room:lifetime-update", ({ seconds }: { seconds: number }) => {
       setMessageLifetime(seconds * 1000);
@@ -697,6 +707,7 @@ export default function Home() {
     if (typeof window === "undefined") return;
     (async () => {
       try {
+        if (ephemeralModeRef.current || localStorage.getItem("anon_ephemeral_mode") === "on") return;
         const [pub, roomMsgs] = await Promise.all([
           persistLoad("public"),
           room ? persistLoad("room", room.roomId) : Promise.resolve([]),
@@ -841,12 +852,12 @@ export default function Home() {
       const cut = Date.now() - 60 * 60 * 1000;
       setMessages((p) => p.map((m) => {
         if (!m.image || m.createdAt >= cut) return m;
-        void persistUpdate(m.id, { image: undefined });
+        if (!ephemeralModeRef.current) void persistUpdate(m.id, { image: undefined });
         return { ...m, image: undefined };
       }));
       setPrivateMessages((p) => p.map((m) => {
         if (!m.image || m.createdAt >= cut) return m;
-        void persistUpdate(m.id, { image: undefined });
+        if (!ephemeralModeRef.current) void persistUpdate(m.id, { image: undefined });
         return { ...m, image: undefined };
       }));
     }, 60 * 1000);
@@ -1064,7 +1075,7 @@ export default function Home() {
     const now = Date.now();
     setMessages((p) => p.map((m) => (m.id === editingId ? { ...m, content: text, editedAt: now } : m)));
     setPrivateMessages((p) => p.map((m) => (m.id === editingId ? { ...m, content: text, editedAt: now } : m)));
-    persistUpdate(editingId, { content: text, editedAt: now });
+    if (!ephemeralModeRef.current) void persistUpdate(editingId, { content: text, editedAt: now });
     setEditingId(null); setEditingText(""); setEditingRoomId(null);
   }, [editingText, editingId, editingRoomId]);
 
@@ -1072,7 +1083,7 @@ export default function Home() {
     socketRef.current?.emit("message:delete", { messageId: m.id, roomId }, () => {});
     setMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
     setPrivateMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
-    persistUpdate(m.id, { deleted: true, content: "" });
+    if (!ephemeralModeRef.current) void persistUpdate(m.id, { deleted: true, content: "" });
     
   }, []);
 
@@ -1280,6 +1291,28 @@ export default function Home() {
     setTimeout(() => { setFlash(false); setSection(id); setOpening(null); }, 1050);
   }
   function goBack() { setSection(null); setGone(false); setOpening(null); }
+
+  async function toggleEphemeralMode() {
+    const next = !ephemeralMode;
+    if (next) {
+      const confirmed = window.confirm("Turn on Ephemeral Mode? ANON will clear saved chat history in this browser and stop saving new messages to local history. This does not erase server-side anti-abuse records or copies held by other people.");
+      if (!confirmed) return;
+      // Flip the ref before awaiting IndexedDB so socket callbacks do not write during the wipe.
+      ephemeralModeRef.current = true;
+      try {
+        await persistClearAll();
+      } catch {
+        ephemeralModeRef.current = false;
+        showToast("Could not clear local history. Close other ANON tabs and try again.", 4500, "error");
+        return;
+      }
+    } else {
+      ephemeralModeRef.current = false;
+    }
+    try { localStorage.setItem("anon_ephemeral_mode", next ? "on" : "off"); } catch {}
+    setEphemeralMode(next);
+    showToast(next ? "Ephemeral Mode on: local chat history cleared." : "Ephemeral Mode off: new messages may be saved locally.", 3500, "success");
+  }
 
   function activateVeil() {
     if (veilActive) return;
@@ -1660,9 +1693,10 @@ export default function Home() {
     <>
       {!connected && <div className="reconnectBar">{t("connectionLost")}</div>}
 
-      <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1500, display: "flex", gap: 8, alignItems: "center" }}>
+      <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1500, display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", justifyContent: "flex-end", maxWidth: "calc(100vw - 24px)" }}>
         <Link href="/privacy-center" title="Privacy controls" style={{ border: "1px solid #48202d", background: "rgba(12,5,9,.94)", color: "#f5dce4", borderRadius: 999, padding: "8px 11px", fontSize: 11, textDecoration: "none", backdropFilter: "blur(12px)" }}>🛡 Privacy</Link>
         <button type="button" onClick={() => { const next = !localPrivacyGuard; setLocalPrivacyGuard(next); try { localStorage.setItem("anon_local_privacy_guard", next ? "on" : "off"); } catch {} showToast(next ? "Local Privacy Guard enabled." : "Local Privacy Guard disabled.", 2200, "success"); }} title="Toggle the on-device sensitive-text check" aria-pressed={localPrivacyGuard} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: localPrivacyGuard ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◈ Guard {localPrivacyGuard ? "ON" : "OFF"}</button>
+        <button type="button" onClick={toggleEphemeralMode} title="Clear saved local chat history and stop saving new message history here" aria-pressed={ephemeralMode} style={{ border: "1px solid #3d3039", background: "rgba(12,5,9,.94)", color: ephemeralMode ? "#b6f3d0" : "#c3afb8", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◌ Ephemeral {ephemeralMode ? "ON" : "OFF"}</button>
         <button type="button" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)" style={{ border: "1px solid #6b263a", background: "rgba(25,7,14,.96)", color: "#ff9db2", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◉ Quick Veil</button>
       </div>
 
