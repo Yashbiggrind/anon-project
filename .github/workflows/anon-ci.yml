@@ -5,7 +5,7 @@ on:
     branches:
       - main
       - "fix/**"
-# Keep this draft privacy branch continuously covered by the same integration checks.
+# Keep draft privacy work validated after the final room-identity and Local Privacy Guard integration.
       - "anon-privacy-foundation-2026-10"
   pull_request:
   workflow_dispatch:
