@@ -37,6 +37,7 @@ import {
   doors,
 } from "@/lib/anonConstants";
 import { serverUrl, makeRandomName } from "@/lib/anonUtils";
+import { inspectSensitiveText, redactSensitiveText } from "@/lib/localPrivacyGuard";
 
 type Section = "chat" | "private" | "content" | "confession";
 type Identity = { sessionId: string; username: string; accent: string; status?: string; avatarDesign?: AvatarDesign | null };
@@ -203,6 +204,10 @@ export default function Home() {
   const dmLastTypingRef = useRef(0);
 
   const [toast, setToast] = useState<string | null>(null);
+  const [privacyReview, setPrivacyReview] = useState<{ scope: "public" | "room" | "dm"; text: string; findings: string[] } | null>(null);
+  const [localPrivacyGuard, setLocalPrivacyGuard] = useState(true);
+  const [veilActive, setVeilActive] = useState(false);
+  const veilPreviousMuteRef = useRef(false);
   const [nameOffer, setNameOffer] = useState<{ a: string; b: string } | null>(null);
   const [typingPublic, setTypingPublic] = useState<Record<string, { username: string; at: number }>>({});
   const [typingRoom, setTypingRoom] = useState<Record<string, { username: string; at: number }>>({});
@@ -305,6 +310,12 @@ export default function Home() {
     if (typeof window === "undefined") return;
     localStorage.setItem(LS_LANG, lang);
   }, [lang]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = window.setTimeout(() => setLocalPrivacyGuard(localStorage.getItem("anon_local_privacy_guard") !== "off"), 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -1126,13 +1137,17 @@ export default function Home() {
     setDmTypingFrom(null);
   }, []);
 
-  const sendDm = useCallback(() => {
+  const sendDm = useCallback((skipPrivacyCheck = false) => {
     const el = dmInputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text || !dmPanel?.threadId) return;
+    if (!skipPrivacyCheck && localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) { setPrivacyReview({ scope: "dm", text, findings }); return; }
+    }
     if (el) el.value = "";
     socketRef.current?.emit("dm:send", { threadId: dmPanel.threadId, content: text }, () => {});
-  }, [dmPanel]);
+  }, [dmPanel, localPrivacyGuard]);
 
   const notifyDmTyping = useCallback(() => {
     if (!dmPanel?.threadId) return;
@@ -1266,10 +1281,79 @@ export default function Home() {
   }
   function goBack() { setSection(null); setGone(false); setOpening(null); }
 
-  function sendMessage() {
+  function activateVeil() {
+    if (veilActive) return;
+    veilPreviousMuteRef.current = muted;
+    setMutedState(true);
+    setMuted(true);
+    localStorage.setItem(LS_MUTED, "1");
+    setVeilActive(true);
+  }
+
+  function deactivateVeil() {
+    const restoreMute = veilPreviousMuteRef.current;
+    setVeilActive(false);
+    setMutedState(restoreMute);
+    setMuted(restoreMute);
+    localStorage.setItem(LS_MUTED, restoreMute ? "1" : "0");
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        if (!veilActive) activateVeil();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [veilActive, muted]);
+
+  function sendReviewedMessage() {
+    if (!privacyReview) return;
+    const review = privacyReview;
+    const field = review.scope === "public"
+      ? inputRef.current
+      : review.scope === "room"
+        ? privateInputRef.current
+        : dmInputRef.current;
+    if (field) field.value = review.text;
+    setPrivacyReview(null);
+    if (review.scope === "public") sendMessage(true);
+    else if (review.scope === "room") sendPrivate(true);
+    else sendDm(true);
+  }
+
+  function redactReviewedMessage() {
+    if (!privacyReview) return;
+    const review = privacyReview;
+    const field = review.scope === "public"
+      ? inputRef.current
+      : review.scope === "room"
+        ? privateInputRef.current
+        : dmInputRef.current;
+    if (field) {
+      field.value = redactSensitiveText(review.text);
+      field.focus();
+    }
+    setPrivacyReview(null);
+    showToast("Suggested redactions applied on this device. Review before sending.", 4000, "success");
+  }
+
+  function disableGuardAndSend() {
+    try { localStorage.setItem("anon_local_privacy_guard", "off"); } catch {}
+    setLocalPrivacyGuard(false);
+    sendReviewedMessage();
+  }
+
+  function sendMessage(skipPrivacyCheck = false) {
     const el = inputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text) return;
+    if (!skipPrivacyCheck && localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) { setPrivacyReview({ scope: "public", text, findings }); return; }
+    }
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
     if (!connected || isOffline) {
       try {
@@ -1302,10 +1386,14 @@ export default function Home() {
     setReplyTo(null);
   }
 
-  function sendPrivate() {
+  function sendPrivate(skipPrivacyCheck = false) {
     const el = privateInputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text || !room || !socketRef.current) return;
+    if (!skipPrivacyCheck && localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) { setPrivacyReview({ scope: "room", text, findings }); return; }
+    }
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
     if (el) el.value = "";
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
@@ -1566,6 +1654,11 @@ export default function Home() {
     <>
       {!connected && <div className="reconnectBar">{t("connectionLost")}</div>}
 
+      <div style={{ position: "fixed", top: 12, right: 12, zIndex: 1500, display: "flex", gap: 8, alignItems: "center" }}>
+        <Link href="/privacy-center" title="Privacy controls" style={{ border: "1px solid #48202d", background: "rgba(12,5,9,.94)", color: "#f5dce4", borderRadius: 999, padding: "8px 11px", fontSize: 11, textDecoration: "none", backdropFilter: "blur(12px)" }}>🛡 Privacy</Link>
+        <button type="button" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)" style={{ border: "1px solid #6b263a", background: "rgba(25,7,14,.96)", color: "#ff9db2", borderRadius: 999, padding: "8px 11px", fontSize: 11, cursor: "pointer", backdropFilter: "blur(12px)" }}>◉ Quick Veil</button>
+      </div>
+
       <div className="marquee">
         <div className="marquee-track">
           <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
@@ -1573,6 +1666,39 @@ export default function Home() {
           <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
         </div>
       </div>
+
+      {privacyReview && (
+        <div role="dialog" aria-modal="true" aria-labelledby="privacy-review-title" style={{ position: "fixed", inset: 0, zIndex: 99998, display: "grid", placeItems: "center", padding: 18, background: "rgba(2,1,4,.84)", backdropFilter: "blur(18px)" }}>
+          <section style={{ width: "min(100%, 520px)", border: "1px solid #6b263a", borderRadius: 22, padding: "clamp(20px,5vw,30px)", background: "radial-gradient(ellipse at 100% 0%,rgba(225,29,72,.18),transparent 48%),#0c070a", boxShadow: "0 28px 100px rgba(0,0,0,.55)", color: "#f5e9ed" }}>
+            <div style={{ color: "#ff7897", fontSize: 10, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase" }}>ANON · LOCAL PRIVACY GUARD</div>
+            <h2 id="privacy-review-title" style={{ margin: "12px 0 8px", fontSize: 26, lineHeight: 1.1, letterSpacing: "-.04em" }}>A quick check before you send</h2>
+            <p style={{ margin: "0 0 16px", color: "#cbb7c0", fontSize: 13, lineHeight: 1.7 }}>This check runs on your device. It noticed something that may identify you or expose an account detail. Nothing was sent because of this check.</p>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {privacyReview.findings.map((finding) => <span key={finding} style={{ color: "#ffd7e1", border: "1px solid #512538", borderRadius: 999, padding: "7px 10px", fontSize: 11, background: "#190a10" }}>{finding}</span>)}
+            </div>
+            <div style={{ border: "1px solid #302129", borderRadius: 12, background: "#070507", color: "#bba7b0", padding: 12, fontSize: 12, lineHeight: 1.7, overflowWrap: "anywhere", maxHeight: 140, overflowY: "auto" }}>{privacyReview.text}</div>
+            <p style={{ color: "#95828b", fontSize: 11, lineHeight: 1.6, margin: "12px 0 18px" }}>This is a best-effort pattern check, not a guarantee. You choose what to share. Suggested redactions stay in this browser until you send the edited text.</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" onClick={redactReviewedMessage} style={{ border: "1px solid #e14568", background: "linear-gradient(135deg,#cf234a,#82112d)", color: "white", borderRadius: 10, padding: "11px 13px", fontSize: 12, fontWeight: 750, cursor: "pointer" }}>Suggest redactions</button>
+              <button type="button" onClick={sendReviewedMessage} style={{ border: "1px solid #4b3540", background: "#180f14", color: "#f1dbe3", borderRadius: 10, padding: "11px 13px", fontSize: 12, cursor: "pointer" }}>Send as written</button>
+              <button type="button" onClick={() => setPrivacyReview(null)} style={{ border: "1px solid transparent", background: "transparent", color: "#b49da7", borderRadius: 10, padding: "11px 9px", fontSize: 12, cursor: "pointer" }}>Keep editing</button>
+            </div>
+            <button type="button" onClick={disableGuardAndSend} style={{ marginTop: 12, border: 0, background: "transparent", color: "#8f7b84", fontSize: 10, cursor: "pointer", textDecoration: "underline", padding: "5px 0" }}>Turn off this check on this device and send</button>
+          </section>
+        </div>
+      )}
+
+      {veilActive && (
+        <div role="dialog" aria-modal="true" aria-labelledby="veil-title" style={{ position: "fixed", inset: 0, zIndex: 99999, display: "grid", placeItems: "center", padding: 20, background: "radial-gradient(ellipse at 50% 35%,#191217,#030204 70%)", color: "#f6edf0" }}>
+          <section style={{ textAlign: "center", width: "min(100%, 430px)", padding: 28 }}>
+            <div style={{ color: "#ff5a7f", fontSize: 11, fontWeight: 800, letterSpacing: ".22em" }}>ANON // QUICK VEIL</div>
+            <h1 id="veil-title" style={{ fontSize: "clamp(32px,7vw,52px)", letterSpacing: "-.06em", margin: "18px 0 10px" }}>Your screen is hidden.</h1>
+            <p style={{ color: "#b8a6ae", fontSize: 13, lineHeight: 1.8, margin: "0 auto 24px" }}>Chat is still connected in the background. Your screen is covered and sound is muted until you reveal it again.</p>
+            <button type="button" onClick={deactivateVeil} style={{ border: "1px solid #e14568", background: "linear-gradient(135deg,#cf234a,#82112d)", color: "white", borderRadius: 999, padding: "12px 22px", fontSize: 13, fontWeight: 750, cursor: "pointer" }}>Reveal ANON</button>
+            <div style={{ color: "#6e5b64", fontSize: 10, marginTop: 18 }}>Shortcut: Alt + Shift + V</div>
+          </section>
+        </div>
+      )}
 
       <div className={`flash ${flash ? "on" : ""}`} />
 
