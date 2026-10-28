@@ -100,7 +100,7 @@ export default function AvatarCustomizer({ name, initialDesign, onSave, onClose 
   };
 
   const randomize = () => {
-    const bright = AVATAR_PALETTE.filter((color) => ![VOID, DARK].includes(color));
+    const bright = AVATAR_PALETTE.filter((color) => color !== VOID && color !== DARK);
     const background = bright[Math.floor(Math.random() * bright.length)];
     const accent = bright[Math.floor(Math.random() * bright.length)];
     const cells = Array.from({ length: AVATAR_GRID_SIZE * AVATAR_GRID_SIZE }, () =>
@@ -163,7 +163,7 @@ export default function AvatarCustomizer({ name, initialDesign, onSave, onClose 
             <div className="avatarStudioPaletteGroup">
               <div className="avatarStudioLabel">BLOCK COLOUR</div>
               <div className="avatarStudioPalette">
-                {AVATAR_PALETTE.filter((color) => ![VOID, DARK].includes(color)).map((color) => (
+                {AVATAR_PALETTE.filter((color) => color !== VOID && color !== DARK).map((color) => (
                   <button
                     key={color}
                     type="button"
