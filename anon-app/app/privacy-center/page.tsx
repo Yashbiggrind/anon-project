@@ -125,11 +125,11 @@ export default function PrivacyCenterPage() {
 
           <section className="pc-section">
             <div className="pc-section-head">
-              <h2>One clear note about privacy today</h2>
-              <p>Honest, calm, and in plain English</p>
+              <h2>Small habits that help protect your privacy</h2>
+              <p>Simple things you control</p>
             </div>
             <div className="pc-note">
-              <strong>Your alias is meant to keep the focus on what you say—not on your offline identity.</strong> The draft backend leaves persistent connection/session logs off by default. Limited anti-abuse records, such as reports or spam-prevention entries, can still be kept to operate the service. As with any chat service, avoid sharing passwords, payment details or other information you would not want copied.
+              <strong>Your alias is meant to keep the focus on what you say—not on your offline identity.</strong> For a more private experience, check which space you are in before posting and keep passwords, payment details and other identifying information out of messages. Open the details below for a plain-language explanation of how information is handled.
             </div>
 
             <details className="pc-details">
