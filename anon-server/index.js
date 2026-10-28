@@ -1276,14 +1276,14 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
 
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const p = room.participants.find((x) => x.sessionId === target);
     if (!p) return ack?.({ ok: false, error: "Not in this room" });
 
     const targetSid = findSocketBySession(target);
-    if (targetSid) io.to(targetSid).emit("room:kicked", { roomId, by: s.username });
+    if (targetSid) io.to(targetSid).emit("room:kicked", { roomId, by: getRoomAlias(room, s.sessionId, s.username) });
 
     removeFromRoom(roomId, target, "kicked", s.username);
     ack?.({ ok: true });
@@ -1297,8 +1297,8 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
 
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const dur = Number(durationMs);
     if (!TIMEOUT_OPTIONS_MS.includes(dur)) return ack?.({ ok: false, error: "Invalid duration" });
@@ -1324,7 +1324,8 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
-    const target = String(targetSessionId || "");
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
     room.timeouts.delete(target);
     broadcastRoomUpdate(room);
     broadcastRoomSystem(room, { type: "untimeout", by: s.username });
@@ -1339,8 +1340,8 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
 
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const p = room.participants.find((x) => x.sessionId === target);
     if (!p) return ack?.({ ok: false, error: "Not in this room" });
@@ -1348,7 +1349,7 @@ io.on("connection", (socket) => {
     room.admin = target;
     broadcastRoomSystem(room, { type: "transfer", from: s.username, to: p.username });
     broadcastRoomUpdate(room);
-    ack?.({ ok: true, admin: target });
+    ack?.({ ok: true, admin: getRoomMemberId(room, target) });
   });
 
   
@@ -1476,7 +1477,7 @@ io.on("connection", (socket) => {
       if (sid) io.to(sid).emit("room:invite:resolved", {
         inviteId,
         accepted: true,
-        joinedUsername: s.username,
+        joinedUsername: getRoomAlias(room, s.sessionId, s.username),
         at: Date.now(),
       });
     }
@@ -1773,8 +1774,8 @@ io.on("connection", (socket) => {
   socket.on("dm:open", ({ targetSessionId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const targetSocketId = findSocketBySession(target);
     if (!targetSocketId) return ack?.({ ok: false, error: "User is offline" });
