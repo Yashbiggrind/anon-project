@@ -153,7 +153,7 @@ export default function DataPage() {
         <div className="dlHead">
           <div className="eyebrow">{"// LOCAL DATA CONTROLS"}</div>
           <h1>See what this browser keeps. Clear it when you choose.</h1>
-          <p>This report shows localStorage only. Saved message history is stored separately in this browser. Clearing local data does not delete server-side anti-abuse records or copies already held by other people.</p>
+          <p>This report shows localStorage only. Saved message history is stored separately in this browser. Clearing local data does not delete server-side records or other people’s copies. In this branch, reviewed reports older than 90 days and inactive strikes older than 30 days after cooldown/ban expiry are purged from the active database; unreviewed reports remain pending review. Hosting logs and older backups are separate.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
