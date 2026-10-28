@@ -15,7 +15,7 @@ ANON currently provides pseudonymous access and local convenience controls, but 
 | Data | Location / path | Current lifetime or control | Privacy boundary |
 |---|---|---|---|
 | Public messages | Server in-memory `publicHistory` | TTL of about 24 hours and capped at 500 items; process restart clears it | Plaintext is visible to the server while handled; public content should be treated as public |
-| Room messages | Server room state and Socket.IO event handlers | Room state is in process; exact removal depends on room lifecycle and configured message lifetime/purge paths | Not E2EE; members and server can read content |
+| Room messages | Server room state and Socket.IO event handlers | Room state and alias/member-token maps are in process memory and are discarded with the room/process | Private-room event payloads now use a room-specific alias and opaque room member token, not the global session ID. The server still keeps the mapping while the room exists and sees plaintext content; this is not E2EE and does not hide timing/network metadata. |
 | Direct messages | In-memory `dmThreads` | Threads expire after about 1 hour idle; per-thread message count capped at 200 | Not E2EE; server receives readable content |
 | Message ownership metadata | In-memory `messageOwners` | Around 24 hours | Server-side session/message relationship exists during the TTL |
 | Confessions and replies | In-memory server map | Posts expire after 7 days; post count capped at 500; reply count capped at 50 | Content is visible to the server and the confession audience |
