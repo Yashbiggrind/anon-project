@@ -4128,3 +4128,287 @@ a:focus-visible {
   .nameOption { min-height: 160px; padding: 13px 8px !important; }
   .nameOption .nameOptionAvatar { width: 64px; height: 64px; }
 }
+
+/* ============================================================
+   ANON Block Avatar Workshop — crisp 7×7 pixel editing
+   ============================================================ */
+.avatarStudioBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 12000;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(3, 2, 4, .86);
+  backdrop-filter: blur(12px);
+}
+.avatarStudio {
+  width: min(940px, 100%);
+  max-height: min(900px, 94vh);
+  overflow: auto;
+  color: #f4e9ef;
+  background: #090609;
+  border: 1px solid rgba(255, 45, 85, .56);
+  box-shadow: 0 24px 100px rgba(0, 0, 0, .6), 0 0 55px rgba(255, 45, 85, .09);
+  padding: clamp(18px, 3vw, 30px);
+  font-family: inherit;
+}
+.avatarStudioTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 45, 85, .22);
+}
+.avatarStudioEyebrow, .avatarStudioLabel {
+  color: #ff5276;
+  font: 800 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+}
+.avatarStudioTop h2 {
+  margin: 8px 0 5px;
+  font-size: clamp(22px, 3vw, 32px);
+  line-height: 1.1;
+  letter-spacing: -.04em;
+}
+.avatarStudioTop p {
+  margin: 0;
+  color: #9e8d98;
+  font-size: 13px;
+}
+.avatarStudioClose {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
+  color: #f4e9ef;
+  background: #16080d;
+  border: 1px solid #4b1221;
+  font-size: 25px;
+  cursor: pointer;
+}
+.avatarStudioWorkspace {
+  display: grid;
+  grid-template-columns: 190px minmax(0, 1fr);
+  gap: clamp(18px, 3vw, 32px);
+  padding: 22px 0;
+}
+.avatarStudioPreview {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 18px 12px;
+  background: #10080d;
+  border: 1px solid #35101b;
+}
+.avatarStudioPreview svg { image-rendering: pixelated; }
+.avatarStudioPreview span {
+  color: #ff5276;
+  font: 800 9px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .18em;
+}
+.avatarStudioPreview strong {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  color: #f8eaf0;
+  font: 800 13px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+.avatarStudioPreview small {
+  color: #806b77;
+  font: 10px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+.avatarStudioEditor { min-width: 0; }
+.avatarStudioLabel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 9px;
+  color: #c3a9b5;
+  letter-spacing: .12em;
+}
+.avatarStudioLabel span {
+  color: #705562;
+  font-size: 9px;
+  letter-spacing: .08em;
+  text-align: right;
+}
+.avatarBlockGrid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: min(100%, 336px);
+  aspect-ratio: 1;
+  gap: 3px;
+  padding: 5px;
+  border: 1px solid #5b1225;
+  background: #17070d;
+  box-shadow: 0 0 30px rgba(255, 45, 85, .06);
+  touch-action: none;
+  user-select: none;
+}
+.avatarBlockCell {
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  border: 1px solid rgba(10, 4, 7, .5);
+  border-radius: 0;
+  cursor: crosshair;
+  image-rendering: pixelated;
+  touch-action: none;
+  transition: filter .08s ease;
+}
+.avatarBlockCell:hover { filter: brightness(1.25); outline: 1px solid rgba(255,255,255,.45); }
+.avatarStudioTools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin: 12px 0 19px;
+}
+.avatarStudioTools button, .avatarStudioPresets button {
+  min-height: 32px;
+  padding: 7px 10px;
+  color: #bba8b2;
+  background: #10080c;
+  border: 1px solid #35101b;
+  font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .05em;
+  cursor: pointer;
+}
+.avatarStudioTools button.selected {
+  color: #fff;
+  background: #6b0a20;
+  border-color: #ff2d55;
+  box-shadow: inset 0 -2px 0 #ff2d55;
+}
+.avatarStudioPaletteGroup { margin: 0 0 16px; }
+.avatarStudioPalette {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.avatarStudioPalette button {
+  position: relative;
+  width: 23px;
+  height: 23px;
+  padding: 0;
+  border: 1px solid rgba(255,255,255,.18);
+  border-radius: 0;
+  cursor: pointer;
+}
+.avatarStudioPalette button.active {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+.avatarStudioPresets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.avatarStudioPresets button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.avatarStudioPresets button:hover, .avatarStudioTools button:hover { border-color: #ff5276; color: #fff; }
+.presetMark {
+  display: inline-grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  color: #090609;
+  background: #9aef61;
+  font: 900 11px/1 ui-monospace, monospace;
+}
+.slimeMark { background: #53e2b7; }
+.enderMark { color: #ff91cd; background: #24122b; }
+.tMark { background: #56d8ff; }
+.lMark { background: #ffb84d; }
+.zMark { background: #ff4f7f; }
+.avatarStudioFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 45, 85, .22);
+}
+.avatarStudioFooter > div { display: flex; gap: 8px; }
+.avatarStudioFooter button {
+  min-height: 40px;
+  padding: 10px 15px;
+  border-radius: 0;
+  font: 800 10px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.avatarStudioReset, .avatarStudioCancel {
+  color: #a9929d;
+  background: transparent;
+  border: 1px solid #35101b;
+}
+.avatarStudioSave {
+  color: #fff;
+  background: linear-gradient(180deg, #b80f32, #69081d);
+  border: 1px solid #ff2d55;
+  box-shadow: 0 5px 18px rgba(255, 45, 85, .12);
+}
+.avatarStudioLaunch {
+  width: 100%;
+  margin: 12px 0 4px;
+  padding: 12px 16px;
+  color: #ff6682;
+  background: #12070c;
+  border: 1px solid #541326;
+  font: 800 11px/1.3 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .12em;
+  cursor: pointer;
+}
+.avatarStudioLaunch:hover { color: #fff; border-color: #ff2d55; background: #220813; }
+.avatarEditTrigger {
+  flex: 0 0 auto;
+  min-height: 34px;
+  padding: 8px 10px;
+  color: #ff6682;
+  background: #12070c;
+  border: 1px solid #541326;
+  font: 800 9px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+  letter-spacing: .1em;
+  cursor: pointer;
+}
+.avatarEditTrigger:hover { color: #fff; border-color: #ff2d55; }
+.memberAvatar { position: relative; display: inline-flex; align-items: center; justify-content: center; }
+.memberAdminMark {
+  position: absolute;
+  right: -5px;
+  top: -6px;
+  color: #ffb84d;
+  font-size: 10px;
+  text-shadow: 0 1px 3px #000;
+}
+@media (max-width: 700px) {
+  .avatarStudioBackdrop { padding: 7px; place-items: center; }
+  .avatarStudio { max-height: 96vh; padding: 16px; }
+  .avatarStudioWorkspace { grid-template-columns: 1fr; gap: 17px; padding: 15px 0; }
+  .avatarStudioPreview { position: static; display: grid; grid-template-columns: 64px 1fr; justify-items: start; text-align: left; padding: 10px; }
+  .avatarStudioPreview svg { width: 56px; height: 56px; grid-row: span 3; }
+  .avatarStudioPreview strong { text-align: left; }
+  .avatarBlockGrid { width: min(100%, 330px); margin: 0 auto; gap: 2px; }
+  .avatarStudioFooter { align-items: stretch; flex-direction: column; }
+  .avatarStudioFooter > div { display: grid; grid-template-columns: 1fr 1fr; }
+  .avatarStudioReset { width: 100%; }
+  .avatarStudioFooter button { padding: 10px 8px; }
+  .avatarEditTrigger { font-size: 8px; padding: 7px; }
+}
+
