@@ -393,7 +393,8 @@ function getRoomAliasForName(room, name) {
     const session = sessions.get(socketId || sessionId);
     if (session?.username === name) return alias;
   }
-  return name;
+  // Fail closed: do not fall back to a global username in a room-scoped event.
+  return "A room member";
 }
 
 function publicRoom(r, viewerSessionId) {
