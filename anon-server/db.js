@@ -1,6 +1,6 @@
 ﻿require("dotenv").config();
 // db.js — v21.3 SQLite persistence for ANON
-// Adds: sessions_log table for IP retention (Rule 3(1)(h) compliance)
+// Session metadata logging is opt-in; avoid creating a durable connection trail by default.
 const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
@@ -14,6 +14,8 @@ if (IS_PRODUCTION && (CONFIGURED_IP_HASH_SECRET.length < 32 || /change-me|your-s
 // A process-local random secret keeps development usable without a hard-coded persistent key.
 const IP_HASH_SECRET = CONFIGURED_IP_HASH_SECRET || crypto.randomBytes(32).toString("hex");
 const RETENTION_DAYS = 180;
+// Set ANON_SESSION_LOGS=on only when persistent connection metadata is justified and reviewed.
+const STORE_SESSION_LOGS = String(process.env.ANON_SESSION_LOGS || "").trim().toLowerCase() === "on";
 
 let db = null;
 let ready = false;
@@ -90,6 +92,16 @@ function init() {
     // Migrate legacy raw-IP strike keys to keyed hashes without discarding moderation state.
     // Enable secure_delete before removing old rows, then compact the database if migration was needed.
     db.exec("PRAGMA secure_delete = ON");
+    // Default to no persistent connection/session trail. If the operator has not
+    // explicitly opted in, remove old rows from the active database as part of startup.
+    if (!STORE_SESSION_LOGS) {
+      const removedSessionRows = db.prepare("DELETE FROM sessions_log").run().changes;
+      if (removedSessionRows > 0) {
+        db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        db.exec("VACUUM");
+        console.log("[db] removed " + removedSessionRows + " persisted session metadata row(s); ANON_SESSION_LOGS is off");
+      }
+    }
     const legacyIpKeys = db.prepare("SELECT * FROM strikes WHERE spam_key LIKE 'ip:%'").all();
     const upsertHashedStrike = db.prepare(`
       INSERT INTO strikes
@@ -128,7 +140,7 @@ function init() {
 
     ready = true;
     console.log("[db] ready at", DB_PATH);
-    console.log("[db] connection-metadata retention: 180 days; HMAC secret =", CONFIGURED_IP_HASH_SECRET ? "configured" : "ephemeral development key");
+    console.log("[db] persistent session metadata logging =", STORE_SESSION_LOGS ? "enabled (" + RETENTION_DAYS + "-day retention)" : "off (default)");
   } catch (err) {
     console.error("[db] failed to initialize:", err.message);
     console.error(err.stack);
@@ -204,7 +216,7 @@ function loadAllStrikes() {
 
 // ---------- v21.3 — session log (IP retention) ----------
 function logConnect(rawIp, sessionId, userAgent) {
-  if (!ready) return;
+  if (!ready || !STORE_SESSION_LOGS) return;
   try {
     const ipHash = hashIp(rawIp);
     const stmt = db.prepare(
@@ -215,7 +227,7 @@ function logConnect(rawIp, sessionId, userAgent) {
 }
 
 function logDisconnect(sessionId) {
-  if (!ready) return;
+  if (!ready || !STORE_SESSION_LOGS) return;
   try {
     db.prepare(
       "UPDATE sessions_log SET disconnected_at = ? WHERE session_id = ? AND disconnected_at IS NULL"
@@ -224,7 +236,7 @@ function logDisconnect(sessionId) {
 }
 
 function purgeOldSessions() {
-  if (!ready) return 0;
+  if (!ready || !STORE_SESSION_LOGS) return 0;
   try {
     const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
     const info = db.prepare("DELETE FROM sessions_log WHERE connected_at < ?").run(cutoff);
@@ -233,7 +245,7 @@ function purgeOldSessions() {
 }
 
 function listSessions({ since = 0, until = Date.now(), ipHash = null, limit = 500 } = {}) {
-  if (!ready) return [];
+  if (!ready || !STORE_SESSION_LOGS) return [];
   try {
     let sql = "SELECT * FROM sessions_log WHERE connected_at >= ? AND connected_at <= ?";
     const args = [since, until];
@@ -265,7 +277,8 @@ function getStats() {
       reports: db.prepare("SELECT COUNT(*) AS c FROM reports").get().c,
       unreviewed: db.prepare("SELECT COUNT(*) AS c FROM reports WHERE reviewed = 0").get().c,
       strikes: db.prepare("SELECT COUNT(*) AS c FROM strikes").get().c,
-      sessions: db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c,
+      sessions: STORE_SESSION_LOGS ? db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c : 0,
+      sessionLogging: STORE_SESSION_LOGS,
     };
   } catch (e) { console.error("[db] getStats:", e.message); return null; }
 }
@@ -278,5 +291,6 @@ module.exports = {
   saveStrike, deleteStrike, loadAllStrikes,
   logConnect, logDisconnect, purgeOldSessions,
   listSessions, getSessionCount,
+  isSessionLoggingEnabled: () => STORE_SESSION_LOGS,
   getStats,
 };
