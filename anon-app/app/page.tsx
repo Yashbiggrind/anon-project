@@ -208,7 +208,7 @@ export default function Home() {
   const dmLastTypingRef = useRef(0);
 
   const [toast, setToast] = useState<string | null>(null);
-  const [privacyReview, setPrivacyReview] = useState<{ scope: "public" | "room" | "dm"; text: string; findings: string[] } | null>(null);
+  const [privacyReview, setPrivacyReview] = useState<{ scope: "public" | "room" | "dm"; text: string; findings: string[]; action?: "edit" | "image"; messageId?: string; roomId?: string; image?: string; replyTo?: ChatMessage["replyTo"] } | null>(null);
   const [privacyToolsOpen, setPrivacyToolsOpen] = useState(false);
   const [localPrivacyGuard, setLocalPrivacyGuard] = useState(true);
   const [ephemeralMode, setEphemeralMode] = useState(false);
@@ -1099,13 +1099,27 @@ export default function Home() {
   const submitEdit = useCallback(() => {
     const text = editingText.trim();
     if (!text || !editingId) return;
+    if (localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) {
+        setPrivacyReview({
+          scope: editingRoomId ? "room" : "public",
+          text,
+          findings,
+          action: "edit",
+          messageId: editingId,
+          roomId: editingRoomId ?? undefined,
+        });
+        return;
+      }
+    }
     socketRef.current?.emit("message:edit", { messageId: editingId, content: text, roomId: editingRoomId ?? undefined }, () => {});
     const now = Date.now();
     setMessages((p) => p.map((m) => (m.id === editingId ? { ...m, content: text, editedAt: now } : m)));
     setPrivateMessages((p) => p.map((m) => (m.id === editingId ? { ...m, content: text, editedAt: now } : m)));
     if (!ephemeralModeRef.current) void persistUpdate(editingId, { content: text, editedAt: now });
     setEditingId(null); setEditingText(""); setEditingRoomId(null);
-  }, [editingText, editingId, editingRoomId]);
+  }, [editingText, editingId, editingRoomId, localPrivacyGuard]);
 
   const deleteMessage = useCallback((m: ChatMessage, roomId?: string) => {
     socketRef.current?.emit("message:delete", { messageId: m.id, roomId }, () => {});
@@ -1249,20 +1263,36 @@ export default function Home() {
     setImageUploading(true);
     try {
       const b64 = await compressImage(file);
+      if (imageTarget === "room" && !room) { showToast("No room"); return; }
+      const caption = imageTarget === "public"
+        ? (inputRef.current?.value ?? "").trim()
+        : (privateInputRef.current?.value ?? "").trim();
       const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
+      if (localPrivacyGuard) {
+        const findings = inspectSensitiveText(caption);
+        if (findings.length) {
+          setPrivacyReview({
+            scope: imageTarget,
+            text: caption,
+            findings,
+            action: "image",
+            image: b64,
+            replyTo: replyPayload,
+            roomId: imageTarget === "room" ? room?.roomId : undefined,
+          });
+          return;
+        }
+      }
       if (imageTarget === "public") {
-        const caption = (inputRef.current?.value ?? "").trim();
         socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
+          else if (inputRef.current) inputRef.current.value = "";
         });
-        if (inputRef.current) inputRef.current.value = "";
       } else {
-        if (!room) { showToast("No room"); return; }
-        const caption = (privateInputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
+        socketRef.current?.emit("room:image", { roomId: room!.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
+          else if (privateInputRef.current) privateInputRef.current.value = "";
         });
-        if (privateInputRef.current) privateInputRef.current.value = "";
       }
       setReplyTo(null);
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Image failed"); }
@@ -1381,12 +1411,52 @@ export default function Home() {
   function sendReviewedMessage() {
     if (!privacyReview) return;
     const review = privacyReview;
+
+    if (review.action === "edit") {
+      const text = review.text.trim();
+      if (!text || !review.messageId) return;
+      const now = Date.now();
+      socketRef.current?.emit("message:edit", {
+        messageId: review.messageId,
+        content: text,
+        roomId: review.roomId,
+      }, (ack: ServerAck) => {
+        if (!ack?.ok) showToast(ack?.error || "Could not edit message.", 3500, "error");
+      });
+      setMessages((p) => p.map((m) => (m.id === review.messageId ? { ...m, content: text, editedAt: now } : m)));
+      setPrivateMessages((p) => p.map((m) => (m.id === review.messageId ? { ...m, content: text, editedAt: now } : m)));
+      if (!ephemeralModeRef.current) void persistUpdate(review.messageId, { content: text, editedAt: now });
+      setEditingId(null); setEditingText(""); setEditingRoomId(null);
+      setPrivacyReview(null);
+      return;
+    }
+
     const field = review.scope === "public"
       ? inputRef.current
       : review.scope === "room"
         ? privateInputRef.current
         : dmInputRef.current;
     if (field) field.value = review.text;
+
+    if (review.action === "image") {
+      if (!review.image) return;
+      if (review.scope === "public") {
+        socketRef.current?.emit("chat:public:image", { image: review.image, caption: review.text, replyTo: review.replyTo }, (ack: ServerAck) => {
+          if (!ack?.ok) { showToast(ack?.error || "Failed to send image.", 3500, "error"); return; }
+          if (inputRef.current) inputRef.current.value = "";
+          setReplyTo(null);
+        });
+      } else if (review.scope === "room" && review.roomId) {
+        socketRef.current?.emit("room:image", { roomId: review.roomId, image: review.image, caption: review.text, replyTo: review.replyTo }, (ack: ServerAck) => {
+          if (!ack?.ok) { showToast(ack?.error || "Failed to send image.", 3500, "error"); return; }
+          if (privateInputRef.current) privateInputRef.current.value = "";
+          setReplyTo(null);
+        });
+      }
+      setPrivacyReview(null);
+      return;
+    }
+
     setPrivacyReview(null);
     if (review.scope === "public") sendMessage(true);
     else if (review.scope === "room") sendPrivate(true);
@@ -1396,13 +1466,27 @@ export default function Home() {
   function redactReviewedMessage() {
     if (!privacyReview) return;
     const review = privacyReview;
+    const redacted = redactSensitiveText(review.text);
+
+    if (review.action === "image") {
+      setPrivacyReview({ ...review, text: redacted });
+      showToast("Suggested redactions applied to the image caption. Review the caption before sharing.", 4000, "success");
+      return;
+    }
+    if (review.action === "edit") {
+      setEditingText(redacted);
+      setPrivacyReview(null);
+      showToast("Suggested redactions applied to the edited text. Review it and save the edit.", 4000, "success");
+      return;
+    }
+
     const field = review.scope === "public"
       ? inputRef.current
       : review.scope === "room"
         ? privateInputRef.current
         : dmInputRef.current;
     if (field) {
-      field.value = redactSensitiveText(review.text);
+      field.value = redacted;
       field.focus();
     }
     setPrivacyReview(null);
