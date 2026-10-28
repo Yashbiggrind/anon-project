@@ -1811,7 +1811,7 @@ export default function Home() {
     <>
       {!connected && <div className="reconnectBar">{t("connectionLost")}</div>}
 
-      <div className="privacyDock">
+      <div className={`privacyDock ${section !== null ? "privacyDockInChat" : ""}`}>
         {privacyToolsOpen && (
           <div className="privacyDockPanel" id="privacy-dock-panel" role="dialog" aria-label="Privacy controls">
             <div className="privacyDockPanelHead">
