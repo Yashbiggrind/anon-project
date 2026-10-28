@@ -2071,7 +2071,7 @@ function initBots() {
       sessionId,
       spamKey,
       ip: "bot",
-      username: profile.name,
+      username: "AI · " + profile.name,
       accent: "#ff2d55",
       status: "available",
       blocked: new Map(),
@@ -2153,7 +2153,7 @@ async function botPublicChat() {
         id: "bot_" + Math.random().toString(36).slice(2, 10),
         senderSessionId: "bot_" + profile.name,
         senderSpamKey: "bot:" + profile.name,
-        senderName: profile.name,
+        senderName: "AI · " + profile.name,
         content,
         createdAt: Date.now(),
         isBot: true
