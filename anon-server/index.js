@@ -51,6 +51,7 @@ function corsOrigin(origin, cb) {
 const sessions = new Map();
 const socketBySession = new Map();
 const invites = new Map();
+const INVITE_TTL_MS = 10 * 60 * 1000;
 const rooms = new Map();
 const sessionRooms = new Map();
 const dmThreads = new Map();
@@ -191,6 +192,23 @@ setInterval(() => {
   for (const room of rooms.values()) {
     for (const [sid, until] of room.timeouts) {
       if (until <= now) room.timeouts.delete(sid);
+    }
+  }
+  // Invitations expire after ten minutes so forgotten invites and their identity
+  // references do not remain in memory indefinitely.
+  for (const [inviteId, invite] of invites) {
+    if (now - invite.createdAt < INVITE_TTL_MS) continue;
+    invites.delete(inviteId);
+    const recipientSocketId = findSocketBySession(invite.recipientSessionId);
+    if (recipientSocketId) io.to(recipientSocketId).emit("invite:expired", { inviteId });
+    const inviteRoom = rooms.get(invite.roomId);
+    if (inviteRoom && inviteRoom.status === "active") {
+      for (const p of inviteRoom.participants) {
+        const sid = findSocketBySession(p.sessionId);
+        if (sid) io.to(sid).emit("room:invite:resolved", {
+          inviteId, accepted: false, reason: "expired", at: now,
+        });
+      }
     }
   }
   for (const [threadId, thread] of dmThreads) {
@@ -972,9 +990,9 @@ io.on("connection", (socket) => {
           sessionId: getRoomMemberId(room, inv.senderSessionId),
           username: getRoomAlias(room, inv.senderSessionId, inv.senderName),
         },
-        recipientSessionId: getRoomMemberId(room, inv.recipientSessionId),
-        recipientUsername: getRoomAlias(room, inv.recipientSessionId, sessions.get(findSocketBySession(inv.recipientSessionId) || inv.recipientSessionId)?.username || "Guest"),
         identityScope: "room",
+        // Do not create an identity alias/token for a person who has not joined.
+        recipient: "Pending invite",
         message: inv.message || "",
         createdAt: inv.createdAt,
       });
@@ -1447,8 +1465,6 @@ io.on("connection", (socket) => {
         io.to(sid).emit("room:invite:pending", {
           inviteId,
           from: { sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username) },
-          recipientSessionId: getRoomMemberId(room, found.sessionId),
-          recipientUsername: getRoomAlias(room, found.sessionId, found.username),
           roomId,
           message: inviteMessage,
           identityScope: "room",
@@ -1464,7 +1480,10 @@ io.on("connection", (socket) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
     const inv = invites.get(inviteId);
-    if (!inv) return ack?.({ ok: false, error: "Invitation expired" });
+    if (!inv || Date.now() - inv.createdAt >= INVITE_TTL_MS) {
+      if (inv) invites.delete(inviteId);
+      return ack?.({ ok: false, error: "Invitation expired" });
+    }
     if (inv.recipientSessionId !== s.sessionId) return ack?.({ ok: false, error: "Not your invitation" });
     invites.delete(inviteId);
 
