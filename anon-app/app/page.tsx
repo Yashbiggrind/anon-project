@@ -46,6 +46,7 @@ type ChatMessage = {
   id: string;
   senderSessionId: string;
   senderName: string;
+  identityScope?: "room";
   content: string;
   createdAt: number;
   editedAt?: number;
@@ -2387,7 +2388,7 @@ export default function Home() {
                         })}
 
                         {visiblePrivateMessages.map((m) => {
-                          const mine = m.localSent === true || m.senderSessionId === identity?.sessionId;
+                          const mine = m.localSent === true || m.senderSessionId === room?.myMemberId;
                           return (
                             <MessageBubble
                               key={m.id}
