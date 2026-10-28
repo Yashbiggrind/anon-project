@@ -636,6 +636,10 @@ export default function Home() {
       showToast(libTranslate(langRef.current, "invitationReceived", { name: inv.from.username, cap: inv.capacity }), 3000);
     });
     socket.on("invite:declined", () => showToast(libTranslate(langRef.current, "invitationDeclined")));
+    socket.on("invite:expired", ({ inviteId }: { inviteId: string }) => {
+      setInvites((p) => p.filter((invite) => invite.inviteId !== inviteId));
+      showToast("An invitation expired after 10 minutes.", 2800, "info");
+    });
 
     socket.on("room:update", (r: PrivateRoom) => { setRoom(r); setSection("private"); });
 
