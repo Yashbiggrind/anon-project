@@ -363,12 +363,16 @@ function finishElection() {
 // and never persisted. Internal moderation continues to use private server-side IDs.
 function ensureRoomPrivacyMaps(room) {
   if (!(room.roomAliases instanceof Map)) room.roomAliases = new Map();
+  if (!(room.roomGlobalNames instanceof Map)) room.roomGlobalNames = new Map();
   if (!(room.memberIds instanceof Map)) room.memberIds = new Map();
   if (!(room.sessionsByMemberId instanceof Map)) room.sessionsByMemberId = new Map();
 }
 
 function getRoomAlias(room, sessionId, fallbackName = "Anonymous") {
   ensureRoomPrivacyMaps(room);
+  if (!room.roomGlobalNames.has(sessionId) && typeof fallbackName === "string" && fallbackName) {
+    room.roomGlobalNames.set(sessionId, fallbackName);
+  }
   if (room.roomAliases.has(sessionId)) return room.roomAliases.get(sessionId);
   const used = new Set(room.roomAliases.values());
   const isBot = String(sessionId).startsWith("bot_") || String(fallbackName).startsWith("AI · ");
@@ -402,17 +406,26 @@ function resolveRoomMemberId(room, presentedMemberId) {
 
 function getRoomAliasForName(room, name) {
   if (typeof name !== "string" || !name) return name;
-  const active = room.participants.find((p) => p.username === name);
-  if (active) return getRoomAlias(room, active.sessionId, active.username);
-  // Keep leave/kick events room-scoped even when the participant was just removed.
   ensureRoomPrivacyMaps(room);
-  for (const [sessionId, alias] of room.roomAliases) {
-    const socketId = findSocketBySession(sessionId);
-    const session = sessions.get(socketId || sessionId);
-    if (session?.username === name) return alias;
+
+  // A room alias can safely pass through system-event formatting unchanged.
+  if ([...room.roomAliases.values()].includes(name)) return name;
+
+  // Ensure every current participant has an alias before resolving a display name.
+  for (const participant of room.participants) {
+    getRoomAlias(room, participant.sessionId, participant.username);
   }
-  // Fail closed: do not fall back to a global username in a room-scoped event.
-  return "A room member";
+
+  // Global names are not guaranteed unique. Only map a name when exactly one
+  // session in this room-history scope owns it; ambiguity fails closed.
+  const matches = [];
+  for (const [sessionId, globalName] of room.roomGlobalNames) {
+    if (globalName === name) {
+      const alias = room.roomAliases.get(sessionId);
+      if (alias) matches.push(alias);
+    }
+  }
+  return matches.length === 1 ? matches[0] : "A room member";
 }
 
 function publicRoom(r, viewerSessionId) {
