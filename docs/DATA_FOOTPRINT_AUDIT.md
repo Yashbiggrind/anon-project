@@ -45,7 +45,7 @@ ANON currently provides pseudonymous access and local convenience controls, but 
 2. **Complete write-path inventory:** verify message edits/deletes, images, confessions, exports, admin views, notifications, bot context and errors for unexpected content persistence.
 3. **Provider and infrastructure inventory:** document deployment logs, CDN/WAF, hosting, database backup schedules, analytics/telemetry and model providers using actual configuration and terms.
 4. **User data export/deletion:** specify which data is removable, which safety/legal records may remain, and the actual backup expiry window; provide a receipt that states limits accurately.
-5. **Per-room identity separation:** avoid a permanent public identifier across rooms while preserving scoped abuse controls.
+5. **Residual identity correlation:** room-scoped aliases and opaque member tokens are now implemented for private-room events. Review linkability from presence, timing, network metadata and a participant's own actions; the server still keeps a room-local mapping while the room exists.
 6. **Tests and independent review:** run the exact deployable build; test retention, access control, tampering, rate limits and key lifecycle; obtain independent security review before stronger promises.
 
 ## Safe language for product copy
