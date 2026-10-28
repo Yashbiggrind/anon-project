@@ -252,24 +252,18 @@ const io = new Server(server, {
 });
 
 // ---------- helpers ----------
-const AVATAR_COLORS = new Set([
-  "#ffb84d", "#56d8ff", "#ff4f7f", "#9aef61",
-  "#b9a0ff", "#ffe45b", "#ff8960", "#53e2b7",
-  "#78a7ff", "#ff91cd", "#d5f263", "#8ce8f2",
-  "#ffa45e", "#c5efff", "#ee74b2", "#a5ef77",
-  "#17070d", "#10070b",
-]);
 const AVATAR_CELL_COUNT = 49;
+const isAvatarHexColor = (value) => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 
 function sanitizeAvatarDesign(value) {
   if (!value || typeof value !== "object") return null;
-  if (typeof value.background !== "string" || !AVATAR_COLORS.has(value.background)) return null;
+  if (!isAvatarHexColor(value.background)) return null;
   if (!Array.isArray(value.cells) || value.cells.length !== AVATAR_CELL_COUNT) return null;
   return {
-    background: value.background,
+    background: value.background.toLowerCase(),
     cells: value.cells.map((cell) => (
       cell == null || cell === "" ? null :
-        (typeof cell === "string" && AVATAR_COLORS.has(cell) ? cell : null)
+        (isAvatarHexColor(cell) ? cell.toLowerCase() : null)
     )),
   };
 }

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState, useCallback, startTransition, memo } from 
 import type { CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
-import AvatarCustomizer from "@/components/AvatarCustomizer";
-import { type AvatarDesign, loadSessionAvatarDesign, saveSessionAvatarDesign, setOwnAvatarSession, setAvatarDesignForSession, syncAvatarPresence } from "@/lib/avatarDesign";
+import ProfileBlockEditor from "@/components/ProfileBlockEditor";
+import { type AvatarDesign, loadSessionAvatarDesign, saveSessionAvatarDesign, setOwnAvatarSession, syncAvatarPresence } from "@/lib/avatarDesign";
 import ConfessionTab from "@/components/ConfessionTab";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -517,13 +517,13 @@ export default function Home() {
 
     socket.on("session:ready", (s: Identity) => {
       selfRef.current = s.sessionId;
-      setIdentity(s);
-      setOwnAvatarSession(s.sessionId, s.avatarDesign ?? null);
-      if (s.username) localStorage.setItem(LS_USERNAME, s.username);
-      // Carry this tab's session-only avatar into a newly assigned anonymous session.
+      // Restore only the current tab's saved design; identity and design remain session-scoped.
       const savedDesign = loadSessionAvatarDesign();
+      const activeDesign = s.avatarDesign ?? savedDesign;
+      setIdentity({ ...s, avatarDesign: activeDesign });
+      setOwnAvatarSession(s.sessionId, activeDesign);
+      if (s.username) localStorage.setItem(LS_USERNAME, s.username);
       if (savedDesign && !s.avatarDesign) {
-        setAvatarDesignForSession(s.sessionId, savedDesign);
         socket.emit("avatar:update", { design: savedDesign }, (ack: ServerAck) => {
           if (ack && !ack.ok) console.warn("[avatar] live sync failed:", ack.error);
         });
@@ -1716,6 +1716,24 @@ export default function Home() {
               <button className="iconBtn" onClick={toggleMute} title={muted ? t("unmuteTitle") : t("muteTitle")}>
                 {muted ? "🔇" : "🔊"}
               </button>
+
+              <button
+                type="button"
+                className="globalProfileDock"
+                onClick={() => setAvatarEditorOpen(true)}
+                aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
+                title="Open your pixel profile"
+              >
+                <span className="globalProfileDockAvatar">
+                  <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={34} />
+                  <span className="globalProfileDockStatus" />
+                </span>
+                <span className="globalProfileDockCopy">
+                  <b>{identity?.username ?? "YOUR PROFILE"}</b>
+                  <small>PROFILE / EDIT BLOCKS</small>
+                </span>
+                <span className="globalProfileDockChevron">↗</span>
+              </button>
             </div>
           </header>
 
@@ -2629,8 +2647,9 @@ export default function Home() {
       )}
 
       {avatarEditorOpen && (
-        <AvatarCustomizer
+        <ProfileBlockEditor
           name={identity?.username ?? "anonymous"}
+          sessionId={identity?.sessionId}
           initialDesign={identity?.avatarDesign ?? null}
           onSave={handleSaveAvatarDesign}
           onClose={() => setAvatarEditorOpen(false)}
