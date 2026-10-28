@@ -151,9 +151,9 @@ export default function DataPage() {
       <style>{CSS}</style>
       <div className="dlRoot">
         <div className="dlHead">
-          <div className="eyebrow">{"// DATA LOG"}</div>
-          <h1>See what&apos;s on your device. Wipe it in one click.</h1>
-          <p>This report lists localStorage keys only. It does not include server-side connection metadata or active in-memory chat state.</p>
+          <div className="eyebrow">{"// LOCAL DATA CONTROLS"}</div>
+          <h1>See what this browser keeps. Clear it when you choose.</h1>
+          <p>This report shows localStorage only. Saved message history is stored separately in this browser. Clearing local data does not delete server-side anti-abuse records or copies already held by other people.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -177,7 +177,7 @@ export default function DataPage() {
           <button className="btn" onClick={exportCsv}>↓ EXPORT CSV</button>
           <button className="btn" onClick={copyAll}>⧉ COPY TO CLIPBOARD</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
-          <button className="btn danger" onClick={() => setConfirm(true)}>✕ WIPE EVERYTHING</button>
+          <button className="btn danger" onClick={() => setConfirm(true)}>✕ CLEAR LOCAL DATA</button>
         </div>
 
         {toast && <div className="toast">{toast}</div>}
@@ -203,11 +203,11 @@ export default function DataPage() {
         {confirm && (
           <div className="modalBg" onClick={() => setConfirm(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Wipe everything?</h3>
-              <p>This clears ANON localStorage, sessionStorage, saved chat messages in IndexedDB, app cache entries, and the service-worker registration. Another open ANON tab may temporarily prevent database deletion. This cannot be undone.</p>
+              <h3>Clear local data?</h3>
+              <p>This clears ANON localStorage, sessionStorage, saved chat messages in IndexedDB, app cache entries, and the service-worker registration in this browser. It does not remove server-side anti-abuse records, external backups, screenshots, or recipients’ copies. Another open ANON tab may temporarily prevent database deletion. This cannot be undone.</p>
               <div className="modalRow">
                 <button className="btn" onClick={() => setConfirm(false)}>CANCEL</button>
-                <button className="btn danger" onClick={wipe}>YES, WIPE</button>
+                <button className="btn danger" onClick={wipe}>YES, CLEAR LOCAL DATA</button>
               </div>
             </div>
           </div>
