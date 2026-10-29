@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { clearAll, destroyStore } from "@/lib/messageStore";
+import { clearAll, destroyStore, exportAllMessages } from "@/lib/messageStore";
+import { list as listOfflineQueue } from "@/lib/offlineQueue";
 
 type Snapshot = {
   exportedAt: string;
@@ -86,10 +87,46 @@ export default function DataPage() {
     setTimeout(() => setToast(""), 2200);
   }
 
-  function exportJson() {
-    if (!snap) return;
-    download(`anon-data-${Date.now()}.json`, JSON.stringify(snap, null, 2), "application/json");
-    flash("JSON downloaded.");
+  async function exportJson() {
+    if (!snap || typeof window === "undefined") return;
+    const localStorageEntries: Array<{ key: string; value: string | null }> = [];
+    let localStorageComplete = true;
+
+    try {
+      for (let i = 0; i < window.localStorage.length; i++) {
+        const key = window.localStorage.key(i);
+        if (key) localStorageEntries.push({ key, value: window.localStorage.getItem(key) });
+      }
+    } catch {
+      localStorageComplete = false;
+    }
+
+    const [messageHistory, offlineQueue] = await Promise.all([
+      exportAllMessages(),
+      Promise.resolve(listOfflineQueue()),
+    ]);
+    const bundle = {
+      format: "ANON_LOCAL_DATA_EXPORT",
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      origin: window.location.origin,
+      scope: "This browser profile only. This is not a server-side account export.",
+      completeness: {
+        localStorage: localStorageComplete ? "read" : "partial",
+        indexedDbHistory: "retained records after local expiry cleanup",
+        offlineQueue: "current queued messages",
+        serverRecords: "not included",
+        browserAndProviderLogs: "not included",
+        otherDevicesAndRecipientCopies: "not included",
+      },
+      localStorage: localStorageEntries,
+      messageHistory,
+      offlineQueue,
+    };
+    download(`anon-local-data-${Date.now()}.json`, JSON.stringify(bundle, null, 2), "application/json");
+    flash(localStorageComplete
+      ? `Local data bundle downloaded: ${messageHistory.length} retained messages and ${offlineQueue.length} queued messages. Keep this file private.`
+      : "A partial local data bundle was downloaded because some browser storage could not be read.");
   }
 
   function exportCsv() {
@@ -161,7 +198,7 @@ export default function DataPage() {
         <div className="dlHead">
           <div className="eyebrow">{"// LOCAL DATA CONTROLS"}</div>
           <h1>See what this browser keeps. Clear it when you choose.</h1>
-          <p>This report shows localStorage only—not all browser or server data. Value previews are hidden by default because they may contain names or message fragments. Reveal them only when nobody else can see your screen. Exports contain this localStorage report, not IndexedDB message history. Clearing local data does not delete server-side records, hosting logs, older backups or other people’s copies.</p>
+          <p>Inspect what this browser stores, export a local data bundle, or clear local data. The bundle can include message text, local settings and queued messages, so keep it private. This page cannot access server records, hosting logs, old backups, other devices or recipient copies.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -181,8 +218,8 @@ export default function DataPage() {
         </div>
 
         <div className="actions">
-          <button className="btn" onClick={exportJson}>↓ EXPORT JSON</button>
-          <button className="btn" onClick={exportCsv}>↓ EXPORT CSV</button>
+          <button className="btn pri" onClick={exportJson}>↓ EXPORT LOCAL DATA BUNDLE</button>
+          <button className="btn" onClick={exportCsv}>↓ EXPORT STORAGE REPORT CSV</button>
           <button className="btn" onClick={copyAll}>⧉ COPY TO CLIPBOARD</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
           <button className="btn" onClick={() => setRevealPreviews((show) => !show)} aria-pressed={revealPreviews}>{revealPreviews ? "HIDE PREVIEWS" : "REVEAL PREVIEWS"}</button>
