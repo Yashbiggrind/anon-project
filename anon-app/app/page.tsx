@@ -1866,7 +1866,7 @@ export default function Home() {
             <div style={{ color: "#ff7897", fontSize: 10, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase" }}>ANON · LOCAL PRIVACY GUARD</div>
             <h2 id="privacy-review-title" style={{ margin: "12px 0 8px", fontSize: 26, lineHeight: 1.1, letterSpacing: "-.04em" }}>{privacyReview.action === "image" ? "Check the caption before sharing" : privacyReview.action === "edit" ? "Check this edit before saving" : "A quick check before you send"}</h2>
             <p style={{ margin: "0 0 16px", color: "#cbb7c0", fontSize: 13, lineHeight: 1.7 }}>This check runs on your device. It noticed something that may identify you or expose an account detail. Nothing was sent because of this check.</p>
-            {privacyReview.action === "image" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>Only the caption is checked. ANON does not scan the image pixels for names, addresses or other text.</p>}
+            {privacyReview.action === "image" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>Only the caption is checked; image pixels are not scanned. The image is re-encoded locally as JPEG to remove common embedded metadata, which may remove animation or transparency.</p>}
             {privacyReview.action === "edit" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>This check applies to edits as well as new messages. You can apply redactions and review the edit before saving it.</p>}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
               {privacyReview.findings.map((finding) => <span key={finding} style={{ color: "#ffd7e1", border: "1px solid #512538", borderRadius: 999, padding: "7px 10px", fontSize: 11, background: "#190a10" }}>{finding}</span>)}
@@ -2299,7 +2299,7 @@ export default function Home() {
                     onChange={() => notifyTyping("public")}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   />
-                  <button className="attachBtn" onClick={() => openImagePicker("public")} title="Send image" disabled={imageUploading}>
+                  <button className="attachBtn" onClick={() => openImagePicker("public")} title="Image is re-encoded locally as JPEG to remove common metadata; animation and transparency may be lost." aria-label="Attach image (locally re-encoded as JPEG)" disabled={imageUploading}>
                     {imageUploading ? "…" : "📎"}
                   </button>
                   <button className="emojiBtn" onClick={() => setEmojiOpen(!emojiOpen)} title="Emoji">😊</button>
@@ -2539,7 +2539,7 @@ export default function Home() {
                           onChange={() => notifyTyping("room")}
                           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrivate(); } }}
                         />
-                        <button className="attachBtn" onClick={() => openImagePicker("room")} title="Send image" disabled={imageUploading}>
+                        <button className="attachBtn" onClick={() => openImagePicker("room")} title="Image is re-encoded locally as JPEG to remove common metadata; animation and transparency may be lost." aria-label="Attach image (locally re-encoded as JPEG)" disabled={imageUploading}>
                           {imageUploading ? "…" : "📎"}
                         </button>
                         <button className="emojiBtn" onClick={() => setEmojiOpen(!emojiOpen)} title="Emoji">😊</button>
