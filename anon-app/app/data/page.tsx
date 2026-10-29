@@ -70,6 +70,7 @@ export default function DataPage() {
   const router = useRouter();
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [toast, setToast] = useState("");
+  const [toastKind, setToastKind] = useState<"success" | "warning">("success");
   const [confirm, setConfirm] = useState(false);
   const [revealPreviews, setRevealPreviews] = useState(false);
 
@@ -82,9 +83,10 @@ export default function DataPage() {
     return () => window.clearTimeout(timer);
   }, []);
 
-  function flash(msg: string) {
+  function flash(msg: string, kind: "success" | "warning" = "success") {
     setToast(msg);
-    setTimeout(() => setToast(""), 2200);
+    setToastKind(kind);
+    setTimeout(() => setToast(""), 2600);
   }
 
   async function exportJson() {
@@ -135,7 +137,7 @@ export default function DataPage() {
     download(`anon-local-data-${Date.now()}.json`, JSON.stringify(bundle, null, 2), "application/json");
     flash(localStorageComplete && indexedDbStatus === "read"
       ? `Local data bundle downloaded: ${messageHistory.length} retained messages and ${offlineQueue.length} queued messages. Keep this file private.`
-      : "A partial local data bundle was downloaded because some browser storage could not be read.");
+      : "A partial local data bundle was downloaded because some browser storage could not be read.", "warning");
   }
 
   function exportCsv() {
@@ -150,7 +152,7 @@ export default function DataPage() {
       await navigator.clipboard.writeText(JSON.stringify(snap, null, 2));
       flash("Copied to clipboard.");
     } catch {
-      flash("Clipboard blocked.");
+      flash("Clipboard access was blocked by the browser.", "warning");
     }
   }
 
@@ -193,8 +195,8 @@ export default function DataPage() {
     refresh();
     setConfirm(false);
     flash(failures.length
-      ? "Wipe completed with limits: " + failures.join(", ") + ". Close other ANON tabs and retry."
-      : "ANON local data cleared. Close other ANON tabs to finish a full device wipe.");
+      ? "Local clear completed with limits: " + failures.join(", ") + ". Close other ANON tabs and retry."
+      : "ANON local data cleared. Close other ANON tabs to finish the local wipe.", failures.length ? "warning" : "success");
     window.setTimeout(() => router.replace("/"), 1800);
   }
 
@@ -227,15 +229,15 @@ export default function DataPage() {
         </div>
 
         <div className="actions">
-          <button className="btn pri" onClick={exportJson}>↓ EXPORT LOCAL DATA BUNDLE</button>
-          <button className="btn" onClick={exportCsv}>↓ EXPORT STORAGE REPORT CSV</button>
-          <button className="btn" onClick={copyAll}>⧉ COPY TO CLIPBOARD</button>
+          <button className="btn pri" onClick={exportJson} disabled={!snap}>↓ EXPORT LOCAL DATA BUNDLE</button>
+          <button className="btn" onClick={exportCsv} disabled={!snap}>↓ EXPORT STORAGE REPORT CSV</button>
+          <button className="btn" onClick={copyAll} disabled={!snap}>⧉ COPY STORAGE REPORT</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
           <button className="btn" onClick={() => setRevealPreviews((show) => !show)} aria-pressed={revealPreviews}>{revealPreviews ? "HIDE PREVIEWS" : "REVEAL PREVIEWS"}</button>
           <button className="btn danger" onClick={() => setConfirm(true)}>✕ CLEAR LOCAL DATA</button>
         </div>
 
-        {toast && <div className="toast">{toast}</div>}
+        {toast && <div className={"toast " + (toastKind === "warning" ? "warning" : "")} role="status" aria-live="polite">{toast}</div>}
 
         <div className="table">
           <div className="tHead">
@@ -295,12 +297,17 @@ const CSS = `
   .actions{max-width:1000px;margin:0 auto 16px;display:flex;gap:8px;flex-wrap:wrap;}
   .btn{padding:9px 14px;background:#160409;border:1px solid #4a0a14;border-radius:6px;color:#ff5875;font-family:inherit;font-size:10.5px;letter-spacing:1.6px;font-weight:700;text-transform:uppercase;cursor:pointer;transition:all .2s;}
   .btn:hover{background:#22060d;border-color:#e11d48;color:#fff;}
+  .btn:disabled{opacity:.4;cursor:not-allowed;}
+  .btn.pri{background:linear-gradient(135deg,#9e1738,#5f0a20);border-color:#ff5875;color:#fff;}
+  .btn.pri:hover:not(:disabled){background:linear-gradient(135deg,#bf2449,#7b102a);border-color:#ff8da4;}
+  .btn:focus-visible{outline:2px solid #ff8199;outline-offset:3px;}
   .btn.refresh{color:#8a7276;border-color:#2a0a12;}
   .btn.refresh:hover{color:#e8dde2;border-color:#4a0a14;}
   .btn.danger{color:#ff5875;border-color:#7a0a1c;}
   .btn.danger:hover{background:#3a0510;color:#fff;}
 
-  .toast{max-width:1000px;margin:0 auto 12px;padding:10px 14px;background:rgba(53,210,124,.1);border:1px solid rgba(53,210,124,.5);border-radius:6px;color:#7dffa8;font-size:11.5px;letter-spacing:.5px;}
+  .toast{max-width:1000px;margin:0 auto 12px;padding:12px 14px;background:rgba(53,210,124,.08);border:1px solid rgba(53,210,124,.38);border-radius:8px;color:#b7f1ce;font:12px/1.6 Inter,ui-sans-serif,system-ui,sans-serif;}
+  .toast.warning{background:rgba(255,179,82,.08);border-color:rgba(255,179,82,.4);color:#ffcf9b;}
 
   .table{max-width:1000px;margin:0 auto;background:linear-gradient(180deg,#0c0407,#060103);border:1px solid #25080f;border-radius:10px;overflow:hidden;}
   .tHead{display:grid;grid-template-columns:1.4fr .6fr 2fr;gap:10px;padding:12px 16px;background:#0a0205;border-bottom:1px solid #2a0a12;font-size:9.5px;letter-spacing:2px;font-weight:700;color:#5a4048;}
