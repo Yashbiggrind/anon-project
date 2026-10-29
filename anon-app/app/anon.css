@@ -4874,3 +4874,110 @@ a:focus-visible {
   color: #9c8791;
   font: 10px/1.5 Inter, ui-sans-serif, system-ui, sans-serif;
 }
+
+
+/* ============================================================
+   2026 finishing pass — clearer hierarchy, less visual noise,
+   and more consistent interaction behaviour.
+   Preserve ANON's black/crimson identity; refine the typography.
+   ============================================================ */
+:root { color-scheme: dark; }
+.topbar {
+  width: calc(100% - 40px);
+  max-width: 1480px;
+  margin-inline: auto;
+  gap: clamp(10px, 1.4vw, 20px);
+}
+.centerNav {
+  min-width: 0;
+  max-width: 100%;
+  scrollbar-width: none;
+}
+.centerNav::-webkit-scrollbar { display: none; }
+.navItem {
+  padding-inline: clamp(10px, 1.1vw, 16px);
+  font-size: 10px;
+  letter-spacing: .13em !important;
+}
+a.navItem:focus-visible,
+.navItem:focus-visible,
+.doorArch:focus-visible,
+.footLink:focus-visible,
+.langBtn:focus-visible,
+.iconBtn:focus-visible {
+  outline: 2px solid #ff8da4;
+  outline-offset: 3px;
+}
+.anonPanelList li {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  letter-spacing: 0;
+  line-height: 1.8;
+  color: #d5c3cb;
+}
+.anonPanelFooter {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 12px;
+  line-height: 1.65;
+  letter-spacing: 0;
+  font-style: normal;
+  color: #a9959e;
+}
+.doorDesc {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 11px;
+  letter-spacing: .06em;
+  line-height: 1.75;
+  max-width: 240px;
+}
+.hero p {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-size: 13px;
+  line-height: 1.6;
+  letter-spacing: 0;
+}
+.tagsRow { gap: clamp(12px, 2vw, 30px); }
+.doors { gap: clamp(14px, 2vw, 24px); }
+.doorArch {
+  border-color: rgba(125, 37, 59, .82);
+  box-shadow: 0 0 0 1px rgba(255,45,85,.07) inset, 0 18px 48px -34px #000;
+}
+.doorArch:hover {
+  border-color: rgba(255, 92, 124, .78);
+  box-shadow: 0 0 0 1px rgba(255,45,85,.16) inset, 0 22px 58px -38px rgba(225,29,72,.62);
+}
+.foot {
+  font-size: 9px;
+  letter-spacing: .12em;
+}
+.footLink { padding: 6px 8px; }
+.privacyDockFoot {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (max-width: 1100px) {
+  .topbar { width: calc(100% - 24px); }
+  .centerNav { justify-self: stretch; }
+}
+@media (max-width: 640px) {
+  .topbar { width: calc(100% - 16px); margin-top: 6px; }
+  .centerNav { scroll-snap-type: x proximity; }
+  .centerNav .navItem { scroll-snap-align: start; min-height: 38px; }
+  .anonPanelList li { font-size: 12.5px; }
+  .doorArch { min-height: 76px; }
+  .doorDesc { display: none; }
+  .footRight { justify-content: center; row-gap: 6px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto !important; }
+  .marquee-track,
+  .onlineDot,
+  .doorArch,
+  .doorIcon,
+  .doorName,
+  .doorEnter,
+  .flash,
+  .reconnectBar {
+    animation: none !important;
+    transition: none !important;
+  }
+}
