@@ -193,8 +193,9 @@ export async function exportAllMessages(): Promise<StoredMessage[]> {
         ? { ...message, image: undefined }
         : message)
       .sort((a, b) => a.createdAt - b.createdAt);
-  } catch {
-    return [];
+  } catch (error) {
+    // Export callers must be able to distinguish an unavailable store from an empty one.
+    throw error instanceof Error ? error : new Error("Could not read local message history.");
   }
 }
 
