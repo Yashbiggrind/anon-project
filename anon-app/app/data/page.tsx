@@ -11,25 +11,31 @@ type Snapshot = {
   keys: { key: string; sizeBytes: number; preview: string }[];
   totalKeys: number;
   totalBytes: number;
+  storageReadError?: boolean;
 };
 
 function scanLocalStorage(): Snapshot {
   const keys: Snapshot["keys"] = [];
   let total = 0;
+  let storageReadError = false;
   if (typeof window === "undefined") {
     return { exportedAt: new Date().toISOString(), origin: "", keys: [], totalKeys: 0, totalBytes: 0 };
   }
-  for (let i = 0; i < localStorage.length; i++) {
-    const k = localStorage.key(i);
-    if (!k) continue;
-    const v = localStorage.getItem(k) ?? "";
-    const size = new Blob([k + v]).size;
-    total += size;
-    keys.push({
-      key: k,
-      sizeBytes: size,
-      preview: v.length > 80 ? v.slice(0, 80) + "…" : v,
-    });
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (!k) continue;
+      const v = localStorage.getItem(k) ?? "";
+      const size = new Blob([k + v]).size;
+      total += size;
+      keys.push({
+        key: k,
+        sizeBytes: size,
+        preview: v.length > 80 ? v.slice(0, 80) + "…" : v,
+      });
+    }
+  } catch {
+    storageReadError = true;
   }
   return {
     exportedAt: new Date().toISOString(),
@@ -37,6 +43,7 @@ function scanLocalStorage(): Snapshot {
     keys: keys.sort((a, b) => b.sizeBytes - a.sizeBytes),
     totalKeys: keys.length,
     totalBytes: total,
+    storageReadError,
   };
 }
 
@@ -63,6 +70,7 @@ export default function DataPage() {
   const [snap, setSnap] = useState<Snapshot | null>(null);
   const [toast, setToast] = useState("");
   const [confirm, setConfirm] = useState(false);
+  const [revealPreviews, setRevealPreviews] = useState(false);
 
   function refresh() {
     setSnap(scanLocalStorage());
@@ -153,7 +161,7 @@ export default function DataPage() {
         <div className="dlHead">
           <div className="eyebrow">{"// LOCAL DATA CONTROLS"}</div>
           <h1>See what this browser keeps. Clear it when you choose.</h1>
-          <p>This report shows localStorage only. Saved message history is stored separately in this browser. Clearing local data does not delete server-side records or other people’s copies. In this branch, reviewed reports older than 90 days and inactive strikes older than 30 days after cooldown/ban expiry are purged from the active database; unreviewed reports remain pending review. Hosting logs and older backups are separate.</p>
+          <p>This report shows localStorage only—not all browser or server data. Value previews are hidden by default because they may contain names or message fragments. Reveal them only when nobody else can see your screen. Exports contain this localStorage report, not IndexedDB message history. Clearing local data does not delete server-side records, hosting logs, older backups or other people’s copies.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -177,6 +185,7 @@ export default function DataPage() {
           <button className="btn" onClick={exportCsv}>↓ EXPORT CSV</button>
           <button className="btn" onClick={copyAll}>⧉ COPY TO CLIPBOARD</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
+          <button className="btn" onClick={() => setRevealPreviews((show) => !show)} aria-pressed={revealPreviews}>{revealPreviews ? "HIDE PREVIEWS" : "REVEAL PREVIEWS"}</button>
           <button className="btn danger" onClick={() => setConfirm(true)}>✕ CLEAR LOCAL DATA</button>
         </div>
 
@@ -188,14 +197,17 @@ export default function DataPage() {
             <span>SIZE</span>
             <span>PREVIEW</span>
           </div>
-          {snap && snap.keys.length === 0 && (
-            <div className="tEmpty">No local data found. Clean slate.</div>
+          {snap?.storageReadError && (
+            <div className="storageNotice" role="status">Browser storage could not be read completely. Review browser permissions or try again in a normal browsing window.</div>
+          )}
+          {snap && snap.keys.length === 0 && !snap.storageReadError && (
+            <div className="tEmpty">No localStorage entries were found in this browser profile. Server-side records may still exist.</div>
           )}
           {snap?.keys.map((k) => (
             <div className="row" key={k.key}>
               <span className="k">{k.key}</span>
               <span className="s">{k.sizeBytes} B</span>
-              <span className="p">{k.preview || "—"}</span>
+              <span className="p">{revealPreviews ? (k.preview || "—") : (k.preview ? "Hidden — reveal to inspect" : "—")}</span>
             </div>
           ))}
         </div>
@@ -223,6 +235,9 @@ const CSS = `
   .eyebrow{font-size:10px;letter-spacing:3px;color:#ff2d55;font-weight:700;text-transform:uppercase;margin-bottom:8px;}
   .dlHead h1{font-family:'Bodoni Moda','Times New Roman',serif;font-weight:900;font-size:clamp(26px,4.5vw,40px);letter-spacing:-.02em;margin:0 0 8px;color:#f4e8e8;text-wrap:balance;}
   .dlHead p{color:#8a7276;font-size:13px;margin:0 0 16px;}
+  .storageNotice{max-width:1000px;margin:0 auto 12px;padding:12px 14px;border:1px solid #57404a;border-radius:9px;background:#100b0f;color:#d6c6cd;font:12px/1.6 Inter,system-ui,sans-serif}
+  .dlRoot :focus-visible{outline:2px solid #ff8199;outline-offset:3px}
+
   .backBtn{display:inline-flex;align-items:center;gap:6px;color:#ff5875;font-size:11px;letter-spacing:2px;text-transform:uppercase;text-decoration:none;padding:8px 14px;border:1px solid #4a0a14;border-radius:6px;background:#160409;transition:all .2s;}
   .backBtn:hover{background:#22060d;border-color:#e11d48;color:#fff;}
 
