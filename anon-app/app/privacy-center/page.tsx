@@ -121,6 +121,12 @@ export default function PrivacyCenterPage() {
                 <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Choose ON/OFF from the chat toolbar</p>
               </article>
               <article className="pc-card">
+                <div className="pc-icon" aria-hidden="true">⌑</div>
+                <h3>Password-encrypted local backups</h3>
+                <p>Export your browser's local data as an encrypted file using a passphrase, then decrypt that file in the browser when you need it. The file is encrypted before download; ANON does not receive the passphrase. Forget the passphrase and the backup cannot be recovered. This protects a backup file—not live chats or server-held data.</p>
+                <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Open Local Data Controls · Keep the passphrase separate from the file</p>
+              </article>
+              <article className="pc-card">
                 <div className="pc-icon" aria-hidden="true">✳</div>
                 <h3>AI bots are labelled. External sharing is off by default</h3>
                 <p>Bot names carry an AI label rather than pretending to be human. External model generation is off by default. If the operator enables it, provider requests are limited to fixed, bot-initiated opener prompts; user-written messages and custom room topics are not forwarded by the bot path.</p>
