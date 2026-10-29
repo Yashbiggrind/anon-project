@@ -2,7 +2,7 @@
 
 **Status:** Source-level engineering inventory; not a legal opinion or independent security audit.  
 **Reviewed branch:** `anon-privacy-foundation-2026-10`  
-**Last checked:** 2026-10-28
+**Last checked:** 2026-10-29
 
 This document separates confirmed repository behaviour from deployment details that cannot be verified from source. “Not found in this review” does not prove that a hosting provider, browser, proxy, monitoring tool or backup system retains nothing.
 
