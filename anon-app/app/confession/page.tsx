@@ -142,8 +142,8 @@ export default function ConfessionPage() {
       <div className="cwRoot">
         <div className="cwHead">
           <div className="eyebrow">{"// CONFESSION WALL"}</div>
-          <h1>Say it. Then it disappears.</h1>
-          <p>Local-only preview. Posts stay in this browser and expire after 24 hours; this is not the shared Confession Wall.</p>
+          <h1>Write it. Let it pass.</h1>
+          <p>Local-only preview. This is a local-only preview. Posts stay in this browser and are removed from its active list after 24 hours; it is not the shared Confession Wall.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -266,5 +266,5 @@ const CSS = `
   .author{color:#c9a8b1;font-size:11.5px;font-weight:600;}
   .dot{color:#5a4048;}
   .ttl{color:#5a4048;font-size:10.5px;font-style:italic;}
-  .text{color:#f4e8e8;font-size:14px;line-height:1.55;word-break:break-word;white-space:pre-wrap;}
+  .text{color:#f4e8e8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.7;word-break:break-word;white-space:pre-wrap;}
 `;
