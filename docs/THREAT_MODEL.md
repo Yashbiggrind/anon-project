@@ -1,7 +1,7 @@
 # ANON Threat Model (Initial Engineering Draft)
 
 **Status:** Draft; not an independent audit  
-**Reviewed code snapshot:** `anon-privacy-foundation-2026-10` draft branch on 2026-10-28  
+**Reviewed code snapshot:** `anon-privacy-foundation-2026-10` draft branch on 2026-10-29  
 **Scope:** Next.js browser client, Socket.IO/Express backend, SQLite-backed operational records, future AI integrations  
 **Security claim status:** Live end-to-end encryption is **not established** by the inspected code.
 
@@ -24,6 +24,7 @@
 - Private-room events in this draft branch use room-scoped aliases and opaque random member tokens instead of exposing global session IDs to room members. The server retains the mapping in ephemeral room memory so authorization and moderation can work. A departed member's alias may remain cached until the room object is removed; the maps are discarded when that room ends or is deleted. If an unexpected name cannot be mapped, room-system events now fail closed to a generic label rather than falling back to the global username. This reduces direct identifier reuse across rooms but does not prevent traffic/timing correlation, does not conceal server-side identity mapping while the room exists, and does not encrypt message content.
 - Room invitations are kept in memory and expire after 10 minutes; accepting, declining or disconnecting removes them sooner. Invitee aliases/tokens are not minted for room-membership notices before the recipient joins.
 - The draft branch adds a browser-only sensitive-text preflight (pattern-based) and a Quick Veil UI. These are client-side convenience safeguards, not a substitute for E2EE, and they can miss data or produce false positives.
+- The browser-only preflight now also covers live Confession Wall posts and replies, in addition to public/room messages, DMs, edits, and image captions. It still does not inspect image pixels, and detection is heuristic. The first-visit note, Trust Layer labels, local-data preview UX and legal/privacy wording were updated during the 2026-10-29 source review.
 - AI bot accounts are labelled with an `AI ·` prefix. External generation is disabled by default; when enabled, provider calls are limited to static bot-initiated openers. Bot replies to user messages use local scripted responses, and user-authored messages/custom room topics are not forwarded by the current bot code path. Static prompts still leave ANON when the operator enables external generation.
 - Quick Veil visually covers the app and mutes app-managed sound, but it does not disconnect the socket, stop background messages, block operating-system notifications, or defend against external screen capture.
 
