@@ -7,6 +7,8 @@
 const FORMAT = "ANON_ENCRYPTED_LOCAL_DATA_EXPORT";
 const VERSION = 1;
 const ITERATIONS = 600_000;
+// Leave room for Base64 and JSON overhead so generated exports fit the 100 MiB decrypt limit.
+const MAX_PLAINTEXT_BYTES = 70 * 1024 * 1024;
 const AAD = "ANON_LOCAL_DATA_EXPORT:v1:PBKDF2-SHA256:AES-256-GCM";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
@@ -74,6 +76,9 @@ export async function encryptLocalExport(bundle: unknown, passphrase: string): P
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const key = await deriveKey(passphrase, salt);
   const plaintext = encoder.encode(JSON.stringify(bundle));
+  if (plaintext.byteLength > MAX_PLAINTEXT_BYTES) {
+    throw new Error("This local backup is too large for one encrypted file. Export a smaller local history first.");
+  }
   const ciphertext = await crypto.subtle.encrypt(
     {
       name: "AES-GCM",
