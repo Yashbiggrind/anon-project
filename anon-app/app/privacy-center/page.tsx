@@ -123,7 +123,7 @@ export default function PrivacyCenterPage() {
               <article className="pc-card">
                 <div className="pc-icon" aria-hidden="true">⌑</div>
                 <h3>Password-encrypted local backups</h3>
-                <p>Export your browser's local data as an encrypted file using a passphrase, then decrypt that file in the browser when you need it. The file is encrypted before download; ANON does not receive the passphrase. Forget the passphrase and the backup cannot be recovered. This protects a backup file—not live chats or server-held data.</p>
+                <p>Export your browser&apos;s local data as an encrypted file using a passphrase, then decrypt that file in the browser when you need it. The file is encrypted before download; ANON does not receive the passphrase. Forget the passphrase and the backup cannot be recovered. This protects a backup file—not live chats or server-held data.</p>
                 <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Open Local Data Controls · Keep the passphrase separate from the file</p>
               </article>
               <article className="pc-card">
