@@ -5,6 +5,8 @@ on:
     branches:
       - main
       - "fix/**"
+# Keep draft privacy work validated after the final room-identity and Local Privacy Guard integration.
+      - "anon-privacy-foundation-2026-10"
   pull_request:
   workflow_dispatch:
 
@@ -43,6 +45,8 @@ jobs:
           cache-dependency-path: anon-app/package-lock.json
       - name: Install frontend dependencies
         run: npm ci --prefix anon-app
+      - name: Test local export encryption and tamper detection
+        run: npm run test:privacy-crypto --prefix anon-app
       - name: Lint frontend
         run: npm run lint --prefix anon-app
       - name: Build frontend

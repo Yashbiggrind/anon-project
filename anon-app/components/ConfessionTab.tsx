@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { Socket } from "socket.io-client";
 import Identicon from "@/components/Identicon";
+import { inspectSensitiveText, redactSensitiveText } from "@/lib/localPrivacyGuard";
 
 type ConfessionReply = {
   id: string;
@@ -108,6 +109,12 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
   const [loading, setLoading] = useState(true);
   const [posting, setPosting] = useState(false);
   const [now, setNow] = useState(0);
+  const [privacyReview, setPrivacyReview] = useState<{
+    target: "post" | "reply";
+    text: string;
+    findings: string[];
+    confessionId?: string;
+  } | null>(null);
 
   useEffect(() => {
     const firstTick = window.setTimeout(() => setNow(Date.now()), 0);
@@ -182,12 +189,14 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
     return result;
   }, [posts, sortBy, timeWindow, query, now]);
 
-  const post = (event?: FormEvent<HTMLFormElement>) => {
-    event?.preventDefault();
-    const text = draft.trim();
-    if (!socket || !connected || !text || posting) return;
-    if (text.length > MAX_POST_LENGTH) return;
+  const isLocalGuardEnabled = () => {
+    if (typeof window === "undefined") return false;
+    try { return window.localStorage.getItem("anon_local_privacy_guard") !== "off"; }
+    catch { return true; }
+  };
 
+  const sendPost = (text: string) => {
+    if (!socket || !connected || !text || posting || text.length > MAX_POST_LENGTH) return;
     setPosting(true);
     socket.emit("confession:create", { text }, (response: MutationResponse) => {
       setPosting(false);
@@ -200,9 +209,31 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
     });
   };
 
-  const reply = (confessionId: string) => {
-    const text = replyText.trim();
+  const post = (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+    const text = draft.trim();
+    if (!socket || !connected || !text || posting) return;
+    if (text.length > MAX_POST_LENGTH) return;
+    if (isLocalGuardEnabled()) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) {
+        setPrivacyReview({ target: "post", text, findings });
+        return;
+      }
+    }
+    sendPost(text);
+  };
+
+  const reply = (confessionId: string, textOverride?: string, skipPrivacyReview = false) => {
+    const text = (textOverride ?? replyText).trim();
     if (!socket || !connected || !text) return;
+    if (!skipPrivacyReview && isLocalGuardEnabled()) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) {
+        setPrivacyReview({ target: "reply", text, findings, confessionId });
+        return;
+      }
+    }
 
     socket.emit("confession:reply", { confessionId, text }, (response: MutationResponse) => {
       if (response?.ok) {
@@ -213,6 +244,24 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
         setStatus(response?.error || "Could not send reply.");
       }
     });
+  };
+
+  const sendReviewedText = () => {
+    if (!privacyReview) return;
+    const review = privacyReview;
+    setPrivacyReview(null);
+    if (review.target === "post") sendPost(review.text);
+    else if (review.confessionId) reply(review.confessionId, review.text, true);
+  };
+
+  const applyRedactions = () => {
+    if (!privacyReview) return;
+    const review = privacyReview;
+    const redacted = redactSensitiveText(review.text);
+    if (review.target === "post") setDraft(redacted);
+    else setReplyText(redacted);
+    setPrivacyReview(null);
+    setStatus("Suggested redactions added locally. Review your text before sending.");
   };
 
   const vote = (confessionId: string, dir: 1 | -1) => {
@@ -237,6 +286,25 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
 
   return (
     <div className="confessionWrap cfStudio">
+      {privacyReview && (
+        <div role="dialog" aria-modal="true" aria-labelledby="cf-privacy-review-title" style={{position:"fixed",inset:0,zIndex:100000,display:"grid",placeItems:"center",padding:16,background:"rgba(3,2,4,.84)",backdropFilter:"blur(12px)"}}>
+          <section style={{width:"min(100%,500px)",maxHeight:"90vh",overflowY:"auto",border:"1px solid #663046",borderRadius:18,padding:"clamp(18px,4vw,26px)",background:"linear-gradient(145deg,#140b10,#080608)",boxShadow:"0 24px 90px rgba(0,0,0,.55)",color:"#f5e9ed"}}>
+            <div style={{fontSize:10,fontWeight:800,letterSpacing:".16em",color:"#ff7f99"}}>ANON · LOCAL PRIVACY GUARD</div>
+            <h3 id="cf-privacy-review-title" style={{fontSize:24,letterSpacing:"-.04em",lineHeight:1.1,margin:"12px 0 8px"}}>Check before sharing</h3>
+            <p style={{fontSize:13,lineHeight:1.65,color:"#cbb7c0",margin:"0 0 14px"}}>This check runs in your browser and spotted a pattern that may identify you or expose account details. Nothing has been sent by this check.</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:7,marginBottom:13}}>
+              {privacyReview.findings.map((finding) => <span key={finding} style={{fontSize:11,padding:"6px 9px",border:"1px solid #512538",borderRadius:999,color:"#ffd7e1",background:"#190a10"}}>{finding}</span>)}
+            </div>
+            <div style={{maxHeight:140,overflowY:"auto",overflowWrap:"anywhere",padding:12,border:"1px solid #302129",borderRadius:10,background:"#060406",color:"#c5b3bb",fontSize:12,lineHeight:1.7}}>{privacyReview.text}</div>
+            <p style={{fontSize:11,lineHeight:1.6,color:"#95828b",margin:"11px 0 17px"}}>Pattern checks can miss sensitive details or flag harmless text. Suggested redactions stay in this browser until you decide what to send.</p>
+            <div style={{display:"flex",flexWrap:"wrap",gap:8}}>
+              <button type="button" onClick={applyRedactions} style={{border:"1px solid #e14568",background:"linear-gradient(135deg,#cf234a,#82112d)",color:"#fff",borderRadius:10,padding:"11px 13px",fontSize:12,fontWeight:750,cursor:"pointer"}}>Suggest redactions</button>
+              <button type="button" onClick={sendReviewedText} style={{border:"1px solid #4b3540",background:"#180f14",color:"#f1dbe3",borderRadius:10,padding:"11px 13px",fontSize:12,cursor:"pointer"}}>{privacyReview.target === "post" ? "Post as written" : "Reply as written"}</button>
+              <button type="button" onClick={() => setPrivacyReview(null)} style={{border:"1px solid transparent",background:"transparent",color:"#b49da7",borderRadius:10,padding:"11px 9px",fontSize:12,cursor:"pointer"}}>Keep editing</button>
+            </div>
+          </section>
+        </div>
+      )}
       <header className="cfIntro">
         <div className="cfIntroMain">
           <div className="cfEyebrow">
@@ -257,7 +325,7 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
           <div className="cfPrivacyIcon" aria-hidden="true">⌁</div>
           <div className="cfPrivacyTitle">EPHEMERAL BY DESIGN</div>
           <p>Confessions and replies live in server memory and expire within 7 days. They are not written to a permanent confession archive.</p>
-          <div className="cfPrivacyFoot">Privacy note: the service separately retains pseudonymized connection metadata for up to 180 days under its current server configuration.</div>
+          <div className="cfPrivacyFoot">The server can read posts and replies. Reviewed reports and inactive safety records have bounded retention in this branch; deployment logs and backups are separate. Live chat is not end-to-end encrypted.</div>
         </aside>
       </header>
 

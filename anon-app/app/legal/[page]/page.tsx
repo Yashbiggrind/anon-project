@@ -124,7 +124,7 @@ export default function LegalRoute() {
 
 const CSS = `
   *{box-sizing:border-box}
-  html,body{margin:0;padding:0;background:#040203;color:#d8c9c9;font-family:'Times New Roman',Georgia,serif;overflow-x:hidden}
+  html,body{margin:0;padding:0;background:#040203;color:#d8c9c9;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;overflow-x:hidden}
 
   .legalRoot{
     min-height:100vh;
@@ -211,8 +211,8 @@ const CSS = `
   }
 
   .legalSubtitle{
-    color:#a8899a;font-family:'Courier New',monospace;
-    font-size:13.5px;line-height:1.7;margin:0 0 22px;
+    color:#b8a8b0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:14px;line-height:1.8;margin:0 0 22px;
     opacity:0;animation:lineIn .6s ease forwards;animation-delay:.4s;
   }
   @keyframes lineIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
@@ -260,8 +260,8 @@ const CSS = `
   .sectionItem{
     margin:0;
     color:#c9a3ad;
-    font-family:'Courier New',monospace;
-    font-size:13px;line-height:1.75;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:14px;line-height:1.8;
     word-break:break-word;
   }
   .sectionItem::before{
@@ -272,8 +272,8 @@ const CSS = `
   .legalFooter{
     margin-top:30px;padding-top:22px;
     border-top:1px solid #2a0a12;
-    color:#7c5a63;font-family:'Courier New',monospace;
-    font-size:12px;line-height:1.7;font-style:italic;
+    color:#a9959e;font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:13px;line-height:1.8;font-style:normal;
     opacity:0;animation:lineIn .6s ease forwards;
     animation-delay:1.2s;
   }

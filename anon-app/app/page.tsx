@@ -20,6 +20,7 @@ import {
   updateMessage as persistUpdate,
   removeMessage as persistRemove,
   clearScope as persistClearScope,
+  clearAll as persistClearAll,
 } from "@/lib/messageStore";
 import {
   LS_USERNAME,
@@ -37,6 +38,7 @@ import {
   doors,
 } from "@/lib/anonConstants";
 import { serverUrl, makeRandomName } from "@/lib/anonUtils";
+import { inspectSensitiveText, redactSensitiveText } from "@/lib/localPrivacyGuard";
 
 type Section = "chat" | "private" | "content" | "confession";
 type Identity = { sessionId: string; username: string; accent: string; status?: string; avatarDesign?: AvatarDesign | null };
@@ -44,6 +46,7 @@ type ChatMessage = {
   id: string;
   senderSessionId: string;
   senderName: string;
+  identityScope?: "room";
   content: string;
   createdAt: number;
   editedAt?: number;
@@ -71,6 +74,8 @@ type PrivateRoom = {
   participants: RoomParticipant[];
   status: string;
   messageLifetime?: number;
+  myMemberId?: string;
+  identityScope?: "room";
   mode?: "ask" | "open";
 };
 type BlockedUser = { sessionId: string; username: string };
@@ -158,7 +163,7 @@ export default function Home() {
 
   const [invites, setInvites] = useState<Invite[]>([]);
   const [room, setRoom] = useState<PrivateRoom | null>(null);
-  const isAdmin = room ? room.admin === identity?.sessionId : false;
+  const isAdmin = room ? room.admin === room.myMemberId : false;
   const [privateMessages, setPrivateMessages] = useState<ChatMessage[]>([]);
   const privateInputRef = useRef<HTMLInputElement>(null);
 
@@ -203,6 +208,13 @@ export default function Home() {
   const dmLastTypingRef = useRef(0);
 
   const [toast, setToast] = useState<string | null>(null);
+  const [privacyReview, setPrivacyReview] = useState<{ scope: "public" | "room" | "dm"; text: string; findings: string[]; action?: "edit" | "image"; messageId?: string; roomId?: string; image?: string; replyTo?: ChatMessage["replyTo"] } | null>(null);
+  const [privacyToolsOpen, setPrivacyToolsOpen] = useState(false);
+  const [localPrivacyGuard, setLocalPrivacyGuard] = useState(true);
+  const [ephemeralMode, setEphemeralMode] = useState(false);
+  const ephemeralModeRef = useRef(false);
+  const [veilActive, setVeilActive] = useState(false);
+  const veilPreviousMuteRef = useRef(false);
   const [nameOffer, setNameOffer] = useState<{ a: string; b: string } | null>(null);
   const [typingPublic, setTypingPublic] = useState<Record<string, { username: string; at: number }>>({});
   const [typingRoom, setTypingRoom] = useState<Record<string, { username: string; at: number }>>({});
@@ -305,6 +317,43 @@ export default function Home() {
     if (typeof window === "undefined") return;
     localStorage.setItem(LS_LANG, lang);
   }, [lang]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const timer = window.setTimeout(() => {
+      try {
+        setLocalPrivacyGuard(localStorage.getItem("anon_local_privacy_guard") !== "off");
+        const savedEphemeral = localStorage.getItem("anon_ephemeral_mode") === "on";
+        ephemeralModeRef.current = savedEphemeral;
+        setEphemeralMode(savedEphemeral);
+      } catch {}
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  useEffect(() => {
+    const onPrivacyEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setPrivacyToolsOpen(false);
+    };
+    window.addEventListener("keydown", onPrivacyEscape);
+    return () => window.removeEventListener("keydown", onPrivacyEscape);
+  }, []);
+
+  useEffect(() => {
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== "anon_ephemeral_mode") return;
+      const enabled = event.newValue === "on";
+      ephemeralModeRef.current = enabled;
+      setEphemeralMode(enabled);
+      if (enabled) {
+        void persistClearAll().catch(() => {});
+        for (const queuedMessage of listQueue()) removeQueue(queuedMessage.id);
+        setQueued([]);
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, []);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -535,7 +584,7 @@ export default function Home() {
     });
 
     socket.on("chat:public:message", (m: ChatMessage) => {
-      const isMine = m.senderSessionId === selfRef.current;
+      const isMine = m.identityScope === "room" ? m.senderSessionId === roomRef.current?.myMemberId : m.senderSessionId === selfRef.current;
       if (!isMine) { playSound("message"); bumpSeen(); }
       startTransition(() => setMessages((p) => {
         if (p.some((x) => x.id === m.id)) return p;
@@ -552,7 +601,7 @@ export default function Home() {
         return [...p.slice(-499), { ...m, localSent: isMine }];
       }));
       localStorage.setItem(LS_LAST_SEEN_PUBLIC, String(Date.now()));
-      persistSave({ ...m, localSent: isMine, scope: "public" });
+      if (!ephemeralModeRef.current) void persistSave({ ...m, localSent: isMine, scope: "public" });
     });
 
     socket.on("system:public", (s: { type: string; username?: string; oldName?: string }) => {
@@ -572,13 +621,13 @@ export default function Home() {
     socket.on("message:edited", ({ messageId, content, editedAt }: { messageId: string; content: string; editedAt: number }) => {
       setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
       setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, content, editedAt } : m)));
-      void persistUpdate(messageId, { content, editedAt });
+      if (!ephemeralModeRef.current) void persistUpdate(messageId, { content, editedAt });
     });
 
     socket.on("message:deleted", ({ messageId }: { messageId: string }) => {
       setMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
       setPrivateMessages((p) => p.map((m) => (m.id === messageId ? { ...m, deleted: true, content: "", image: undefined } : m)));
-      void persistUpdate(messageId, { deleted: true, content: "", image: undefined });
+      if (!ephemeralModeRef.current) void persistUpdate(messageId, { deleted: true, content: "", image: undefined });
     });
 
     socket.on("invite:received", (inv: Invite) => {
@@ -587,6 +636,10 @@ export default function Home() {
       showToast(libTranslate(langRef.current, "invitationReceived", { name: inv.from.username, cap: inv.capacity }), 3000);
     });
     socket.on("invite:declined", () => showToast(libTranslate(langRef.current, "invitationDeclined")));
+    socket.on("invite:expired", ({ inviteId }: { inviteId: string }) => {
+      setInvites((p) => p.filter((invite) => invite.inviteId !== inviteId));
+      showToast("An invitation expired after 10 minutes.", 2800, "info");
+    });
 
     socket.on("room:update", (r: PrivateRoom) => { setRoom(r); setSection("private"); });
 
@@ -622,7 +675,7 @@ export default function Home() {
         }
         return [...p.slice(-499), { ...m, localSent: isMine }];
       }));
-         if (roomRef.current) persistSave({ ...m, localSent: isMine, scope: "room", roomId: roomRef.current.roomId });
+         if (!ephemeralModeRef.current && roomRef.current) void persistSave({ ...m, localSent: isMine, scope: "room", roomId: roomRef.current.roomId });
     });
     socket.on("room:lifetime-update", ({ seconds }: { seconds: number }) => {
       setMessageLifetime(seconds * 1000);
@@ -686,6 +739,7 @@ export default function Home() {
     if (typeof window === "undefined") return;
     (async () => {
       try {
+        if (ephemeralModeRef.current || localStorage.getItem("anon_ephemeral_mode") === "on") return;
         const [pub, roomMsgs] = await Promise.all([
           persistLoad("public"),
           room ? persistLoad("room", room.roomId) : Promise.resolve([]),
@@ -830,12 +884,12 @@ export default function Home() {
       const cut = Date.now() - 60 * 60 * 1000;
       setMessages((p) => p.map((m) => {
         if (!m.image || m.createdAt >= cut) return m;
-        void persistUpdate(m.id, { image: undefined });
+        if (!ephemeralModeRef.current) void persistUpdate(m.id, { image: undefined });
         return { ...m, image: undefined };
       }));
       setPrivateMessages((p) => p.map((m) => {
         if (!m.image || m.createdAt >= cut) return m;
-        void persistUpdate(m.id, { image: undefined });
+        if (!ephemeralModeRef.current) void persistUpdate(m.id, { image: undefined });
         return { ...m, image: undefined };
       }));
     }, 60 * 1000);
@@ -1049,19 +1103,33 @@ export default function Home() {
   const submitEdit = useCallback(() => {
     const text = editingText.trim();
     if (!text || !editingId) return;
+    if (localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) {
+        setPrivacyReview({
+          scope: editingRoomId ? "room" : "public",
+          text,
+          findings,
+          action: "edit",
+          messageId: editingId,
+          roomId: editingRoomId ?? undefined,
+        });
+        return;
+      }
+    }
     socketRef.current?.emit("message:edit", { messageId: editingId, content: text, roomId: editingRoomId ?? undefined }, () => {});
     const now = Date.now();
     setMessages((p) => p.map((m) => (m.id === editingId ? { ...m, content: text, editedAt: now } : m)));
     setPrivateMessages((p) => p.map((m) => (m.id === editingId ? { ...m, content: text, editedAt: now } : m)));
-    persistUpdate(editingId, { content: text, editedAt: now });
+    if (!ephemeralModeRef.current) void persistUpdate(editingId, { content: text, editedAt: now });
     setEditingId(null); setEditingText(""); setEditingRoomId(null);
-  }, [editingText, editingId, editingRoomId]);
+  }, [editingText, editingId, editingRoomId, localPrivacyGuard]);
 
   const deleteMessage = useCallback((m: ChatMessage, roomId?: string) => {
     socketRef.current?.emit("message:delete", { messageId: m.id, roomId }, () => {});
     setMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
     setPrivateMessages((p) => p.map((x) => (x.id === m.id ? { ...x, deleted: true, content: "" } : x)));
-    persistUpdate(m.id, { deleted: true, content: "" });
+    if (!ephemeralModeRef.current) void persistUpdate(m.id, { deleted: true, content: "" });
     
   }, []);
 
@@ -1126,13 +1194,17 @@ export default function Home() {
     setDmTypingFrom(null);
   }, []);
 
-  const sendDm = useCallback(() => {
+  const sendDm = useCallback((skipPrivacyCheck = false) => {
     const el = dmInputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text || !dmPanel?.threadId) return;
+    if (!skipPrivacyCheck && localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) { setPrivacyReview({ scope: "dm", text, findings }); return; }
+    }
     if (el) el.value = "";
     socketRef.current?.emit("dm:send", { threadId: dmPanel.threadId, content: text }, () => {});
-  }, [dmPanel]);
+  }, [dmPanel, localPrivacyGuard]);
 
   const notifyDmTyping = useCallback(() => {
     if (!dmPanel?.threadId) return;
@@ -1195,20 +1267,36 @@ export default function Home() {
     setImageUploading(true);
     try {
       const b64 = await compressImage(file);
+      if (imageTarget === "room" && !room) { showToast("No room"); return; }
+      const caption = imageTarget === "public"
+        ? (inputRef.current?.value ?? "").trim()
+        : (privateInputRef.current?.value ?? "").trim();
       const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
+      if (localPrivacyGuard) {
+        const findings = inspectSensitiveText(caption);
+        if (findings.length) {
+          setPrivacyReview({
+            scope: imageTarget,
+            text: caption,
+            findings,
+            action: "image",
+            image: b64,
+            replyTo: replyPayload,
+            roomId: imageTarget === "room" ? room?.roomId : undefined,
+          });
+          return;
+        }
+      }
       if (imageTarget === "public") {
-        const caption = (inputRef.current?.value ?? "").trim();
         socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
+          else if (inputRef.current) inputRef.current.value = "";
         });
-        if (inputRef.current) inputRef.current.value = "";
       } else {
-        if (!room) { showToast("No room"); return; }
-        const caption = (privateInputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
+        socketRef.current?.emit("room:image", { roomId: room!.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
           if (!ack?.ok) showToast(ack?.error || "Failed to send");
+          else if (privateInputRef.current) privateInputRef.current.value = "";
         });
-        if (privateInputRef.current) privateInputRef.current.value = "";
       }
       setReplyTo(null);
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Image failed"); }
@@ -1266,12 +1354,169 @@ export default function Home() {
   }
   function goBack() { setSection(null); setGone(false); setOpening(null); }
 
-  function sendMessage() {
+  async function toggleEphemeralMode() {
+    const next = !ephemeralMode;
+    if (next) {
+      const confirmed = window.confirm("Turn on Ephemeral History? ANON will clear saved chat history and pending offline messages in this browser, then stop saving new chat history locally. This does not erase server-side anti-abuse records or copies held by other people.");
+      if (!confirmed) return;
+      // Flip the ref before awaiting IndexedDB so socket callbacks do not write during the wipe.
+      ephemeralModeRef.current = true;
+      try {
+        await persistClearAll();
+      } catch {
+        ephemeralModeRef.current = false;
+        showToast("Could not clear local history. Close other ANON tabs and try again.", 4500, "error");
+        return;
+      }
+      for (const queuedMessage of listQueue()) removeQueue(queuedMessage.id);
+      setQueued([]);
+    } else {
+      ephemeralModeRef.current = false;
+    }
+    try { localStorage.setItem("anon_ephemeral_mode", next ? "on" : "off"); } catch {}
+    setEphemeralMode(next);
+    showToast(next ? "Ephemeral History on: local chat history cleared." : "Ephemeral History off: new messages may be saved locally.", 3500, "success");
+  }
+
+  function activateVeil() {
+    if (veilActive) return;
+    veilPreviousMuteRef.current = muted;
+    setMutedState(true);
+    setMuted(true);
+    try { localStorage.setItem(LS_MUTED, "1"); } catch {}
+    setVeilActive(true);
+  }
+
+  function deactivateVeil() {
+    const restoreMute = veilPreviousMuteRef.current;
+    setVeilActive(false);
+    setMutedState(restoreMute);
+    setMuted(restoreMute);
+    try { localStorage.setItem(LS_MUTED, restoreMute ? "1" : "0"); } catch {}
+  }
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.altKey && event.shiftKey && event.key.toLowerCase() === "v") {
+        event.preventDefault();
+        if (!veilActive) {
+          veilPreviousMuteRef.current = muted;
+          setMutedState(true);
+          setMuted(true);
+          try { localStorage.setItem(LS_MUTED, "1"); } catch {}
+          setVeilActive(true);
+        }
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [veilActive, muted]);
+
+  function sendReviewedMessage() {
+    if (!privacyReview) return;
+    const review = privacyReview;
+
+    if (review.action === "edit") {
+      const text = review.text.trim();
+      if (!text || !review.messageId) return;
+      const now = Date.now();
+      socketRef.current?.emit("message:edit", {
+        messageId: review.messageId,
+        content: text,
+        roomId: review.roomId,
+      }, (ack: ServerAck) => {
+        if (!ack?.ok) showToast(ack?.error || "Could not edit message.", 3500, "error");
+      });
+      setMessages((p) => p.map((m) => (m.id === review.messageId ? { ...m, content: text, editedAt: now } : m)));
+      setPrivateMessages((p) => p.map((m) => (m.id === review.messageId ? { ...m, content: text, editedAt: now } : m)));
+      if (!ephemeralModeRef.current) void persistUpdate(review.messageId, { content: text, editedAt: now });
+      setEditingId(null); setEditingText(""); setEditingRoomId(null);
+      setPrivacyReview(null);
+      return;
+    }
+
+    const field = review.scope === "public"
+      ? inputRef.current
+      : review.scope === "room"
+        ? privateInputRef.current
+        : dmInputRef.current;
+    if (field) field.value = review.text;
+
+    if (review.action === "image") {
+      if (!review.image) return;
+      if (review.scope === "public") {
+        socketRef.current?.emit("chat:public:image", { image: review.image, caption: review.text, replyTo: review.replyTo }, (ack: ServerAck) => {
+          if (!ack?.ok) { showToast(ack?.error || "Failed to send image.", 3500, "error"); return; }
+          if (inputRef.current) inputRef.current.value = "";
+          setReplyTo(null);
+        });
+      } else if (review.scope === "room" && review.roomId) {
+        socketRef.current?.emit("room:image", { roomId: review.roomId, image: review.image, caption: review.text, replyTo: review.replyTo }, (ack: ServerAck) => {
+          if (!ack?.ok) { showToast(ack?.error || "Failed to send image.", 3500, "error"); return; }
+          if (privateInputRef.current) privateInputRef.current.value = "";
+          setReplyTo(null);
+        });
+      }
+      setPrivacyReview(null);
+      return;
+    }
+
+    setPrivacyReview(null);
+    if (review.scope === "public") sendMessage(true);
+    else if (review.scope === "room") sendPrivate(true);
+    else sendDm(true);
+  }
+
+  function redactReviewedMessage() {
+    if (!privacyReview) return;
+    const review = privacyReview;
+    const redacted = redactSensitiveText(review.text);
+
+    if (review.action === "image") {
+      setPrivacyReview({ ...review, text: redacted });
+      showToast("Suggested redactions applied to the image caption. Review the caption before sharing.", 4000, "success");
+      return;
+    }
+    if (review.action === "edit") {
+      setEditingText(redacted);
+      setPrivacyReview(null);
+      showToast("Suggested redactions applied to the edited text. Review it and save the edit.", 4000, "success");
+      return;
+    }
+
+    const field = review.scope === "public"
+      ? inputRef.current
+      : review.scope === "room"
+        ? privateInputRef.current
+        : dmInputRef.current;
+    if (field) {
+      field.value = redacted;
+      field.focus();
+    }
+    setPrivacyReview(null);
+    showToast("Suggested redactions applied on this device. Review before sending.", 4000, "success");
+  }
+
+  function disableGuardAndSend() {
+    try { localStorage.setItem("anon_local_privacy_guard", "off"); } catch {}
+    setLocalPrivacyGuard(false);
+    sendReviewedMessage();
+  }
+
+  function sendMessage(skipPrivacyCheck = false) {
     const el = inputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text) return;
+    if (!skipPrivacyCheck && localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) { setPrivacyReview({ scope: "public", text, findings }); return; }
+    }
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
     if (!connected || isOffline) {
+      if (ephemeralModeRef.current) {
+        showToast("Ephemeral History is on. Messages are not queued offline; reconnect before sending.", 4000, "info");
+        return;
+      }
       try {
         const q = enqueue(text);
         setQueued((p) => [...p.filter((item) => item.id !== q.id), q]);
@@ -1302,17 +1547,21 @@ export default function Home() {
     setReplyTo(null);
   }
 
-  function sendPrivate() {
+  function sendPrivate(skipPrivacyCheck = false) {
     const el = privateInputRef.current;
     const text = (el?.value ?? "").trim();
     if (!text || !room || !socketRef.current) return;
+    if (!skipPrivacyCheck && localPrivacyGuard) {
+      const findings = inspectSensitiveText(text);
+      if (findings.length) { setPrivacyReview({ scope: "room", text, findings }); return; }
+    }
     const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
     if (el) el.value = "";
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const tempMsg: ChatMessage = {
       id: tempId,
-      senderSessionId: identity?.sessionId ?? "me",
-      senderName: identity?.username ?? "you",
+      senderSessionId: room.myMemberId ?? identity?.sessionId ?? "me",
+      senderName: room.participants.find((p) => p.sessionId === room.myMemberId)?.username ?? "you",
       content: text,
       createdAt: Date.now(),
       localSent: true,
@@ -1566,13 +1815,85 @@ export default function Home() {
     <>
       {!connected && <div className="reconnectBar">{t("connectionLost")}</div>}
 
+      <div className={`privacyDock ${section !== null ? "privacyDockInChat" : ""}`}>
+        {privacyToolsOpen && (
+          <div className="privacyDockPanel" id="privacy-dock-panel" role="dialog" aria-label="Privacy controls">
+            <div className="privacyDockPanelHead">
+              <div>
+                <strong>PRIVACY CONTROLS</strong>
+                <span>Tools you can use right now</span>
+              </div>
+              <button type="button" className="privacyDockClose" onClick={() => setPrivacyToolsOpen(false)} aria-label="Close privacy controls">×</button>
+            </div>
+            <Link href="/privacy-center" className="privacyDockAction" onClick={() => setPrivacyToolsOpen(false)}>
+              <span><strong>Privacy Center</strong><small>How ANON handles information</small></span><b aria-hidden="true">↗</b>
+            </Link>
+            <button type="button" className="privacyDockAction" onClick={() => {
+              const next = !localPrivacyGuard;
+              setLocalPrivacyGuard(next);
+              try { localStorage.setItem("anon_local_privacy_guard", next ? "on" : "off"); } catch {}
+              showToast(next ? "Local Privacy Guard enabled." : "Local Privacy Guard disabled.", 2200, "success");
+            }} title="Toggle the on-device sensitive-text check" aria-pressed={localPrivacyGuard}>
+              <span><strong>Local Privacy Guard</strong><small>Check messages before sending</small></span><b className={localPrivacyGuard ? "privacyStateOn" : ""}>{localPrivacyGuard ? "ON" : "OFF"}</b>
+            </button>
+            <button type="button" className="privacyDockAction" onClick={toggleEphemeralMode} title="Clear local chat history and unsent offline messages; stop saving new history." aria-pressed={ephemeralMode}>
+              <span><strong>Ephemeral History</strong><small>Clear and stop saving local history</small></span><b className={ephemeralMode ? "privacyStateOn" : ""}>{ephemeralMode ? "ON" : "OFF"}</b>
+            </button>
+            <button type="button" className="privacyDockAction" onClick={activateVeil} title="Hide the screen and mute sound (Alt+Shift+V)">
+              <span><strong>Quick Veil</strong><small>Cover screen · Alt + Shift + V</small></span><b aria-hidden="true">◉</b>
+            </button>
+            <p className="privacyDockFoot">These tools improve local privacy, but they do not make live chats end-to-end encrypted.</p>
+          </div>
+        )}
+        <button type="button" className="privacyDockTrigger" onClick={() => setPrivacyToolsOpen((open) => !open)} aria-expanded={privacyToolsOpen} aria-controls={privacyToolsOpen ? "privacy-dock-panel" : undefined}>
+          <span className="privacyDockTriggerIcon" aria-hidden="true">⌑</span>
+          <span>Privacy tools</span>
+          <span className="privacyDockTriggerCount">{(localPrivacyGuard ? 1 : 0) + (ephemeralMode ? 1 : 0)}/2 active</span>
+        </button>
+      </div>
+
       <div className="marquee">
         <div className="marquee-track">
           <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
-          <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
-          <span>{t("marqueeA")} <b>{t("marqueeB")}</b></span>
+          <span aria-hidden="true">{t("marqueeA")} <b>{t("marqueeB")}</b></span>
+          <span aria-hidden="true">{t("marqueeA")} <b>{t("marqueeB")}</b></span>
         </div>
       </div>
+
+      {privacyReview && (
+        <div role="dialog" aria-modal="true" aria-labelledby="privacy-review-title" style={{ position: "fixed", inset: 0, zIndex: 99998, display: "grid", placeItems: "center", padding: 18, background: "rgba(2,1,4,.84)", backdropFilter: "blur(18px)" }}>
+          <section style={{ width: "min(100%, 520px)", border: "1px solid #6b263a", borderRadius: 22, padding: "clamp(20px,5vw,30px)", background: "radial-gradient(ellipse at 100% 0%,rgba(225,29,72,.18),transparent 48%),#0c070a", boxShadow: "0 28px 100px rgba(0,0,0,.55)", color: "#f5e9ed" }}>
+            <div style={{ color: "#ff7897", fontSize: 10, fontWeight: 800, letterSpacing: ".2em", textTransform: "uppercase" }}>ANON · LOCAL PRIVACY GUARD</div>
+            <h2 id="privacy-review-title" style={{ margin: "12px 0 8px", fontSize: 26, lineHeight: 1.1, letterSpacing: "-.04em" }}>{privacyReview.action === "image" ? "Check the caption before sharing" : privacyReview.action === "edit" ? "Check this edit before saving" : "A quick check before you send"}</h2>
+            <p style={{ margin: "0 0 16px", color: "#cbb7c0", fontSize: 13, lineHeight: 1.7 }}>This check runs on your device. It noticed something that may identify you or expose an account detail. Nothing was sent because of this check.</p>
+            {privacyReview.action === "image" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>Only the caption is checked; image pixels are not scanned. The image is re-encoded locally as JPEG to remove common embedded metadata, which may remove animation or transparency.</p>}
+            {privacyReview.action === "edit" && <p style={{ margin: "-6px 0 14px", color: "#a9959e", fontSize: 11, lineHeight: 1.6 }}>This check applies to edits as well as new messages. You can apply redactions and review the edit before saving it.</p>}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+              {privacyReview.findings.map((finding) => <span key={finding} style={{ color: "#ffd7e1", border: "1px solid #512538", borderRadius: 999, padding: "7px 10px", fontSize: 11, background: "#190a10" }}>{finding}</span>)}
+            </div>
+            <div style={{ border: "1px solid #302129", borderRadius: 12, background: "#070507", color: "#bba7b0", padding: 12, fontSize: 12, lineHeight: 1.7, overflowWrap: "anywhere", maxHeight: 140, overflowY: "auto" }}>{privacyReview.text}</div>
+            <p style={{ color: "#95828b", fontSize: 11, lineHeight: 1.6, margin: "12px 0 18px" }}>This is a best-effort pattern check, not a guarantee. You choose what to share. Suggested redactions stay in this browser until you send the edited text.</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <button type="button" onClick={redactReviewedMessage} style={{ border: "1px solid #e14568", background: "linear-gradient(135deg,#cf234a,#82112d)", color: "white", borderRadius: 10, padding: "11px 13px", fontSize: 12, fontWeight: 750, cursor: "pointer" }}>Suggest redactions</button>
+              <button type="button" onClick={sendReviewedMessage} style={{ border: "1px solid #4b3540", background: "#180f14", color: "#f1dbe3", borderRadius: 10, padding: "11px 13px", fontSize: 12, cursor: "pointer" }}>{privacyReview.action === "image" ? "Share image with this caption" : privacyReview.action === "edit" ? "Save edit as written" : "Send as written"}</button>
+              <button type="button" onClick={() => setPrivacyReview(null)} style={{ border: "1px solid transparent", background: "transparent", color: "#b49da7", borderRadius: 10, padding: "11px 9px", fontSize: 12, cursor: "pointer" }}>Keep editing</button>
+            </div>
+            <button type="button" onClick={disableGuardAndSend} style={{ marginTop: 12, border: 0, background: "transparent", color: "#8f7b84", fontSize: 10, cursor: "pointer", textDecoration: "underline", padding: "5px 0" }}>{privacyReview.action === "image" ? "Turn off this check and share image" : privacyReview.action === "edit" ? "Turn off this check and save edit" : "Turn off this check on this device and send"}</button>
+          </section>
+        </div>
+      )}
+
+      {veilActive && (
+        <div role="dialog" aria-modal="true" aria-labelledby="veil-title" style={{ position: "fixed", inset: 0, zIndex: 99999, display: "grid", placeItems: "center", padding: 20, background: "radial-gradient(ellipse at 50% 35%,#191217,#030204 70%)", color: "#f6edf0" }}>
+          <section style={{ textAlign: "center", width: "min(100%, 430px)", padding: 28 }}>
+            <div style={{ color: "#ff5a7f", fontSize: 11, fontWeight: 800, letterSpacing: ".22em" }}>ANON // QUICK VEIL</div>
+            <h1 id="veil-title" style={{ fontSize: "clamp(32px,7vw,52px)", letterSpacing: "-.06em", margin: "18px 0 10px" }}>Your screen is hidden.</h1>
+            <p style={{ color: "#b8a6ae", fontSize: 13, lineHeight: 1.8, margin: "0 auto 24px" }}>Chat is still connected in the background. Your screen is covered and sound is muted until you reveal it again.</p>
+            <button type="button" onClick={deactivateVeil} style={{ border: "1px solid #e14568", background: "linear-gradient(135deg,#cf234a,#82112d)", color: "white", borderRadius: 999, padding: "12px 22px", fontSize: 13, fontWeight: 750, cursor: "pointer" }}>Reveal ANON</button>
+            <div style={{ color: "#6e5b64", fontSize: 10, marginTop: 18 }}>Shortcut: Alt + Shift + V</div>
+          </section>
+        </div>
+      )}
 
       <div className={`flash ${flash ? "on" : ""}`} />
 
@@ -1651,12 +1972,12 @@ export default function Home() {
               </div>
             </div>
 
-            <nav className="centerNav">
-              <button className="navItem active">{t("navHome")}</button>
+            <nav className="centerNav" aria-label="Main navigation">
+              <button className="navItem active" type="button" aria-current="page">{t("navHome")}</button>
               <button className="navItem" onClick={() => openDoor("chat")}>{t("navConnect")}</button>
               <button className="navItem" onClick={() => openDoor("content")}>{t("navExplore")}</button>
               <button className="navItem" onClick={() => openDoor("confession")}>CONFESS</button>
-              <button className="navItem" onClick={() => openDoor("content")}>{t("navLearn")}</button>
+              <Link className="navItem" href="/privacy-center">PRIVACY</Link>
               <Link className="navItem" href="/data">DATA</Link>
               
             </nav>
@@ -1669,6 +1990,17 @@ export default function Home() {
                   <div className="onlinePillBot">{online.length} {t("usersLabel")}</div>
                 </div>
               </div>
+
+              <button
+                type="button"
+                className="profileTopBtn"
+                onClick={() => setAvatarEditorOpen(true)}
+                aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
+                title="Customize your anonymous profile"
+              >
+                <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={25} />
+                <span>{identity?.username ?? "Your profile"}</span>
+              </button>
 
               <div className="langWrap">
                 <button
@@ -1717,45 +2049,7 @@ export default function Home() {
                 {muted ? "🔇" : "🔊"}
               </button>
 
-              {typeof document !== "undefined" && createPortal(
-                <button
-                  type="button"
-                  className="globalProfileDock"
-                  style={{
-                    position: "fixed",
-                    top: "38px",
-                    right: "12px",
-                    zIndex: 2147483647,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: "9px",
-                    maxWidth: "min(220px, calc(100vw - 24px))",
-                    padding: "7px 11px 7px 7px",
-                    border: "2px solid #ff2d55",
-                    borderRadius: "10px",
-                    color: "#fff",
-                    background: "linear-gradient(135deg, #4a0719, #090308)",
-                    boxShadow: "0 0 24px rgba(255,45,85,.75)",
-                    visibility: "visible",
-                    opacity: 1,
-                    pointerEvents: "auto",
-                  }}
-                  onClick={() => setAvatarEditorOpen(true)}
-                  aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
-                  title="Open your pixel profile"
-                >
-                  <span className="globalProfileDockAvatar">
-                    <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={34} />
-                    <span className="globalProfileDockStatus" />
-                  </span>
-                  <span className="globalProfileDockCopy">
-                    <b>{identity?.username ?? "YOUR PROFILE"}</b>
-                    <small>PROFILE / EDIT BLOCKS</small>
-                  </span>
-                  <span className="globalProfileDockChevron">↗</span>
-                </button>,
-                document.body
-              )}
+
             </div>
           </header>
 
@@ -1813,11 +2107,11 @@ export default function Home() {
           </div>
 
           <footer className="foot">
-            <div className="footLeft">ANON// v10 · cyber</div>
+            <div className="footLeft">ANON// · Pseudonymous conversations</div>
             <div className="footRight">
               <Link className="footLink accent" href="/data">◉ {t("dataLogTitle")}</Link>
               <span className="sep">/</span>
-              <a className="footLink accent" href="/confession">◉ CONFESSION</a>
+              <button className="footLink accent" type="button" onClick={() => openDoor("confession")}>◉ CONFESSION</button>
               <span className="sep">/</span>
               <Link className="footLink" href="/legal/privacy">{t("privacy")}</Link>
               <span className="sep">/</span>
@@ -2005,11 +2299,11 @@ export default function Home() {
                     onChange={() => notifyTyping("public")}
                     onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
                   />
-                  <button className="attachBtn" onClick={() => openImagePicker("public")} title="Send image" disabled={imageUploading}>
+                  <button className="attachBtn" onClick={() => openImagePicker("public")} title="Image is re-encoded locally as JPEG to remove common metadata; animation and transparency may be lost." aria-label="Attach image (locally re-encoded as JPEG)" disabled={imageUploading}>
                     {imageUploading ? "…" : "📎"}
                   </button>
                   <button className="emojiBtn" onClick={() => setEmojiOpen(!emojiOpen)} title="Emoji">😊</button>
-                  <button className="send" onClick={sendMessage}>{t("send")}</button>
+                  <button className="send" onClick={() => sendMessage()}>{t("send")}</button>
                   {emojiOpen && (
                     <div className="emojiPicker">
                       <div className="emojiTabs">
@@ -2184,7 +2478,7 @@ export default function Home() {
                         })}
 
                         {visiblePrivateMessages.map((m) => {
-                          const mine = m.localSent === true || m.senderSessionId === identity?.sessionId;
+                          const mine = m.localSent === true || m.senderSessionId === room?.myMemberId;
                           return (
                             <MessageBubble
                               key={m.id}
@@ -2245,11 +2539,11 @@ export default function Home() {
                           onChange={() => notifyTyping("room")}
                           onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendPrivate(); } }}
                         />
-                        <button className="attachBtn" onClick={() => openImagePicker("room")} title="Send image" disabled={imageUploading}>
+                        <button className="attachBtn" onClick={() => openImagePicker("room")} title="Image is re-encoded locally as JPEG to remove common metadata; animation and transparency may be lost." aria-label="Attach image (locally re-encoded as JPEG)" disabled={imageUploading}>
                           {imageUploading ? "…" : "📎"}
                         </button>
                         <button className="emojiBtn" onClick={() => setEmojiOpen(!emojiOpen)} title="Emoji">😊</button>
-                        <button className="send" onClick={sendPrivate}>{t("send")}</button>
+                        <button className="send" onClick={() => sendPrivate()}>{t("send")}</button>
                         {emojiOpen && (
                           <div className="emojiPicker">
                             <div className="emojiTabs">
@@ -2270,16 +2564,17 @@ export default function Home() {
                     {memberListOpen && (
                       <div className="card memberPanel">
                         <div className="memberHeader">
-                          <span>MEMBERS</span>
+                          <span>MEMBERS · ROOM ALIASES</span>
                           <span className="memberCount">{room.participants.length}/{room.capacity}</span>
                         </div>
+                        <div className="roomAliasNotice">These names are unique to this room. Direct messages and public presence use a separate identity.</div>
                         <div className="memberList">
                           {room.participants.map((p) => {
-                            const isMe = p.sessionId === identity?.sessionId;
+                            const isMe = p.sessionId === room.myMemberId;
                             const isPAdmin = p.isAdmin;
                             const isTimedOut = p.timedOutUntil && nowTick > 0 && p.timedOutUntil > nowTick;
                             const canModerate = isAdmin && !isMe;
-                            const canDm = !isMe;
+                            const canDm = false; // Room aliases intentionally cannot open cross-context DMs.
                             return (
                               <div
                                 key={p.sessionId}
@@ -2337,6 +2632,7 @@ export default function Home() {
                     {invites.length > 0 && (
                       <div className="invites-list">
                         <h4>{t("incomingInvites")}</h4>
+                        <p className="invitesExpiryHint">Invitations expire after 10 minutes.</p>
                         {invites.map((i) => (
                           <div className="invite-row" key={i.inviteId}>
                             <div>
@@ -2779,7 +3075,7 @@ export default function Home() {
               onChange={notifyDmTyping}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDm(); } }}
             />
-            <button className="dmSend" onClick={sendDm} disabled={dmPanel.loading || !dmPanel.threadId}>
+            <button className="dmSend" onClick={() => sendDm()} disabled={dmPanel.loading || !dmPanel.threadId}>
               Send
             </button>
           </div>
@@ -2946,9 +3242,9 @@ const MessageBubble = memo(
 
           {!mine && (
             <div
-              className="mini clickable"
-              onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
-              title="Private message"
+              className={roomId ? "mini" : "mini clickable"}
+              onClick={roomId ? undefined : () => onOpenDm?.(m.senderSessionId, m.senderName)}
+              title={roomId ? "Room-only alias" : "Private message"}
             ><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>
           )}
 
@@ -2966,6 +3262,8 @@ const MessageBubble = memo(
             <div className="meta">
               {mine ? (
                 <b>{m.senderName}</b>
+              ) : roomId ? (
+                <b title="This name is scoped to the current room">{m.senderName}</b>
               ) : (
                 <b
                   className="msgNameLink"
@@ -3072,8 +3370,8 @@ const MessageBubble = memo(
               <div className="msgSheetHandle" />
               <button onClick={() => act(() => onStartReply(m))}>↩  Reply</button>
               {m.content && <button onClick={() => act(() => onCopyMessage(m.content))}>📋  Copy</button>}
-              {!mine && <button onClick={() => act(() => onOpenDm(m.senderSessionId, m.senderName))}>💬  Private message</button>}
-              {!mine && <button onClick={() => act(() => onOpenProfile?.(m.senderSessionId, m.senderName))}>👤  View profile</button>}
+              {!mine && !roomId && <button onClick={() => act(() => onOpenDm(m.senderSessionId, m.senderName))}>💬  Private message</button>}
+              {!mine && !roomId && <button onClick={() => act(() => onOpenProfile?.(m.senderSessionId, m.senderName))}>👤  View profile</button>}
               {mine && !m.image && <button onClick={() => act(() => roomId ? onStartEdit(m, roomId) : onStartEdit(m))}>✎  Edit</button>}
               {mine && <button className="danger" onClick={() => act(() => roomId ? onDeleteMessage(m, roomId) : onDeleteMessage(m))}>🗑  Delete</button>}
               <button onClick={closeSheet}>✕  Cancel</button>

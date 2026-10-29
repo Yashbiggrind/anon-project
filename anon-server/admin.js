@@ -158,10 +158,16 @@ async function loadStats() {
     <div class="stat"><div class="n">\${s.unreviewed || 0}</div><div class="l">Unreviewed</div></div>
     <div class="stat"><div class="n">\${s.reports || 0}</div><div class="l">Total Reports</div></div>
     <div class="stat"><div class="n">\${s.strikes || 0}</div><div class="l">Strikes on Record</div></div>
-    <div class="stat"><div class="n">\${s.sessions || 0}</div><div class="l">Sessions Logged</div></div>
+    <div class="stat"><div class="n">\${s.sessionLogging ? (s.sessions || 0) : "OFF"}</div><div class="l">Persistent Session Logs</div></div>
     <div class="stat"><div class="n">\${live.sessions || 0}</div><div class="l">Live Sessions</div></div>
     <div class="stat"><div class="n">\${live.rooms || 0}</div><div class="l">Live Rooms</div></div>
   \`;
+  const exportButton = document.getElementById("openExport");
+  if (exportButton) {
+    exportButton.disabled = !s.sessionLogging;
+    exportButton.title = s.sessionLogging ? "Export retained session metadata" : "Session logging is off by default. See ANON_SESSION_LOGS on the server.";
+    exportButton.style.opacity = s.sessionLogging ? "1" : ".45";
+  }
 }
 
 async function loadReports() {

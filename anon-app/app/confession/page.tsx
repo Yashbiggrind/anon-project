@@ -142,8 +142,8 @@ export default function ConfessionPage() {
       <div className="cwRoot">
         <div className="cwHead">
           <div className="eyebrow">{"// CONFESSION WALL"}</div>
-          <h1>Say it. Then it disappears.</h1>
-          <p>Local-only preview. Posts stay in this browser and expire after 24 hours; this is not the shared Confession Wall.</p>
+          <h1>Write it. Let it pass.</h1>
+          <p>Local-only preview. This is a local-only preview. Posts stay in this browser and are removed from its active list after 24 hours; it is not the shared Confession Wall.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -221,7 +221,7 @@ export default function ConfessionPage() {
 }
 
 const CSS = `
-  .cwRoot{min-height:100vh;background:#040203;color:#e8dde2;padding:40px 20px 80px;font-family:'IBM Plex Mono','Courier New',monospace;}
+  .cwRoot{min-height:100vh;background:#040203;color:#e8dde2;padding:40px 20px 80px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;}
   .cwHead{max-width:760px;margin:0 auto 28px;padding-bottom:22px;border-bottom:1px solid #2a0a12;}
   .eyebrow{font-size:10px;letter-spacing:3px;color:#ff2d55;font-weight:700;text-transform:uppercase;margin-bottom:8px;}
   .cwHead h1{font-family:'Bodoni Moda','Times New Roman',serif;font-weight:900;font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;margin:0 0 8px;color:#f4e8e8;}
@@ -266,5 +266,5 @@ const CSS = `
   .author{color:#c9a8b1;font-size:11.5px;font-weight:600;}
   .dot{color:#5a4048;}
   .ttl{color:#5a4048;font-size:10.5px;font-style:italic;}
-  .text{color:#f4e8e8;font-size:14px;line-height:1.55;word-break:break-word;white-space:pre-wrap;}
+  .text{color:#f4e8e8;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;font-size:14px;line-height:1.7;word-break:break-word;white-space:pre-wrap;}
 `;
