@@ -172,6 +172,32 @@ export async function destroyStore(): Promise<void> {
   });
 }
 
+/**
+ * Export the local message records after applying the same expiry rules as the UI.
+ * Returns only currently retained messages; stale records and expired image payloads
+ * are pruned before export so the downloaded bundle matches the intended local TTL.
+ */
+export async function exportAllMessages(): Promise<StoredMessage[]> {
+  try {
+    const all = await tx<StoredMessage[]>("readonly", (store) => store.getAll());
+    const now = Date.now();
+    const expired = all.filter((message) => now - message.createdAt > TTL_MS);
+    const staleImages = all.filter((message) => message.image && now - message.createdAt > IMAGE_TTL_MS);
+    await Promise.all(expired.map((message) => removeMessage(message.id)));
+    await Promise.all(staleImages.filter((message) => now - message.createdAt <= TTL_MS).map((message) =>
+      updateMessage(message.id, { image: undefined })
+    ));
+    return all
+      .filter((message) => now - message.createdAt <= TTL_MS)
+      .map((message) => message.image && now - message.createdAt > IMAGE_TTL_MS
+        ? { ...message, image: undefined }
+        : message)
+      .sort((a, b) => a.createdAt - b.createdAt);
+  } catch {
+    return [];
+  }
+}
+
 /** Stats for /data page. */
 export async function getStats(): Promise<{ count: number; totalBytes: number }> {
   try {
