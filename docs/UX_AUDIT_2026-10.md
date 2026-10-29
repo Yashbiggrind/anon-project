@@ -32,7 +32,7 @@ Keep ANON's black/crimson identity, editorial display headings, pixel avatars, a
 
 ### 4. Local data controls
 
-**Improved:** the previous JSON action exported only a localStorage summary, not the actual local message history. It now downloads a clearly labelled local-data bundle containing readable localStorage entries, unexpired IndexedDB message history after TTL cleanup, and the current offline queue. The interface warns that this file can contain private text and must be kept private. The CSV remains a storage-report export.
+**Improved:** the previous JSON action exported only a localStorage summary, not the actual local message history. It now downloads a clearly labelled local-data bundle containing readable localStorage entries, unexpired IndexedDB message history after TTL cleanup, and the current offline queue. Users can also create a passphrase-encrypted local bundle and decrypt it later in the browser. The interface explains that unencrypted/decrypted files may contain private text and must be kept private. The CSV remains a storage-report export and omits value previews unless the user explicitly reveals them.
 
 **Boundary:** this is a client/browser export, not a server-side account export. It does not include hosting logs, server abuse records, other devices, backups or recipients' copies. The local wipe action cannot erase those records either.
 
