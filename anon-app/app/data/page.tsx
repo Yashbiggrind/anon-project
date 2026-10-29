@@ -101,10 +101,19 @@ export default function DataPage() {
       localStorageComplete = false;
     }
 
-    const [messageHistory, offlineQueue] = await Promise.all([
-      exportAllMessages(),
-      Promise.resolve(listOfflineQueue()),
-    ]);
+    let messageHistory: unknown[] = [];
+    let indexedDbStatus = "read";
+    try {
+      messageHistory = await exportAllMessages();
+    } catch {
+      indexedDbStatus = "unavailable";
+    }
+    let offlineQueue: ReturnType<typeof listOfflineQueue> = [];
+    try {
+      offlineQueue = listOfflineQueue();
+    } catch {
+      // Retain a partial bundle and disclose that the queue could not be read.
+    }
     const bundle = {
       format: "ANON_LOCAL_DATA_EXPORT",
       version: 1,
@@ -113,8 +122,8 @@ export default function DataPage() {
       scope: "This browser profile only. This is not a server-side account export.",
       completeness: {
         localStorage: localStorageComplete ? "read" : "partial",
-        indexedDbHistory: "retained records after local expiry cleanup",
-        offlineQueue: "current queued messages",
+        indexedDbHistory: indexedDbStatus === "read" ? "retained records after local expiry cleanup" : "unavailable; message contents may be missing",
+        offlineQueue: "current queued messages (empty if unavailable)",
         serverRecords: "not included",
         browserAndProviderLogs: "not included",
         otherDevicesAndRecipientCopies: "not included",
@@ -124,7 +133,7 @@ export default function DataPage() {
       offlineQueue,
     };
     download(`anon-local-data-${Date.now()}.json`, JSON.stringify(bundle, null, 2), "application/json");
-    flash(localStorageComplete
+    flash(localStorageComplete && indexedDbStatus === "read"
       ? `Local data bundle downloaded: ${messageHistory.length} retained messages and ${offlineQueue.length} queued messages. Keep this file private.`
       : "A partial local data bundle was downloaded because some browser storage could not be read.");
   }
