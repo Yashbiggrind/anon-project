@@ -504,6 +504,14 @@ function publicRoomChatMessage(room, message) {
   // Never send the cross-room session identifier through a room message event.
   safeMessage.senderSessionId = getRoomMemberId(room, message.senderSessionId);
   safeMessage.senderName = getRoomAlias(room, message.senderSessionId, message.senderName);
+  // Reply metadata is user-supplied by the client. It must obey the same room-local
+  // aliasing rules as the outer message or a crafted reply can leak a global username.
+  if (safeMessage.replyTo && typeof safeMessage.replyTo.senderName === "string") {
+    safeMessage.replyTo = {
+      ...safeMessage.replyTo,
+      senderName: getRoomAliasForName(room, safeMessage.replyTo.senderName),
+    };
+  }
   safeMessage.identityScope = "room";
   return safeMessage;
 }
