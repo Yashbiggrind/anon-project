@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { clearAll, destroyStore, exportAllMessages } from "@/lib/messageStore";
 import { list as listOfflineQueue } from "@/lib/offlineQueue";
+import { decryptLocalExport, encryptLocalExport } from "@/lib/localExportCrypto";
 
 type Snapshot = {
   exportedAt: string;
@@ -73,6 +74,15 @@ export default function DataPage() {
   const [toastKind, setToastKind] = useState<"success" | "warning">("success");
   const [confirm, setConfirm] = useState(false);
   const [exportConfirm, setExportConfirm] = useState(false);
+  const [encryptedExportOpen, setEncryptedExportOpen] = useState(false);
+  const [encryptPass, setEncryptPass] = useState("");
+  const [encryptPassConfirm, setEncryptPassConfirm] = useState("");
+  const [encryptBusy, setEncryptBusy] = useState(false);
+  const [decryptOpen, setDecryptOpen] = useState(false);
+  const [decryptPass, setDecryptPass] = useState("");
+  const [encryptedFile, setEncryptedFile] = useState<File | null>(null);
+  const [decryptBusy, setDecryptBusy] = useState(false);
+  const encryptedFileRef = useRef<HTMLInputElement>(null);
   const [revealPreviews, setRevealPreviews] = useState(false);
 
   function refresh() {
@@ -90,7 +100,7 @@ export default function DataPage() {
     setTimeout(() => setToast(""), 2600);
   }
 
-  async function exportJson() {
+  async function exportJson(passphrase?: string) {
     if (!snap || typeof window === "undefined") return;
     const localStorageEntries: Array<{ key: string; value: string | null }> = [];
     let localStorageComplete = true;
@@ -135,10 +145,77 @@ export default function DataPage() {
       messageHistory,
       offlineQueue,
     };
+    const complete = localStorageComplete && indexedDbStatus === "read";
+    if (passphrase) {
+      try {
+        const envelope = await encryptLocalExport(bundle, passphrase);
+        download(`anon-encrypted-local-data-${Date.now()}.json`, JSON.stringify(envelope, null, 2), "application/json");
+        flash(complete
+          ? `Encrypted local data bundle downloaded. ${messageHistory.length} messages included. Keep your passphrase safe; ANON cannot recover it.`
+          : "An encrypted partial bundle was downloaded because some browser storage could not be read.", complete ? "success" : "warning");
+      } catch (error) {
+        flash(error instanceof Error ? error.message : "Could not encrypt the local export.", "warning");
+      }
+      return;
+    }
     download(`anon-local-data-${Date.now()}.json`, JSON.stringify(bundle, null, 2), "application/json");
-    flash(localStorageComplete && indexedDbStatus === "read"
+    flash(complete
       ? `Local data bundle downloaded: ${messageHistory.length} retained messages and ${offlineQueue.length} queued messages. Keep this file private.`
       : "A partial local data bundle was downloaded because some browser storage could not be read.", "warning");
+  }
+
+  async function submitEncryptedExport() {
+    if (encryptPass.length < 12) {
+      flash("Use a passphrase of at least 12 characters.", "warning");
+      return;
+    }
+    if (encryptPass !== encryptPassConfirm) {
+      flash("The passphrases do not match.", "warning");
+      return;
+    }
+    setEncryptBusy(true);
+    try {
+      await exportJson(encryptPass);
+      setEncryptedExportOpen(false);
+      setEncryptPass("");
+      setEncryptPassConfirm("");
+    } finally {
+      setEncryptBusy(false);
+    }
+  }
+
+  async function decryptExportFile() {
+    if (!encryptedFile) {
+      flash("Choose an encrypted ANON export file first.", "warning");
+      return;
+    }
+    if (!decryptPass) {
+      flash("Enter the passphrase used for this file.", "warning");
+      return;
+    }
+    if (encryptedFile.size > 100 * 1024 * 1024) {
+      flash("This file is larger than the 100 MB local-decryption limit.", "warning");
+      return;
+    }
+
+    setDecryptBusy(true);
+    try {
+      const parsed: unknown = JSON.parse(await encryptedFile.text());
+      const data = await decryptLocalExport(parsed, decryptPass);
+      if (!data || typeof data !== "object" || (data as { format?: unknown }).format !== "ANON_LOCAL_DATA_EXPORT") {
+        throw new Error("The decrypted file is not an ANON local-data bundle.");
+      }
+      download(`anon-decrypted-local-data-${Date.now()}.json`, JSON.stringify(data, null, 2), "application/json");
+      setDecryptOpen(false);
+      setDecryptPass("");
+      setEncryptedFile(null);
+      if (encryptedFileRef.current) encryptedFileRef.current.value = "";
+      flash("Decrypted JSON downloaded to this device. It contains readable private data; keep it secure.", "warning");
+    } catch (error) {
+      flash(error instanceof Error ? error.message : "Could not decrypt this file.", "warning");
+    } finally {
+      setDecryptBusy(false);
+    }
   }
 
   function exportCsv() {
@@ -231,6 +308,8 @@ export default function DataPage() {
 
         <div className="actions">
           <button className="btn pri" onClick={() => setExportConfirm(true)} disabled={!snap}>↓ EXPORT LOCAL DATA BUNDLE</button>
+          <button className="btn" onClick={() => setEncryptedExportOpen(true)} disabled={!snap}>⌑ EXPORT ENCRYPTED BUNDLE</button>
+          <button className="btn" onClick={() => setDecryptOpen(true)}>↗ DECRYPT A BUNDLE</button>
           <button className="btn" onClick={exportCsv} disabled={!snap}>↓ EXPORT STORAGE REPORT CSV</button>
           <button className="btn" onClick={copyAll} disabled={!snap}>⧉ COPY STORAGE REPORT</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
@@ -260,6 +339,40 @@ export default function DataPage() {
             </div>
           ))}
         </div>
+
+        {encryptedExportOpen && (
+          <div className="modalBg" onClick={() => !encryptBusy && setEncryptedExportOpen(false)}>
+            <div className="modal" role="dialog" aria-modal="true" aria-labelledby="encrypt-title" onClick={(e) => e.stopPropagation()}>
+              <h3 id="encrypt-title">Encrypt your local backup</h3>
+              <p>Your data bundle will be encrypted in this browser with AES-GCM and a passphrase-derived key before download. ANON does not receive the file or passphrase. Use at least 12 characters and keep the passphrase separately—there is no recovery option. This does not encrypt live chats.</p>
+              <label className="fieldLabel" htmlFor="encrypt-pass">Passphrase (12+ characters)</label>
+              <input id="encrypt-pass" className="fieldInput" type="password" autoComplete="new-password" value={encryptPass} onChange={(e) => setEncryptPass(e.target.value)} disabled={encryptBusy} />
+              <label className="fieldLabel" htmlFor="encrypt-pass-confirm">Confirm passphrase</label>
+              <input id="encrypt-pass-confirm" className="fieldInput" type="password" autoComplete="new-password" value={encryptPassConfirm} onChange={(e) => setEncryptPassConfirm(e.target.value)} disabled={encryptBusy} />
+              <div className="modalRow">
+                <button className="btn" disabled={encryptBusy} onClick={() => { setEncryptedExportOpen(false); setEncryptPass(""); setEncryptPassConfirm(""); }}>CANCEL</button>
+                <button className="btn pri" disabled={encryptBusy || !encryptPass || !encryptPassConfirm} onClick={() => void submitEncryptedExport()}>{encryptBusy ? "ENCRYPTING…" : "ENCRYPT & DOWNLOAD"}</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {decryptOpen && (
+          <div className="modalBg" onClick={() => !decryptBusy && setDecryptOpen(false)}>
+            <div className="modal" role="dialog" aria-modal="true" aria-labelledby="decrypt-title" onClick={(e) => e.stopPropagation()}>
+              <h3 id="decrypt-title">Decrypt an ANON backup</h3>
+              <p>Choose a password-encrypted ANON export and enter its passphrase. Decryption happens in this browser. It creates a readable JSON file on this device, which may contain private messages—keep it secure.</p>
+              <label className="fieldLabel" htmlFor="encrypted-export-file">Encrypted export file</label>
+              <input ref={encryptedFileRef} id="encrypted-export-file" className="fieldInput fileInput" type="file" accept=".json,application/json" onChange={(e) => setEncryptedFile(e.target.files?.[0] || null)} disabled={decryptBusy} />
+              <label className="fieldLabel" htmlFor="decrypt-pass">Passphrase</label>
+              <input id="decrypt-pass" className="fieldInput" type="password" autoComplete="current-password" value={decryptPass} onChange={(e) => setDecryptPass(e.target.value)} disabled={decryptBusy} />
+              <div className="modalRow">
+                <button className="btn" disabled={decryptBusy} onClick={() => { setDecryptOpen(false); setDecryptPass(""); setEncryptedFile(null); if (encryptedFileRef.current) encryptedFileRef.current.value = ""; }}>CANCEL</button>
+                <button className="btn pri" disabled={decryptBusy || !encryptedFile || !decryptPass} onClick={() => void decryptExportFile()}>{decryptBusy ? "DECRYPTING…" : "DECRYPT & DOWNLOAD"}</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {exportConfirm && (
           <div className="modalBg" onClick={() => setExportConfirm(false)}>
@@ -339,4 +452,10 @@ const CSS = `
   .modal h3{font-family:'Bodoni Moda',serif;font-weight:900;font-size:22px;margin:0 0 10px;color:#f4e8e8;letter-spacing:-.02em;}
   .modal p{color:#a89098;font-size:13px;line-height:1.6;margin:0 0 18px;}
   .modalRow{display:flex;gap:8px;justify-content:flex-end;}
+  .fieldLabel{display:block;margin:14px 0 6px;color:#d6c6cd;font:600 12px/1.4 Inter,ui-sans-serif,system-ui,sans-serif;}
+  .fieldInput{width:100%;min-height:42px;padding:10px 12px;border:1px solid #49303b;border-radius:8px;background:#080608;color:#f4edf0;font:13px Inter,ui-sans-serif,system-ui,sans-serif;outline:none;}
+  .fieldInput:focus-visible{outline:2px solid #ff8199;outline-offset:2px;border-color:#ff8199;}
+  .fieldInput:disabled{opacity:.55;}
+  .fileInput{font-size:11px;max-width:100%;}
+  .modalRow .btn:disabled{opacity:.45;cursor:wait;}
 `;
