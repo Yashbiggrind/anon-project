@@ -203,7 +203,7 @@ const CSS = `
     background:#040203;
     color:#e8dde2;
     padding:40px 20px 60px;
-    font-family:'IBM Plex Mono','Courier New',monospace;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
   }
   .tHead{
     max-width:1100px;
@@ -296,9 +296,10 @@ const CSS = `
     color:#f4e8e8;
   }
   .card p{
-    color:#8a7276;
-    font-size:12.5px;
-    line-height:1.6;
+    color:#b5a5ad;
+    font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    font-size:13px;
+    line-height:1.75;
     margin:0;
   }
 
