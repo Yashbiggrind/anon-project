@@ -37,7 +37,7 @@ This roadmap records planned work. A box checked in documentation is not proof t
 ## P2 — Privacy experience
 
 - [x] Add Ephemeral History mode that clears IndexedDB chat history and offline queue, then skips later local message history saves.
-- [x] Add browser-only Local Privacy Guard with heuristic detection, user choice and editable redactions for new text, edited messages and image captions (image pixels are not inspected).
+- [x] Add browser-only Local Privacy Guard with heuristic detection and editable redactions across public/room chat, DMs, edits, image captions, and live Confession posts/replies (image pixels are not inspected).
 - [x] Add Quick Veil to cover the app screen and mute app sound; document that the network session remains active.
 - [ ] Add key fingerprints / verification codes and key-change warnings.
 - [ ] Add encrypted local storage and user-controlled encrypted backups after careful recovery design.
