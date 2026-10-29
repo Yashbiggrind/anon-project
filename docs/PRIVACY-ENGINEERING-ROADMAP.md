@@ -8,7 +8,8 @@ This roadmap records planned work. A box checked in documentation is not proof t
 - [x] Add Privacy Control Room showing source-review findings and uncertainty.
 - [x] Add an initial threat model and explicit E2EE release gates.
 - [ ] Verify the exact deployed production commit and environment.
-- [ ] Audit Socket.IO event handlers, message store, edit/delete flows, attachments, notifications, telemetry and crash logs.
+- [ ] Finish auditing all Socket.IO event handlers, message store, edit/delete flows, attachments, notifications, telemetry and crash logs.
+- [x] Add a source-level UI audit in `docs/UX_AUDIT_2026-10.md` and improve typography, responsive navigation, focus states and reduced-motion support across the main experience.
 - [ ] Inventory infrastructure logs, backups, database copies and AI-provider data flows.
 
 ## P1 — Real private-message encryption
@@ -29,9 +30,11 @@ This roadmap records planned work. A box checked in documentation is not proof t
 - [x] Add application-level purge rules for reviewed reports (90 days) and inactive/expired strikes (30 days), with regression tests.
 - [ ] Verify scheduled purge execution in production and document backup/hosting-provider retention separately.
 - [ ] Restrict moderator access and log access to sensitive operational records.
-- [ ] Add data export/deletion request flow with a plain-language explanation of unavoidable legal/security retention.
+- [x] Add a browser-local data bundle export for localStorage, retained IndexedDB messages and the offline queue, with warnings about sensitive contents and its local-only scope.
+- [ ] Add an accountless server-side data request/deletion workflow with a plain-language explanation of unavoidable legal/security retention.
 - [ ] Ensure deletion controls cover all relevant persistence layers and return receipts that do not overpromise.
 - [x] Use ephemeral room-scoped aliases and opaque member tokens in private-room event payloads; remaining timing/network correlation and server-side mapping still need review.
+- [x] Apply the same room-local alias rule to reply metadata and add a Socket.IO regression test against global-name leakage.
 - [x] Expire unanswered invitations after 10 minutes and avoid generating room aliases/tokens for non-member invitees.
 
 ## P2 — Privacy experience
