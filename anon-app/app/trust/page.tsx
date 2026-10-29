@@ -42,7 +42,7 @@ export default function TrustPage() {
   const [encrypted, setEncrypted] = useState("");
   const [decrypted, setDecrypted] = useState("");
   const [plain, setPlain] = useState("meet at the usual place");
-  const [code, setCode] = useState("LNG-482");
+  const [code, setCode] = useState("demo-only-phrase");
 
   // ---------- Rate limit visualizer ----------
   function fire(n: number) {
@@ -94,9 +94,9 @@ export default function TrustPage() {
         <div className="tGrid">
           {/* ---------- Rate limits ---------- */}
           <div className="card">
-            <span className="status live">LIVE IN PROTOTYPE</span>
-            <h3>Rate limits</h3>
-            <p>15 events per 10 seconds, per connection. Press the buttons and watch the bucket.</p>
+            <span className="status plan">LOCAL DEMO</span>
+            <h3>Rate-limit visualizer</h3>
+            <p>This card simulates a rolling 10-second counter in your browser. It does not send test traffic to the live server or measure production rate limits.</p>
             <div className="bucket">
               {dots.map((on, i) => (
                 <i key={i} className={on ? (i < 15 ? "ok" : "no") : ""} />
@@ -113,11 +113,11 @@ export default function TrustPage() {
 
           {/* ---------- Ask admin to join ---------- */}
           <div className="card">
-            <span className="status live">LIVE IN PROTOTYPE</span>
-            <h3>Ask admin to join</h3>
-            <p>Request-only rooms. The admin gets a banner and decides. Favourites remember approval.</p>
+            <span className="status live">IN THIS BRANCH</span>
+            <h3>Room-only identities</h3>
+            <p>Private rooms show a room-specific alias and opaque member token, separate from public presence. This reduces direct cross-room identifier reuse; it does not encrypt messages or hide connection metadata from the server.</p>
             <div className="btnRow">
-              <Link href="/#explore" className="btn sm pri">TRY IT →</Link>
+              <Link href="/privacy-center" className="btn sm pri">READ PRIVACY DETAILS →</Link>
             </div>
           </div>
 
@@ -133,11 +133,11 @@ export default function TrustPage() {
 
           {/* ---------- PWA install ---------- */}
           <div className="card">
-            <span className="status live">AVAILABLE</span>
-            <h3>Install as an app</h3>
-            <p>Add ANON to your home screen for a focused, app-like shortcut. Installing it does not erase your browser history.</p>
+            <span className="status plan">INSTALL GUIDE</span>
+            <h3>Add ANON to your home screen</h3>
+            <p>These steps open your browser's install flow; they are not a native install prompt. Installing ANON does not erase browser history or other saved copies.</p>
             <div className="btnRow">
-              <button className="btn sm" onClick={() => alert("On Android Chrome: menu ⋮ → Install app. On iOS Safari: Share → Add to Home Screen.")}>SHOW INSTALL PROMPT</button>
+              <button className="btn sm" onClick={() => alert("Android Chrome: open menu ⋮ → Install app (if offered). iPhone/iPad Safari: Share → Add to Home Screen.")}>SHOW INSTALL STEPS</button>
             </div>
           </div>
 
@@ -152,10 +152,12 @@ export default function TrustPage() {
           {/* ---------- E2E ---------- */}
           <div className="card">
             <span className="status plan">LOCAL DEMO</span>
-            <h3>Try a tiny encryption demo</h3>
-            <p>See how sample text can turn into ciphertext and back again, right in your browser. This is a learning example; it does not change the protection on live ANON chats.</p>
-            <input className="inp" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="message to encrypt" />
-            <input className="inp" value={code} onChange={(e) => setCode(e.target.value)} placeholder="room code" />
+            <h3>Local encryption illustration</h3>
+            <p>See sample text turn into ciphertext and back in this browser. This isolated demo does not protect live chats, authenticate the other person, or provide secure key exchange. Use demo-only text and a demo-only phrase—never a real password or room code.</p>
+            <label className="trustFieldLabel" htmlFor="local-encryption-sample">Sample text</label>
+            <input id="local-encryption-sample" className="inp" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="demo text only" />
+            <label className="trustFieldLabel" htmlFor="local-encryption-passphrase">Demo-only phrase</label>
+            <input id="local-encryption-passphrase" className="inp" value={code} onChange={(e) => setCode(e.target.value)} placeholder="demo-only phrase" autoComplete="off" />
             <div className="btnRow">
               <button className="btn sm" onClick={runCrypto}>ENCRYPT → DECRYPT</button>
             </div>
@@ -169,7 +171,7 @@ export default function TrustPage() {
                   <span className="dim">decrypted locally: </span>
                   <span className="ok">{decrypted}</span>
                 </div>
-                <div className="note">This is only a local browser demonstration. The actual chat protection is separate from this card, and this demo does not test live-message encryption.</div>
+                <div className="note">Local learning demo only. A short or guessable phrase can be guessed; this is not a reviewed messaging protocol and does not test live-message encryption.</div>
               </>
             )}
           </div>
@@ -178,7 +180,7 @@ export default function TrustPage() {
           <div className="card">
             <span className="status plan">PLANNED</span>
             <h3>Tor .onion mirror</h3>
-            <p>A hidden-service twin of the site for network-level anonymity.</p>
+            <p>Not deployed by this repository alone. A Tor onion service needs server/operator configuration and a separate review of network metadata. Onion routing by itself does not make users or app records untraceable.</p>
             <pre className="code">{TOR_CODE}</pre>
           </div>
 
@@ -186,7 +188,7 @@ export default function TrustPage() {
           <div className="card">
             <span className="status plan">PLANNED</span>
             <h3>PostgreSQL</h3>
-            <p>Durable rooms without durable people. No user table, ciphertext only.</p>
+            <p>A proposed storage direction, not the current database architecture. Ciphertext-only storage depends on a reviewed E2EE protocol and server-side integration, neither of which is live yet.</p>
             <pre className="code">{PG_CODE}</pre>
           </div>
         </div>
@@ -231,6 +233,10 @@ const CSS = `
     font-size:13px;
     margin:0 0 16px;
   }
+  .trustFieldLabel{display:block;color:#b9a6af;font-size:11px;letter-spacing:.04em;margin:12px 0 6px}
+  .trustFieldLabel + .inp{margin-top:0}
+  .trustRoot :focus-visible{outline:2px solid #ff8199;outline-offset:3px}
+  @media(prefers-reduced-motion:reduce){.trustRoot *{scroll-behavior:auto!important;animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
   .backBtn{
     display:inline-flex;
     align-items:center;
