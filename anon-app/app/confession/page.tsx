@@ -221,7 +221,7 @@ export default function ConfessionPage() {
 }
 
 const CSS = `
-  .cwRoot{min-height:100vh;background:#040203;color:#e8dde2;padding:40px 20px 80px;font-family:'IBM Plex Mono','Courier New',monospace;}
+  .cwRoot{min-height:100vh;background:#040203;color:#e8dde2;padding:40px 20px 80px;font-family:Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',sans-serif;}
   .cwHead{max-width:760px;margin:0 auto 28px;padding-bottom:22px;border-bottom:1px solid #2a0a12;}
   .eyebrow{font-size:10px;letter-spacing:3px;color:#ff2d55;font-weight:700;text-transform:uppercase;margin-bottom:8px;}
   .cwHead h1{font-family:'Bodoni Moda','Times New Roman',serif;font-weight:900;font-size:clamp(28px,5vw,44px);letter-spacing:-.02em;margin:0 0 8px;color:#f4e8e8;}
