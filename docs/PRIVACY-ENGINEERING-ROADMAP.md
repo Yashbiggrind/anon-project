@@ -43,7 +43,8 @@ This roadmap records planned work. A box checked in documentation is not proof t
 - [x] Add browser-only Local Privacy Guard with heuristic detection and editable redactions across public/room chat, DMs, edits, image captions, and live Confession posts/replies (image pixels are not inspected).
 - [x] Add Quick Veil to cover the app screen and mute app sound; document that the network session remains active.
 - [ ] Add key fingerprints / verification codes and key-change warnings.
-- [ ] Add encrypted local storage and user-controlled encrypted backups after careful recovery design.
+- [x] Add passphrase-encrypted local-data bundle export and browser-only decryption; keep this distinct from live-message E2EE.
+- [ ] Encrypt routine local message storage and design user-controlled encrypted backups with recovery safeguards.
 - [ ] Make expiry semantics explicit; explain screenshot and recipient-copy limits.
 - [ ] Redesign reports and moderation to preserve E2EE while limiting abuse.
 - [ ] Optional Tor/onion availability after threat modelling, operational testing and safety review.
