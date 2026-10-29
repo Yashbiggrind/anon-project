@@ -135,7 +135,7 @@ export default function TrustPage() {
           <div className="card">
             <span className="status plan">INSTALL GUIDE</span>
             <h3>Add ANON to your home screen</h3>
-            <p>These steps open your browser's install flow; they are not a native install prompt. Installing ANON does not erase browser history or other saved copies.</p>
+            <p>These steps open your browser&apos;s install flow; they are not a native install prompt. Installing ANON does not erase browser history or other saved copies.</p>
             <div className="btnRow">
               <button className="btn sm" onClick={() => alert("Android Chrome: open menu ⋮ → Install app (if offered). iPhone/iPad Safari: Share → Add to Home Screen.")}>SHOW INSTALL STEPS</button>
             </div>
