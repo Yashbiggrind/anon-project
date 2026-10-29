@@ -60,9 +60,9 @@ function download(filename: string, content: string, mime: string) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-function toCsv(snap: Snapshot): string {
+function toCsv(snap: Snapshot, includePreviews = false): string {
   const rows = [["key", "sizeBytes", "preview"]];
-  for (const k of snap.keys) rows.push([k.key, String(k.sizeBytes), k.preview]);
+  for (const k of snap.keys) rows.push([k.key, String(k.sizeBytes), includePreviews ? k.preview : ""]);
   return rows.map((r) => r.map((c) => `"${c.replace(/"/g, '""')}"`).join(",")).join("\n");
 }
 
@@ -72,6 +72,7 @@ export default function DataPage() {
   const [toast, setToast] = useState("");
   const [toastKind, setToastKind] = useState<"success" | "warning">("success");
   const [confirm, setConfirm] = useState(false);
+  const [exportConfirm, setExportConfirm] = useState(false);
   const [revealPreviews, setRevealPreviews] = useState(false);
 
   function refresh() {
@@ -142,8 +143,8 @@ export default function DataPage() {
 
   function exportCsv() {
     if (!snap) return;
-    download(`anon-data-${Date.now()}.csv`, toCsv(snap), "text/csv");
-    flash("CSV downloaded.");
+    download(`anon-storage-report-${Date.now()}.csv`, toCsv(snap, revealPreviews), "text/csv");
+    flash(revealPreviews ? "Storage report downloaded with previews you revealed." : "Storage report downloaded without value previews.");
   }
 
   async function copyAll() {
@@ -229,7 +230,7 @@ export default function DataPage() {
         </div>
 
         <div className="actions">
-          <button className="btn pri" onClick={exportJson} disabled={!snap}>↓ EXPORT LOCAL DATA BUNDLE</button>
+          <button className="btn pri" onClick={() => setExportConfirm(true)} disabled={!snap}>↓ EXPORT LOCAL DATA BUNDLE</button>
           <button className="btn" onClick={exportCsv} disabled={!snap}>↓ EXPORT STORAGE REPORT CSV</button>
           <button className="btn" onClick={copyAll} disabled={!snap}>⧉ COPY STORAGE REPORT</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
@@ -259,6 +260,19 @@ export default function DataPage() {
             </div>
           ))}
         </div>
+
+        {exportConfirm && (
+          <div className="modalBg" onClick={() => setExportConfirm(false)}>
+            <div className="modal" role="dialog" aria-modal="true" aria-labelledby="export-title" onClick={(e) => e.stopPropagation()}>
+              <h3 id="export-title">Export private local data?</h3>
+              <p>The JSON bundle can contain chat text, locally saved settings, names in storage and unsent messages. It is downloaded to this device; ANON does not upload the file. Anyone who can access the file may read it. The export does not include server-side records or other devices.</p>
+              <div className="modalRow">
+                <button className="btn" onClick={() => setExportConfirm(false)}>CANCEL</button>
+                <button className="btn pri" onClick={() => { setExportConfirm(false); void exportJson(); }}>EXPORT MY LOCAL DATA</button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {confirm && (
           <div className="modalBg" onClick={() => setConfirm(false)}>
