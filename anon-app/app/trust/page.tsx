@@ -111,7 +111,7 @@ export default function TrustPage() {
             </div>
           </div>
 
-          {/* ---------- Ask admin to join ---------- */}
+          {/* ---------- Room-only identities ---------- */}
           <div className="card">
             <span className="status live">IN THIS BRANCH</span>
             <h3>Room-only identities</h3>
@@ -123,8 +123,8 @@ export default function TrustPage() {
 
           {/* ---------- Delete my data ---------- */}
           <div className="card">
-            <span className="status live">LIVE IN PROTOTYPE</span>
-            <h3>Delete my data</h3>
+            <span className="status live">IN THIS BRANCH</span>
+            <h3>Local data controls</h3>
             <p>Review what this browser has saved, export a copy, or clear local data. Server-side safety records and recipients’ copies are separate.</p>
             <div className="btnRow">
               <Link href="/data" className="btn sm">OPEN LOCAL DATA CONTROLS →</Link>
