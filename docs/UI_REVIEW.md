@@ -24,6 +24,7 @@ Keep ANON's established charcoal/black and crimson identity. The visual directio
 | Privacy Center | Important boundaries were spread across technical copy | Added plain-language cards for the local guard, Quick Veil, Ephemeral History, AI-bot boundaries and room-only names; detailed limitations remain available |
 | Data controls | Local deletion could be mistaken for universal deletion; the first-visit notice exposed stale logging/provider claims | Clarified local storage scope, corrected first-visit disclosures and aligned user-facing copy with active-database retention and bot-provider defaults |
 | Footer and onboarding | A stale confession link opened a separate local-only preview; the first-visit notice was long and inaccurate | Route the footer to the live Confession Wall; use a shorter, expandable privacy note with accurate scope details |
+| Trust Layer demos | Local visualizers and future plans could be mistaken for live server capabilities | Mark rate-limit simulation as local demo, replace a non-existent "ask admin to join" feature with current room-only identities, and label Tor/PostgreSQL as planned |
 
 ## Interaction and accessibility work
 
@@ -33,6 +34,9 @@ Keep ANON's established charcoal/black and crimson identity. The visual directio
 - Responsive CSS reduces profile width and adapts the privacy panel for small screens.
 - The privacy guard modal labels its action correctly for new messages, edits and image captions; the same on-device preflight now covers confession posts and replies.
 - Restored pinch-to-zoom by removing the global `maximumScale=1` viewport restriction.
+- Hid localStorage value previews by default on the Data Controls page; added an explicit reveal toggle and made storage-read failures visible.
+- Corrected Trust Layer claims so local demos and future Tor/database designs cannot be mistaken for shipped capabilities.
+- Updated the legal disclosure text to describe the current logging opt-in and bot-provider behaviour and avoid a blanket claim that live private messages are confidential from the server.
 - Updated global title/description and social metadata so snippets describe pseudonymous chat without claiming complete anonymity or E2EE.
 
 ## Deliberately unchanged
