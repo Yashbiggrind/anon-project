@@ -100,8 +100,8 @@ export default function DataPage() {
     setTimeout(() => setToast(""), 2600);
   }
 
-  async function exportJson(passphrase?: string) {
-    if (!snap || typeof window === "undefined") return;
+  async function exportJson(passphrase?: string): Promise<boolean> {
+    if (!snap || typeof window === "undefined") return false;
     const localStorageEntries: Array<{ key: string; value: string | null }> = [];
     let localStorageComplete = true;
 
@@ -122,10 +122,11 @@ export default function DataPage() {
       indexedDbStatus = "unavailable";
     }
     let offlineQueue: ReturnType<typeof listOfflineQueue> = [];
+    let offlineQueueStatus = "read";
     try {
       offlineQueue = listOfflineQueue();
     } catch {
-      // Retain a partial bundle and disclose that the queue could not be read.
+      offlineQueueStatus = "unavailable";
     }
     const bundle = {
       format: "ANON_LOCAL_DATA_EXPORT",
@@ -136,7 +137,7 @@ export default function DataPage() {
       completeness: {
         localStorage: localStorageComplete ? "read" : "partial",
         indexedDbHistory: indexedDbStatus === "read" ? "retained records after local expiry cleanup" : "unavailable; message contents may be missing",
-        offlineQueue: "current queued messages (empty if unavailable)",
+        offlineQueue: offlineQueueStatus === "read" ? "current queued messages" : "unavailable; queued message contents may be missing",
         serverRecords: "not included",
         browserAndProviderLogs: "not included",
         otherDevicesAndRecipientCopies: "not included",
@@ -145,7 +146,7 @@ export default function DataPage() {
       messageHistory,
       offlineQueue,
     };
-    const complete = localStorageComplete && indexedDbStatus === "read";
+    const complete = localStorageComplete && indexedDbStatus === "read" && offlineQueueStatus === "read";
     if (passphrase) {
       try {
         const envelope = await encryptLocalExport(bundle, passphrase);
@@ -153,15 +154,17 @@ export default function DataPage() {
         flash(complete
           ? `Encrypted local data bundle downloaded. ${messageHistory.length} messages included. Keep your passphrase safe; ANON cannot recover it.`
           : "An encrypted partial bundle was downloaded because some browser storage could not be read.", complete ? "success" : "warning");
+        return true;
       } catch (error) {
         flash(error instanceof Error ? error.message : "Could not encrypt the local export.", "warning");
+        return false;
       }
-      return;
     }
     download(`anon-local-data-${Date.now()}.json`, JSON.stringify(bundle, null, 2), "application/json");
     flash(complete
       ? `Local data bundle downloaded: ${messageHistory.length} retained messages and ${offlineQueue.length} queued messages. Keep this file private.`
       : "A partial local data bundle was downloaded because some browser storage could not be read.", "warning");
+    return true;
   }
 
   async function submitEncryptedExport() {
@@ -175,10 +178,12 @@ export default function DataPage() {
     }
     setEncryptBusy(true);
     try {
-      await exportJson(encryptPass);
-      setEncryptedExportOpen(false);
-      setEncryptPass("");
-      setEncryptPassConfirm("");
+      const completed = await exportJson(encryptPass);
+      if (completed) {
+        setEncryptedExportOpen(false);
+        setEncryptPass("");
+        setEncryptPassConfirm("");
+      }
     } finally {
       setEncryptBusy(false);
     }
