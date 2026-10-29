@@ -6,7 +6,7 @@
  */
 const FORMAT = "ANON_ENCRYPTED_LOCAL_DATA_EXPORT";
 const VERSION = 1;
-const ITERATIONS = 310_000;
+const ITERATIONS = 600_000;
 const AAD = "ANON_LOCAL_DATA_EXPORT:v1:PBKDF2-SHA256:AES-256-GCM";
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
