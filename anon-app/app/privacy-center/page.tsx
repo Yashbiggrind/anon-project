@@ -105,7 +105,7 @@ export default function PrivacyCenterPage() {
               <article className="pc-card">
                 <div className="pc-icon" aria-hidden="true">⌁</div>
                 <h3>Local Privacy Guard</h3>
-                <p>A browser-only check can flag common patterns such as email addresses, phone numbers, some ID formats and credential-like text in new messages, edited text and image captions. It offers editable redactions; it does not inspect image pixels and cannot detect every sensitive detail.</p>
+                <p>A browser-only check can flag common patterns such as email addresses, phone numbers, some ID formats and credential-like text in chat messages, edits, image captions, confession posts and replies. It offers editable redactions; it does not inspect image pixels and cannot detect every sensitive detail.</p>
                 <p style={{marginTop:10,color:"#8ddbb6",fontSize:11}}>Runs on this device · Toggle from the chat toolbar</p>
               </article>
               <article className="pc-card">
