@@ -38,6 +38,13 @@ function base64ToBytes(value: string): Uint8Array {
   return bytes;
 }
 
+/** Copy bytes into a plain ArrayBuffer for stricter WebCrypto TypeScript definitions. */
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  const copy = new Uint8Array(new ArrayBuffer(bytes.byteLength));
+  copy.set(bytes);
+  return copy.buffer as ArrayBuffer;
+}
+
 async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKey> {
   const material = await crypto.subtle.importKey(
     "raw",
@@ -47,7 +54,7 @@ async function deriveKey(passphrase: string, salt: Uint8Array): Promise<CryptoKe
     ["deriveKey"]
   );
   return crypto.subtle.deriveKey(
-    { name: "PBKDF2", salt, iterations: ITERATIONS, hash: "SHA-256" },
+    { name: "PBKDF2", salt: toArrayBuffer(salt), iterations: ITERATIONS, hash: "SHA-256" },
     material,
     { name: "AES-GCM", length: 256 },
     false,
@@ -70,7 +77,7 @@ export async function encryptLocalExport(bundle: unknown, passphrase: string): P
   const ciphertext = await crypto.subtle.encrypt(
     {
       name: "AES-GCM",
-      iv,
+      iv: toArrayBuffer(iv),
       additionalData: encoder.encode(AAD),
       tagLength: 128,
     },
@@ -121,12 +128,12 @@ export async function decryptLocalExport(
     const plaintext = await crypto.subtle.decrypt(
       {
         name: "AES-GCM",
-        iv,
+        iv: toArrayBuffer(iv),
         additionalData: encoder.encode(AAD),
         tagLength: 128,
       },
       key,
-      base64ToBytes(envelope.ciphertext)
+      toArrayBuffer(base64ToBytes(envelope.ciphertext))
     );
     return JSON.parse(decoder.decode(plaintext));
   } catch {
