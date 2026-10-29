@@ -2111,7 +2111,7 @@ export default function Home() {
             <div className="footRight">
               <Link className="footLink accent" href="/data">◉ {t("dataLogTitle")}</Link>
               <span className="sep">/</span>
-              <a className="footLink accent" href="/confession">◉ CONFESSION</a>
+              <button className="footLink accent" type="button" onClick={() => openDoor("confession")}>◉ CONFESSION</button>
               <span className="sep">/</span>
               <Link className="footLink" href="/legal/privacy">{t("privacy")}</Link>
               <span className="sep">/</span>
