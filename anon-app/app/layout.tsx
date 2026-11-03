@@ -5,10 +5,21 @@ import ConsentBanner from "./consent-banner";
 import ErrorBoundary from "./error-boundary";
 
 export const metadata: Metadata = {
-  title: "ANON// â€” Anonymous Chat",
-  description: "Anonymous chat. No account. No profile.",
+  title: "ANON // Anonymous Chat",
+  description: "Pseudonymous chat with local privacy controls. Live chats are not yet end-to-end encrypted.",
   manifest: "/manifest.json",
   applicationName: "ANON",
+  openGraph: {
+    title: "ANON // Anonymous Chat",
+    description: "Pseudonymous conversations with clear privacy controls. Live chats are not yet end-to-end encrypted.",
+    siteName: "ANON",
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: "ANON // Anonymous Chat",
+    description: "Pseudonymous conversations with local privacy controls.",
+  },
   appleWebApp: {
     capable: true,
     title: "ANON",
@@ -30,7 +41,6 @@ export const viewport: Viewport = {
   themeColor: "#040203",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
 };
 

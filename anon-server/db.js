@@ -1,6 +1,6 @@
 ﻿require("dotenv").config();
 // db.js — v21.3 SQLite persistence for ANON
-// Adds: sessions_log table for IP retention (Rule 3(1)(h) compliance)
+// Session metadata logging is opt-in; avoid creating a durable connection trail by default.
 const path = require("path");
 const crypto = require("crypto");
 const { DatabaseSync } = require("node:sqlite");
@@ -14,6 +14,12 @@ if (IS_PRODUCTION && (CONFIGURED_IP_HASH_SECRET.length < 32 || /change-me|your-s
 // A process-local random secret keeps development usable without a hard-coded persistent key.
 const IP_HASH_SECRET = CONFIGURED_IP_HASH_SECRET || crypto.randomBytes(32).toString("hex");
 const RETENTION_DAYS = 180;
+// Retention for operational safety records: reviewed reports age out after 90 days;
+// inactive strikes age out after 30 days only when cooldowns/bans have expired.
+const REVIEWED_REPORT_RETENTION_DAYS = 90;
+const INACTIVE_STRIKE_RETENTION_DAYS = 30;
+// Set ANON_SESSION_LOGS=on only when persistent connection metadata is justified and reviewed.
+const STORE_SESSION_LOGS = String(process.env.ANON_SESSION_LOGS || "").trim().toLowerCase() === "on";
 
 let db = null;
 let ready = false;
@@ -90,6 +96,16 @@ function init() {
     // Migrate legacy raw-IP strike keys to keyed hashes without discarding moderation state.
     // Enable secure_delete before removing old rows, then compact the database if migration was needed.
     db.exec("PRAGMA secure_delete = ON");
+    // Default to no persistent connection/session trail. If the operator has not
+    // explicitly opted in, remove old rows from the active database as part of startup.
+    if (!STORE_SESSION_LOGS) {
+      const removedSessionRows = db.prepare("DELETE FROM sessions_log").run().changes;
+      if (removedSessionRows > 0) {
+        db.exec("PRAGMA wal_checkpoint(TRUNCATE)");
+        db.exec("VACUUM");
+        console.log("[db] removed " + removedSessionRows + " persisted session metadata row(s); ANON_SESSION_LOGS is off");
+      }
+    }
     const legacyIpKeys = db.prepare("SELECT * FROM strikes WHERE spam_key LIKE 'ip:%'").all();
     const upsertHashedStrike = db.prepare(`
       INSERT INTO strikes
@@ -128,7 +144,7 @@ function init() {
 
     ready = true;
     console.log("[db] ready at", DB_PATH);
-    console.log("[db] connection-metadata retention: 180 days; HMAC secret =", CONFIGURED_IP_HASH_SECRET ? "configured" : "ephemeral development key");
+    console.log("[db] persistent session metadata logging =", STORE_SESSION_LOGS ? "enabled (" + RETENTION_DAYS + "-day retention)" : "off (default)");
   } catch (err) {
     console.error("[db] failed to initialize:", err.message);
     console.error(err.stack);
@@ -204,7 +220,7 @@ function loadAllStrikes() {
 
 // ---------- v21.3 — session log (IP retention) ----------
 function logConnect(rawIp, sessionId, userAgent) {
-  if (!ready) return;
+  if (!ready || !STORE_SESSION_LOGS) return;
   try {
     const ipHash = hashIp(rawIp);
     const stmt = db.prepare(
@@ -215,7 +231,7 @@ function logConnect(rawIp, sessionId, userAgent) {
 }
 
 function logDisconnect(sessionId) {
-  if (!ready) return;
+  if (!ready || !STORE_SESSION_LOGS) return;
   try {
     db.prepare(
       "UPDATE sessions_log SET disconnected_at = ? WHERE session_id = ? AND disconnected_at IS NULL"
@@ -224,7 +240,7 @@ function logDisconnect(sessionId) {
 }
 
 function purgeOldSessions() {
-  if (!ready) return 0;
+  if (!ready || !STORE_SESSION_LOGS) return 0;
   try {
     const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
     const info = db.prepare("DELETE FROM sessions_log WHERE connected_at < ?").run(cutoff);
@@ -232,8 +248,26 @@ function purgeOldSessions() {
   } catch (e) { console.error("[db] purgeOldSessions:", e.message); return 0; }
 }
 
+// Prune safety records by purpose, retaining unresolved reports and active sanctions.
+// Returns only counts, never identifiers or report contents.
+function purgeOldSafetyRecords(now = Date.now()) {
+  if (!ready) return { reports: 0, strikes: 0 };
+  try {
+    const reportCutoff = now - REVIEWED_REPORT_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const strikeCutoff = now - INACTIVE_STRIKE_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    const deleteReviewed = db.prepare("DELETE FROM reports WHERE reviewed = 1 AND created_at < ?").run(reportCutoff);
+    const deleteInactive = db.prepare(
+      "DELETE FROM strikes WHERE updated_at < ? AND cooldown_until <= ? AND shadow_banned_until <= ?"
+    ).run(strikeCutoff, now, now);
+    return { reports: deleteReviewed.changes, strikes: deleteInactive.changes };
+  } catch (e) {
+    console.error("[db] purgeOldSafetyRecords:", e.message);
+    return { reports: 0, strikes: 0 };
+  }
+}
+
 function listSessions({ since = 0, until = Date.now(), ipHash = null, limit = 500 } = {}) {
-  if (!ready) return [];
+  if (!ready || !STORE_SESSION_LOGS) return [];
   try {
     let sql = "SELECT * FROM sessions_log WHERE connected_at >= ? AND connected_at <= ?";
     const args = [since, until];
@@ -252,7 +286,8 @@ function listSessions({ since = 0, until = Date.now(), ipHash = null, limit = 50
 }
 
 function getSessionCount() {
-  if (!ready) return 0;
+  // Match the public stats contract and avoid revealing stale rows when logging is off.
+  if (!ready || !STORE_SESSION_LOGS) return 0;
   try { return db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c; }
   catch { return 0; }
 }
@@ -265,7 +300,8 @@ function getStats() {
       reports: db.prepare("SELECT COUNT(*) AS c FROM reports").get().c,
       unreviewed: db.prepare("SELECT COUNT(*) AS c FROM reports WHERE reviewed = 0").get().c,
       strikes: db.prepare("SELECT COUNT(*) AS c FROM strikes").get().c,
-      sessions: db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c,
+      sessions: STORE_SESSION_LOGS ? db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c : 0,
+      sessionLogging: STORE_SESSION_LOGS,
     };
   } catch (e) { console.error("[db] getStats:", e.message); return null; }
 }
@@ -276,7 +312,8 @@ module.exports = {
   hashIp,
   saveReport, listReports, markReportReviewed,
   saveStrike, deleteStrike, loadAllStrikes,
-  logConnect, logDisconnect, purgeOldSessions,
+  logConnect, logDisconnect, purgeOldSessions, purgeOldSafetyRecords,
   listSessions, getSessionCount,
+  isSessionLoggingEnabled: () => STORE_SESSION_LOGS,
   getStats,
 };

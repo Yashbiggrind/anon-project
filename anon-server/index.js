@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const os = require("os");
+const crypto = require("crypto");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const db = require("./db");
@@ -50,6 +51,7 @@ function corsOrigin(origin, cb) {
 const sessions = new Map();
 const socketBySession = new Map();
 const invites = new Map();
+const INVITE_TTL_MS = 10 * 60 * 1000;
 const rooms = new Map();
 const sessionRooms = new Map();
 const dmThreads = new Map();
@@ -78,6 +80,8 @@ const REACTION_TTL = 60 * 60 * 1000;
 
 const messageOwners = new Map();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
+const SAFETY_PURGE_INTERVAL_MS = 6 * 60 * 60 * 1000;
+let lastSafetyPurgeAt = 0;
 
 // ============================================================
 // v17 â€” ANTI-SPAM ENGINE
@@ -190,6 +194,23 @@ setInterval(() => {
       if (until <= now) room.timeouts.delete(sid);
     }
   }
+  // Invitations expire after ten minutes so forgotten invites and their identity
+  // references do not remain in memory indefinitely.
+  for (const [inviteId, invite] of invites) {
+    if (now - invite.createdAt < INVITE_TTL_MS) continue;
+    invites.delete(inviteId);
+    const recipientSocketId = findSocketBySession(invite.recipientSessionId);
+    if (recipientSocketId) io.to(recipientSocketId).emit("invite:expired", { inviteId });
+    const inviteRoom = rooms.get(invite.roomId);
+    if (inviteRoom && inviteRoom.status === "active") {
+      for (const p of inviteRoom.participants) {
+        const sid = findSocketBySession(p.sessionId);
+        if (sid) io.to(sid).emit("room:invite:resolved", {
+          inviteId, accepted: false, reason: "expired", at: now,
+        });
+      }
+    }
+  }
   for (const [threadId, thread] of dmThreads) {
     if (now - thread.lastAt > DM_TTL_MS) {
       dmThreads.delete(threadId);
@@ -212,7 +233,16 @@ setInterval(() => {
   // v21.3 â€” purge session log entries older than 180 days
   {
     const purged = db.purgeOldSessions();
-    if (purged > 0) console.log(`[db] purged ${purged} expired session log(s)`);
+    if (purged > 0) console.log(`[privacy] purged ${purged} expired session metadata row(s)`);
+  }
+  // Run safety-record retention at startup and then every six hours. Unreviewed reports
+  // and active cooldowns/bans are excluded by the database deletion predicates.
+  if (now - lastSafetyPurgeAt >= SAFETY_PURGE_INTERVAL_MS) {
+    lastSafetyPurgeAt = now;
+    const expired = db.purgeOldSafetyRecords(now);
+    if (expired.reports > 0 || expired.strikes > 0) {
+      console.log(`[privacy] aged out ${expired.reports} reviewed report(s) and ${expired.strikes} inactive strike(s)`);
+    }
   }
 }, 30000);
 
@@ -329,23 +359,96 @@ function finishElection() {
   return true;
 }
 
-const publicRoom = (r) => ({
-  roomId: r.roomId,
-  host: r.host,
-  admin: r.admin,
-  topic: r.topic,
-  capacity: r.capacity,
-  slowMode: r.slowMode,
+// Room-scoped public identity: names and member tokens are recreated for each room
+// and never persisted. Internal moderation continues to use private server-side IDs.
+function ensureRoomPrivacyMaps(room) {
+  if (!(room.roomAliases instanceof Map)) room.roomAliases = new Map();
+  if (!(room.roomGlobalNames instanceof Map)) room.roomGlobalNames = new Map();
+  if (!(room.memberIds instanceof Map)) room.memberIds = new Map();
+  if (!(room.sessionsByMemberId instanceof Map)) room.sessionsByMemberId = new Map();
+}
+
+function getRoomAlias(room, sessionId, fallbackName = "Anonymous") {
+  ensureRoomPrivacyMaps(room);
+  if (!room.roomGlobalNames.has(sessionId) && typeof fallbackName === "string" && fallbackName) {
+    room.roomGlobalNames.set(sessionId, fallbackName);
+  }
+  if (room.roomAliases.has(sessionId)) return room.roomAliases.get(sessionId);
+  const used = new Set(room.roomAliases.values());
+  const isBot = String(sessionId).startsWith("bot_") || String(fallbackName).startsWith("AI · ");
+  let alias = "";
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const candidate = (isBot ? "AI · " : "") + makeUsername();
+    if (!used.has(candidate)) { alias = candidate; break; }
+  }
+  if (!alias) alias = (isBot ? "AI · " : "") + "Guest" + crypto.randomBytes(5).toString("hex");
+  room.roomAliases.set(sessionId, alias);
+  return alias;
+}
+
+function getRoomMemberId(room, sessionId) {
+  ensureRoomPrivacyMaps(room);
+  if (room.memberIds.has(sessionId)) return room.memberIds.get(sessionId);
+  let token;
+  do { token = crypto.randomBytes(16).toString("base64url"); }
+  while (room.sessionsByMemberId.has(token));
+  room.memberIds.set(sessionId, token);
+  room.sessionsByMemberId.set(token, sessionId);
+  return token;
+}
+
+function resolveRoomMemberId(room, presentedMemberId) {
+  ensureRoomPrivacyMaps(room);
+  const direct = room.sessionsByMemberId.get(String(presentedMemberId || ""));
+  if (!direct) return null;
+  return room.participants.some((p) => p.sessionId === direct) ? direct : null;
+}
+
+function getRoomAliasForName(room, name) {
+  if (typeof name !== "string" || !name) return name;
+  ensureRoomPrivacyMaps(room);
+
+  // A room alias can safely pass through system-event formatting unchanged.
+  if ([...room.roomAliases.values()].includes(name)) return name;
+
+  // Ensure every current participant has an alias before resolving a display name.
+  for (const participant of room.participants) {
+    getRoomAlias(room, participant.sessionId, participant.username);
+  }
+
+  // Global names are not guaranteed unique. Only map a name when exactly one
+  // session in this room-history scope owns it; ambiguity fails closed.
+  const matches = [];
+  for (const [sessionId, globalName] of room.roomGlobalNames) {
+    if (globalName === name) {
+      const alias = room.roomAliases.get(sessionId);
+      if (alias) matches.push(alias);
+    }
+  }
+  return matches.length === 1 ? matches[0] : "A room member";
+}
+
+function publicRoom(r, viewerSessionId) {
+  return {
+    roomId: r.roomId,
+    host: getRoomMemberId(r, r.host),
+    admin: getRoomMemberId(r, r.admin),
+    myMemberId: viewerSessionId ? getRoomMemberId(r, viewerSessionId) : undefined,
+    identityScope: "room",
+    topic: r.topic,
+    capacity: r.capacity,
+    slowMode: r.slowMode,
     messageLifetime: r.messageLifetime || 0,
-  participants: r.participants.map((p) => ({
-    sessionId: p.sessionId,
-    username: p.username,
-    isAdmin: p.sessionId === r.admin,
-    isHost: p.sessionId === r.host,
-    timedOutUntil: r.timeouts.get(p.sessionId) || 0,
-  })),
-  status: r.status,
-});
+    participants: r.participants.map((p) => ({
+      sessionId: getRoomMemberId(r, p.sessionId),
+      username: getRoomAlias(r, p.sessionId, p.username),
+      isAdmin: p.sessionId === r.admin,
+      isHost: p.sessionId === r.host,
+      timedOutUntil: r.timeouts.get(p.sessionId) || 0,
+    })),
+    status: r.status,
+  };
+}
 
 const findSocketBySession = (sid) => socketBySession.get(sid) || null;
 
@@ -396,6 +499,23 @@ function broadcastSystemFor(userSessionId, payload) {
   }
 }
 
+function publicRoomChatMessage(room, message) {
+  const safeMessage = publicChatMessage(message);
+  // Never send the cross-room session identifier through a room message event.
+  safeMessage.senderSessionId = getRoomMemberId(room, message.senderSessionId);
+  safeMessage.senderName = getRoomAlias(room, message.senderSessionId, message.senderName);
+  // Reply metadata is user-supplied by the client. It must obey the same room-local
+  // aliasing rules as the outer message or a crafted reply can leak a global username.
+  if (safeMessage.replyTo && typeof safeMessage.replyTo.senderName === "string") {
+    safeMessage.replyTo = {
+      ...safeMessage.replyTo,
+      senderName: getRoomAliasForName(room, safeMessage.replyTo.senderName),
+    };
+  }
+  safeMessage.identityScope = "room";
+  return safeMessage;
+}
+
 function broadcastRoomMessage(room, msg) {
   const shadowed = isShadowBanned(msg.senderSpamKey);
   for (const p of room.participants) {
@@ -405,21 +525,27 @@ function broadcastRoomMessage(room, msg) {
     ) continue;
     if (shadowed && p.sessionId !== msg.senderSessionId) continue;
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
+    if (sid) io.to(sid).emit("room:message", publicRoomChatMessage(room, msg));
   }
 }
 
 function broadcastRoomUpdate(room) {
   for (const p of room.participants) {
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:update", publicRoom(room));
+    if (sid) io.to(sid).emit("room:update", publicRoom(room, p.sessionId));
   }
 }
 
 function broadcastRoomSystem(room, payload) {
+  const safePayload = { ...payload };
+  for (const key of ["username", "by", "from", "to", "joinedUsername"]) {
+    if (typeof safePayload[key] === "string") {
+      safePayload[key] = getRoomAliasForName(room, safePayload[key]);
+    }
+  }
   for (const p of room.participants) {
     const sid = findSocketBySession(p.sessionId);
-    if (sid) io.to(sid).emit("room:system", { roomId: room.roomId, at: Date.now(), ...payload });
+    if (sid) io.to(sid).emit("room:system", { roomId: room.roomId, at: Date.now(), identityScope: "room", ...safePayload });
   }
 }
 
@@ -852,7 +978,7 @@ io.on("connection", (socket) => {
       list.push({
         roomId: room.roomId,
         topic: room.topic || "",
-        adminName: adminSession?.username || "?",
+        adminName: adminSession ? getRoomAlias(room, room.admin, adminSession.username) : "Anonymous",
         capacity: room.capacity,
         occupancy: room.participants.length,
         full: room.participants.length >= room.capacity,
@@ -881,8 +1007,13 @@ io.on("connection", (socket) => {
       if (inv.roomId !== roomId) continue;
       list.push({
         inviteId: inv.inviteId,
-        from: { sessionId: inv.senderSessionId, username: inv.senderName },
-        recipientSessionId: inv.recipientSessionId,
+        from: {
+          sessionId: getRoomMemberId(room, inv.senderSessionId),
+          username: getRoomAlias(room, inv.senderSessionId, inv.senderName),
+        },
+        identityScope: "room",
+        // Do not create an identity alias/token for a person who has not joined.
+        recipient: "Pending invite",
         message: inv.message || "",
         createdAt: inv.createdAt,
       });
@@ -1022,7 +1153,7 @@ io.on("connection", (socket) => {
       if (p.sessionId === s.sessionId) continue;
       if (isMutuallyBlocked(p.sessionId, s.sessionId)) continue;
       const sid = findSocketBySession(p.sessionId);
-      if (sid) io.to(sid).emit("typing:room", { roomId, sessionId: s.sessionId, username: s.username });
+      if (sid) io.to(sid).emit("typing:room", { roomId, sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username), identityScope: "room" });
     }
   });
 
@@ -1104,7 +1235,7 @@ io.on("connection", (socket) => {
     s.status = "in-room";
     socket.join(roomId);
     broadcastOnline();
-    ack?.({ ok: true, room: publicRoom(room) });
+    ack?.({ ok: true, room: publicRoom(room, s.sessionId) });
   });
 
   // ---------- admin: set topic ----------
@@ -1174,7 +1305,7 @@ io.on("connection", (socket) => {
 
     for (const p of room.participants) {
       const sid = findSocketBySession(p.sessionId);
-      if (sid) io.to(sid).emit("room:purged", { roomId: room.roomId, by: s.username });
+      if (sid) io.to(sid).emit("room:purged", { roomId: room.roomId, by: getRoomAlias(room, s.sessionId, s.username), identityScope: "room" });
     }
 
     broadcastRoomSystem(room, { type: "purge", username: s.username, by: s.username });
@@ -1190,14 +1321,14 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
 
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const p = room.participants.find((x) => x.sessionId === target);
     if (!p) return ack?.({ ok: false, error: "Not in this room" });
 
     const targetSid = findSocketBySession(target);
-    if (targetSid) io.to(targetSid).emit("room:kicked", { roomId, by: s.username });
+    if (targetSid) io.to(targetSid).emit("room:kicked", { roomId, by: getRoomAlias(room, s.sessionId, s.username) });
 
     removeFromRoom(roomId, target, "kicked", s.username);
     ack?.({ ok: true });
@@ -1211,8 +1342,8 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
 
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const dur = Number(durationMs);
     if (!TIMEOUT_OPTIONS_MS.includes(dur)) return ack?.({ ok: false, error: "Invalid duration" });
@@ -1238,7 +1369,8 @@ io.on("connection", (socket) => {
     const room = rooms.get(roomId);
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
-    const target = String(targetSessionId || "");
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
     room.timeouts.delete(target);
     broadcastRoomUpdate(room);
     broadcastRoomSystem(room, { type: "untimeout", by: s.username });
@@ -1253,8 +1385,8 @@ io.on("connection", (socket) => {
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!isRoomAdmin(room, s.sessionId)) return ack?.({ ok: false, error: "Not admin" });
 
-    const target = String(targetSessionId || "");
-    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid target" });
+    const target = resolveRoomMemberId(room, targetSessionId);
+    if (!target || target === s.sessionId) return ack?.({ ok: false, error: "Invalid room member" });
 
     const p = room.participants.find((x) => x.sessionId === target);
     if (!p) return ack?.({ ok: false, error: "Not in this room" });
@@ -1262,7 +1394,7 @@ io.on("connection", (socket) => {
     room.admin = target;
     broadcastRoomSystem(room, { type: "transfer", from: s.username, to: p.username });
     broadcastRoomUpdate(room);
-    ack?.({ ok: true, admin: target });
+    ack?.({ ok: true, admin: getRoomMemberId(room, target) });
   });
 
   
@@ -1289,7 +1421,7 @@ io.on("connection", (socket) => {
     broadcastRoomSystem(room, { type: "join", username: s.username });
     broadcastRoomUpdate(room);
     broadcastOnline();
-    ack?.({ ok: true, room: publicRoom(room) });
+    ack?.({ ok: true, room: publicRoom(room, s.sessionId) });
   });
   // ---------- invite ----------
   socket.on("room:invite", ({ roomId, recipientUsername, message } = {}, ack) => {
@@ -1338,7 +1470,8 @@ io.on("connection", (socket) => {
     });
     io.to(targetSocketId).emit("invite:received", {
       inviteId,
-      from: { sessionId: s.sessionId, username: s.username },
+      from: { sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username) },
+      identityScope: "room",
       roomTopic: room.topic,
       capacity: room.capacity,
       occupancy: room.participants.length,
@@ -1352,11 +1485,10 @@ io.on("connection", (socket) => {
       if (sid) {
         io.to(sid).emit("room:invite:pending", {
           inviteId,
-          from: { sessionId: s.sessionId, username: s.username },
-          recipientSessionId: found.sessionId,
-          recipientUsername: found.username,
+          from: { sessionId: getRoomMemberId(room, s.sessionId), username: getRoomAlias(room, s.sessionId, s.username) },
           roomId,
           message: inviteMessage,
+          identityScope: "room",
           at: Date.now(),
         });
       }
@@ -1369,7 +1501,10 @@ io.on("connection", (socket) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
     const inv = invites.get(inviteId);
-    if (!inv) return ack?.({ ok: false, error: "Invitation expired" });
+    if (!inv || Date.now() - inv.createdAt >= INVITE_TTL_MS) {
+      if (inv) invites.delete(inviteId);
+      return ack?.({ ok: false, error: "Invitation expired" });
+    }
     if (inv.recipientSessionId !== s.sessionId) return ack?.({ ok: false, error: "Not your invitation" });
     invites.delete(inviteId);
 
@@ -1390,13 +1525,13 @@ io.on("connection", (socket) => {
       if (sid) io.to(sid).emit("room:invite:resolved", {
         inviteId,
         accepted: true,
-        joinedUsername: s.username,
+        joinedUsername: getRoomAlias(room, s.sessionId, s.username),
         at: Date.now(),
       });
     }
 
     broadcastOnline();
-    ack?.({ ok: true, room: publicRoom(room) });
+    ack?.({ ok: true, room: publicRoom(room, s.sessionId) });
   });
 
   socket.on("invite:decline", ({ inviteId } = {}, ack) => {
@@ -1466,7 +1601,7 @@ io.on("connection", (socket) => {
       id: makeId(),
       senderSessionId: s.sessionId,
       senderSpamKey: s.spamKey,
-      senderName: s.username,
+      senderName: getRoomAlias(room, s.sessionId, s.username),
       content: text,
       createdAt: Date.now(),
       replyTo: sanitizeReply(replyTo),
@@ -1475,7 +1610,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
+      if (sid) io.to(sid).emit("room:message", publicRoomChatMessage(room, msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
@@ -1527,7 +1662,7 @@ io.on("connection", (socket) => {
       id: makeId(),
       senderSessionId: s.sessionId,
       senderSpamKey: s.spamKey,
-      senderName: s.username,
+      senderName: getRoomAlias(room, s.sessionId, s.username),
       content: cleanCaption,
       image,
       createdAt: Date.now(),
@@ -1537,7 +1672,7 @@ io.on("connection", (socket) => {
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
-      if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
+      if (sid) io.to(sid).emit("room:message", publicRoomChatMessage(room, msg));
       return ack?.({ ok: true, id: msg.id });
     }
 
@@ -2060,7 +2195,7 @@ function initBots() {
       sessionId,
       spamKey,
       ip: "bot",
-      username: profile.name,
+      username: "AI · " + profile.name,
       accent: "#ff2d55",
       status: "available",
       blocked: new Map(),
@@ -2142,7 +2277,7 @@ async function botPublicChat() {
         id: "bot_" + Math.random().toString(36).slice(2, 10),
         senderSessionId: "bot_" + profile.name,
         senderSpamKey: "bot:" + profile.name,
-        senderName: profile.name,
+        senderName: "AI · " + profile.name,
         content,
         createdAt: Date.now(),
         isBot: true

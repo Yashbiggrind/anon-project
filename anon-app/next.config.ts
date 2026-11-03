@@ -77,6 +77,11 @@ const csp = [
   "form-action 'self'",
 ].join("; ");
 
+// The profile editor is a static same-origin document embedded by ProfileBlockEditor.
+// Keep every other route protected from framing; allow only this one asset to be framed
+// by ANON pages on the same origin.
+const profileEditorCsp = csp.replace("frame-ancestors 'none'", "frame-ancestors 'self'");
+
 const nextConfig = {
   reactStrictMode: true,
 
@@ -103,6 +108,15 @@ const nextConfig = {
           { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
           { key: "Cross-Origin-Resource-Policy", value: "same-origin" },
           { key: "Strict-Transport-Security", value: "max-age=63072000; includeSubDomains" },
+        ],
+      },
+      {
+        // Next.js applies the last matching header value, so this narrow rule overrides
+        // only the frame policy for the local editor asset. Do not broaden it to other pages.
+        source: "/pixel-profile-editor-v2.html",
+        headers: [
+          { key: "Content-Security-Policy", value: profileEditorCsp },
+          { key: "X-Frame-Options", value: "SAMEORIGIN" },
         ],
       },
     ];
