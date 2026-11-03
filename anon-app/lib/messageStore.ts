@@ -1,3 +1,5 @@
+import type { AvatarDesign } from "@/lib/avatarDesign";
+
 /**
  * ANON// Message Store
  * 
@@ -17,6 +19,8 @@ const MAX_MESSAGES = 500;
 export type StoredMessage = {
   id: string;
   senderSessionId: string;
+  senderProfileId?: string | null;
+  avatarDesign?: AvatarDesign | null;
   senderName: string;
   content: string;
   createdAt: number;
