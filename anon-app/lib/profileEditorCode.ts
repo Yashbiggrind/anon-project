@@ -2,7 +2,6 @@ import type { AvatarDesign } from "@/lib/avatarDesign";
 import {
   AVATAR_MAX_GRID_SIZE,
   AVATAR_MIN_GRID_SIZE,
-  AVATAR_GRID_SIZE,
   sanitizeAvatarDesign,
 } from "@/lib/avatarDesign";
 
