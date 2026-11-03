@@ -39,6 +39,7 @@ const Z_BLOCK = [
 function fromRows(rows: string[], background: string, ink: string): AvatarDesign {
   return {
     background,
+    gridSize: AVATAR_GRID_SIZE,
     cells: rows.join("").split("").map((char) => char === "#" ? ink : null),
   };
 }
@@ -55,7 +56,7 @@ function starter(name: string): AvatarDesign {
 
 export default function AvatarCustomizer({ name, initialDesign, onSave, onClose }: Props) {
   const [design, setDesign] = useState<AvatarDesign>(() => initialDesign
-    ? { background: initialDesign.background, cells: [...initialDesign.cells] }
+    ? { background: initialDesign.background, gridSize: initialDesign.gridSize, cells: [...initialDesign.cells] }
     : starter(name));
   const [tool, setTool] = useState<"paint" | "erase">("paint");
   const [ink, setInk] = useState<string>("#ff4f7f");
@@ -105,7 +106,7 @@ export default function AvatarCustomizer({ name, initialDesign, onSave, onClose 
     const accent = bright[Math.floor(Math.random() * bright.length)];
     const cells = Array.from({ length: AVATAR_GRID_SIZE * AVATAR_GRID_SIZE }, () =>
       Math.random() > 0.52 ? accent : null);
-    setDesign({ background, cells });
+    setDesign({ background, gridSize: AVATAR_GRID_SIZE, cells });
     setInk(accent);
   };
 
@@ -122,7 +123,7 @@ export default function AvatarCustomizer({ name, initialDesign, onSave, onClose 
           <div>
             <div className="avatarStudioEyebrow">ANON / PIXEL WORKSHOP</div>
             <h2 id="avatarStudioTitle">Build your block avatar</h2>
-            <p>One grid. Your colors. No image uploads. Session-only.</p>
+            <p>One grid. Your colors. No image uploads. Saved to your anonymous profile.</p>
           </div>
           <button type="button" className="avatarStudioClose" aria-label="Close avatar editor" onClick={onClose}>×</button>
         </div>
