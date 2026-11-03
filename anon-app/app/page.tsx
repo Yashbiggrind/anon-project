@@ -429,8 +429,6 @@ export default function Home() {
 
     const now = Date.now();
     const savedName = localStorage.getItem(LS_USERNAME) || "";
-    const savedAvatarDesign = loadSessionAvatarDesign();
-    const profileToken = getAvatarProfileToken();
     const rawLastOffer = localStorage.getItem(LS_LAST_OFFER);
 
     let lastOffer: number;
@@ -471,10 +469,16 @@ export default function Home() {
     let socket: Socket;
     try {
       socket = io(serverUrl(), {
-        auth: {
-          ...(savedName ? { username: savedName } : {}),
-          ...(profileToken ? { profileToken } : {}),
-          avatarDesign: savedAvatarDesign,
+        // Read local identity data for every connection attempt, including
+        // automatic reconnects after a network interruption.
+        auth: (callback) => {
+          const currentName = localStorage.getItem(LS_USERNAME) || "";
+          const currentProfileToken = getAvatarProfileToken();
+          callback({
+            ...(currentName ? { username: currentName } : {}),
+            ...(currentProfileToken ? { profileToken: currentProfileToken } : {}),
+            avatarDesign: loadSessionAvatarDesign(),
+          });
         },
         // Start with polling, then upgrade to WebSocket. This avoids a
         // WebSocket-first dead end on networks that block or interrupt upgrades.
@@ -561,7 +565,8 @@ export default function Home() {
       // The opaque profileId stays stable across reloads; sessionId remains
       // connection-scoped. Keep old session aliases so historical local messages
       // resolve to the same anonymous profile after reconnecting.
-      const activeDesign = s.avatarDesign ?? savedAvatarDesign;
+      const latestSavedAvatarDesign = loadSessionAvatarDesign();
+      const activeDesign = s.avatarDesign ?? latestSavedAvatarDesign;
       const previousSessionId = localStorage.getItem("anon.avatar.last-session.v1");
       if (previousSessionId && s.profileId) {
         setAvatarDesignForSession(previousSessionId, activeDesign, s.profileId);
@@ -570,8 +575,8 @@ export default function Home() {
       setOwnAvatarSession(s.sessionId, activeDesign, s.profileId ?? undefined);
       localStorage.setItem("anon.avatar.last-session.v1", s.sessionId);
       if (s.username) localStorage.setItem(LS_USERNAME, s.username);
-      if (savedAvatarDesign && !s.avatarDesign) {
-        socket.emit("avatar:update", { design: savedAvatarDesign }, (ack: ServerAck) => {
+      if (latestSavedAvatarDesign && !s.avatarDesign) {
+        socket.emit("avatar:update", { design: latestSavedAvatarDesign }, (ack: ServerAck) => {
           if (ack && !ack.ok) console.warn("[avatar] live sync failed:", ack.error);
         });
       }
