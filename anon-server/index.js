@@ -3,6 +3,7 @@ require("dotenv").config();
 const express = require("express");
 const http = require("http");
 const os = require("os");
+const crypto = require("crypto");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const db = require("./db");
@@ -252,15 +253,25 @@ const io = new Server(server, {
 });
 
 // ---------- helpers ----------
-const AVATAR_CELL_COUNT = 49;
+const AVATAR_MIN_GRID_SIZE = 4;
+const AVATAR_MAX_GRID_SIZE = 32;
 const isAvatarHexColor = (value) => typeof value === "string" && /^#[0-9a-fA-F]{6}$/.test(value);
 
 function sanitizeAvatarDesign(value) {
-  if (!value || typeof value !== "object") return null;
-  if (!isAvatarHexColor(value.background)) return null;
-  if (!Array.isArray(value.cells) || value.cells.length !== AVATAR_CELL_COUNT) return null;
+  if (!value || typeof value !== "object" || !isAvatarHexColor(value.background) || !Array.isArray(value.cells)) {
+    return null;
+  }
+  const inferredSize = Math.sqrt(value.cells.length);
+  const gridSize = Number.isInteger(value.gridSize) ? Number(value.gridSize) : inferredSize;
+  if (
+    !Number.isInteger(gridSize) ||
+    gridSize < AVATAR_MIN_GRID_SIZE ||
+    gridSize > AVATAR_MAX_GRID_SIZE ||
+    value.cells.length !== gridSize * gridSize
+  ) return null;
   return {
     background: value.background.toLowerCase(),
+    gridSize,
     cells: value.cells.map((cell) => (
       cell == null || cell === "" ? null :
         (isAvatarHexColor(cell) ? cell.toLowerCase() : null)
@@ -269,8 +280,12 @@ function sanitizeAvatarDesign(value) {
 }
 
 const publicUser = (s) => ({
-  sessionId: s.sessionId, username: s.username, accent: s.accent,
-  status: s.status || "available", avatarDesign: s.avatarDesign || null,
+  sessionId: s.sessionId,
+  profileId: s.profileId || null,
+  username: s.username,
+  accent: s.accent,
+  status: s.status || "available",
+  avatarDesign: s.avatarDesign ?? null,
 });
 
 // Internal spam identifiers must never cross the Socket.IO boundary.
@@ -655,6 +670,7 @@ function isDmMember(thread, sessionId) {
 function publicDmMessage(m, viewerSessionId) {
   return {
     id: m.id, threadId: m.threadId, senderSessionId: m.senderSessionId,
+    senderProfileId: m.senderProfileId || null, avatarDesign: m.avatarDesign ?? null,
     senderName: m.senderName, content: m.content, createdAt: m.createdAt,
     mine: m.senderSessionId === viewerSessionId,
   };
@@ -773,17 +789,25 @@ db.init();
 io.on("connection", (socket) => {
   const provided = String(socket.handshake.auth?.username || "").trim();
   const validName = /^[A-Za-z]+\d{1,4}$/.test(provided) && provided.length <= 20 ? provided : null;
+  const profileToken = String(socket.handshake.auth?.profileToken || "").trim().toLowerCase();
+  // The random bearer token remains in the owner's browser. Only this derived,
+  // non-secret profile identifier is ever shared with other clients.
+  const profileId = /^[a-f0-9]{32,64}$/.test(profileToken)
+    ? "profile_" + crypto.createHash("sha256").update(profileToken).digest("hex").slice(0, 32)
+    : "profile_" + makeId();
+  const initialAvatarDesign = sanitizeAvatarDesign(socket.handshake.auth?.avatarDesign);
 
   const clientIp = getClientIp(socket);
   const spamKey = `ip:${db.hashIp(clientIp)}`;
 
   const session = {
     sessionId: makeId(),
+    profileId,
     spamKey,
     username: validName || makeUsername(),
     accent: pick(ACCENTS),
     status: "available",
-    avatarDesign: null,
+    avatarDesign: initialAvatarDesign,
     blocked: new Map(),
   };
   sessions.set(socket.id, session);
@@ -925,6 +949,8 @@ io.on("connection", (socket) => {
     const msg = {
       id: makeId(),
       senderSessionId: s.sessionId,
+      senderProfileId: s.profileId || null,
+      avatarDesign: s.avatarDesign ?? null,
       senderSpamKey: s.spamKey,
       senderName: s.username,
       content: text,
@@ -969,6 +995,8 @@ io.on("connection", (socket) => {
     const msg = {
       id: makeId(),
       senderSessionId: s.sessionId,
+      senderProfileId: s.profileId || null,
+      avatarDesign: s.avatarDesign ?? null,
       senderSpamKey: s.spamKey,
       senderName: s.username,
       content: cleanCaption,
@@ -1031,13 +1059,18 @@ io.on("connection", (socket) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
 
-    if (design === null) {
-      s.avatarDesign = null;
-    } else {
-      const safeDesign = sanitizeAvatarDesign(design);
-      if (!safeDesign) return ack?.({ ok: false, error: "Invalid block avatar design" });
-      s.avatarDesign = safeDesign;
+    let nextDesign = null;
+    if (design !== null) {
+      nextDesign = sanitizeAvatarDesign(design);
+      if (!nextDesign) return ack?.({ ok: false, error: "Invalid block avatar design (grid must be 4×4 to 32×32)" });
     }
+
+    // Every tab belonging to the same anonymous profile receives the same
+    // avatar immediately. Messages carry a snapshot for offline/history display.
+    for (const candidate of sessions.values()) {
+      if (s.profileId && candidate.profileId === s.profileId) candidate.avatarDesign = nextDesign;
+    }
+    s.avatarDesign = nextDesign;
 
     socket.emit("session:ready", publicUser(s));
     broadcastOnline();
@@ -1465,6 +1498,8 @@ io.on("connection", (socket) => {
     const msg = {
       id: makeId(),
       senderSessionId: s.sessionId,
+      senderProfileId: s.profileId || null,
+      avatarDesign: s.avatarDesign ?? null,
       senderSpamKey: s.spamKey,
       senderName: s.username,
       content: text,
@@ -1526,6 +1561,8 @@ io.on("connection", (socket) => {
     const msg = {
       id: makeId(),
       senderSessionId: s.sessionId,
+      senderProfileId: s.profileId || null,
+      avatarDesign: s.avatarDesign ?? null,
       senderSpamKey: s.spamKey,
       senderName: s.username,
       content: cleanCaption,
@@ -1751,6 +1788,8 @@ io.on("connection", (socket) => {
       id: makeId(),
       threadId: thread.threadId,
       senderSessionId: s.sessionId,
+      senderProfileId: s.profileId || null,
+      avatarDesign: s.avatarDesign ?? null,
       senderName: s.username,
       content: text,
       createdAt: Date.now(),
