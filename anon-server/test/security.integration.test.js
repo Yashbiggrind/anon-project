@@ -114,10 +114,20 @@ test("live server protects socket payloads, authorization, data flow, and persis
   child.stderr.on("data", (chunk) => { stderr = (stderr + chunk.toString()).slice(-12000); });
   let a;
   let b;
+  let c;
   try {
     const baseUrl = "http://127.0.0.1:" + port;
     await waitForHttp(baseUrl + "/", child, () => stdout + "\n" + stderr);
-    a = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"] });
+    const profileToken = "a".repeat(64);
+    const fullResolutionAvatar = {
+      background: "#0a0306",
+      gridSize: 32,
+      cells: Array.from({ length: 32 * 32 }, (_, index) => index % 7 === 0 ? "#ff4f7f" : null),
+    };
+    a = io(baseUrl, {
+      autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
+      auth: { profileToken, avatarDesign: fullResolutionAvatar },
+    });
     b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"] });
     const connectA = waitForEvent(a, "connect");
     const readyA = waitForEvent(a, "session:ready");
@@ -129,12 +139,18 @@ test("live server protects socket payloads, authorization, data flow, and persis
 
     assert.equal(Object.hasOwn(identityA, "ip"), false, "session-ready must not expose the raw address");
     assert.equal(Object.hasOwn(identityA, "spamKey"), false, "session-ready must not expose internal anti-abuse identifiers");
+    assert.match(identityA.profileId, /^profile_[a-f0-9]{32}$/);
+    assert.equal(identityA.avatarDesign.gridSize, 32, "the server must retain the original 32×32 grid");
+    assert.equal(identityA.avatarDesign.cells.length, 1024, "the server must retain all avatar pixels");
 
     const incomingMessage = waitForEvent(b, "chat:public:message", (message) => message.content === "privacy-test-message");
     const sendAck = await emitAck(a, "chat:public:send", { content: "privacy-test-message" });
     assert.equal(sendAck.ok, true);
     const message = await incomingMessage;
     assert.equal(message.senderName, identityA.username);
+    assert.equal(message.senderProfileId, identityA.profileId, "messages must use the stable anonymous profile key");
+    assert.equal(message.avatarDesign.gridSize, 32, "messages must carry the exact sender avatar grid");
+    assert.equal(message.avatarDesign.cells.length, 1024, "message avatar snapshots must retain all pixels");
     assert.equal(Object.hasOwn(message, "senderSpamKey"), false, "broadcast messages must not expose anti-abuse keys");
     assert.equal(Object.hasOwn(message, "ip"), false);
 
@@ -178,10 +194,24 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const repeated = await emitAck(a, "chat:public:send", { content: "repeat-for-strike-test" });
     assert.equal(repeated.ok, false);
 
+    const originalProfileId = identityA.profileId;
     a.disconnect();
-    b.disconnect();
     a = null;
+    c = io(baseUrl, {
+      autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
+      auth: { profileToken, avatarDesign: fullResolutionAvatar },
+    });
+    const reconnectReady = waitForEvent(c, "session:ready");
+    const reconnectConnect = waitForEvent(c, "connect");
+    c.connect();
+    const [, identityAfterReload] = await Promise.all([reconnectConnect, reconnectReady]);
+    assert.notEqual(identityAfterReload.sessionId, identityA.sessionId, "each socket connection still gets a fresh session ID");
+    assert.equal(identityAfterReload.profileId, originalProfileId, "the anonymous profile ID must survive a reload");
+    assert.equal(identityAfterReload.avatarDesign.gridSize, 32, "the avatar must survive a reload at full resolution");
+    c.disconnect();
+    b.disconnect();
     b = null;
+    c = null;
     await stopChild(child);
 
     const { DatabaseSync } = require("node:sqlite");
@@ -193,6 +223,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
   } finally {
     if (a) a.disconnect();
     if (b) b.disconnect();
+    if (c) c.disconnect();
     await stopChild(child);
     await fs.rm(tempDir, { recursive: true, force: true });
   }
