@@ -455,10 +455,14 @@ export default function Home() {
     try {
       socket = io(serverUrl(), {
         auth: savedName ? { username: savedName } : {},
-        transports: ["websocket", "polling"],
+        // Start with polling, then upgrade to WebSocket. This avoids a
+        // WebSocket-first dead end on networks that block or interrupt upgrades.
+        transports: ["polling", "websocket"],
+        tryAllTransports: true,
         upgrade: true,
         reconnection: true,
-        reconnectionAttempts: 50,
+        // Use Socket.IO's unlimited retry default so a temporary outage does not
+        // permanently strand this tab in the "Connecting" state.
         reconnectionDelay: 1000,
         reconnectionDelayMax: 5000,
         timeout: 20000,
@@ -482,6 +486,10 @@ export default function Home() {
     socketRef.current = socket;
 
     socket.on("connect", () => {
+      console.info("[ANON] Socket.IO connected", {
+        backend: serverUrl(),
+        transport: socket.io.engine?.transport?.name ?? "unknown",
+      });
       setSocketForFeatures(socket);
       setConnected(true);
       setIsOffline(false);
@@ -513,7 +521,19 @@ export default function Home() {
         sendNext();
       }
     });
-    socket.on("disconnect", () => setConnected(false));
+    socket.on("connect_error", (error) => {
+      setConnected(false);
+      console.error("[ANON] Socket.IO connection failed", {
+        backend: serverUrl(),
+        message: error.message,
+      });
+    });
+    socket.on("disconnect", (reason) => {
+      setConnected(false);
+      if (reason !== "io client disconnect") {
+        console.warn("[ANON] Socket.IO disconnected", { reason });
+      }
+    });
 
     socket.on("session:ready", (s: Identity) => {
       selfRef.current = s.sessionId;
