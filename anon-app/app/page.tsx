@@ -755,8 +755,8 @@ export default function Home() {
   }, [room?.roomId, roomLoadKey]);
 
   // Migrate this browser's previously cached own messages to the stable profile
-  // identity. This repairs chat history created before profileId/avatar snapshots
-  // existed, without guessing identities for other users.
+  // identity. Schedule the React update outside the effect body to avoid a
+  // synchronous cascading render; IndexedDB receives the same migration.
   useEffect(() => {
     if (!identity?.profileId || !identity.username) return;
     const legacyOwnMessages = messages.filter((message) =>
@@ -767,23 +767,26 @@ export default function Home() {
     if (legacyOwnMessages.length === 0) return;
 
     const migratedIds = new Set(legacyOwnMessages.map((message) => message.id));
-    setMessages((current) => current.map((message) => (
-      migratedIds.has(message.id)
-        ? {
-            ...message,
-            senderProfileId: identity.profileId,
-            avatarDesign: identity.avatarDesign ?? null,
-          }
-        : message
-    )));
-    for (const message of legacyOwnMessages) {
-      void persistUpdate(message.id, {
-        senderProfileId: identity.profileId,
-        avatarDesign: identity.avatarDesign ?? null,
-      });
-    }
-  }, [identity?.profileId, identity?.username, identity?.avatarDesign, messages]);
+    const timer = window.setTimeout(() => {
+      setMessages((current) => current.map((message) => (
+        migratedIds.has(message.id)
+          ? {
+              ...message,
+              senderProfileId: identity.profileId,
+              avatarDesign: identity.avatarDesign ?? null,
+            }
+          : message
+      )));
+      for (const message of legacyOwnMessages) {
+        void persistUpdate(message.id, {
+          senderProfileId: identity.profileId,
+          avatarDesign: identity.avatarDesign ?? null,
+        });
+      }
+    }, 0);
 
+    return () => window.clearTimeout(timer);
+  }, [identity?.profileId, identity?.username, identity?.avatarDesign, messages]);
   useEffect(() => {
     const el = msgsRef.current;
     if (!el) return;
