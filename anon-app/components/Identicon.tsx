@@ -51,9 +51,12 @@ export default function Identicon({
   const liveDesign = useSyncExternalStore(
     subscribeAvatarDesign,
     () => getAvatarDesign(identity),
-    () => null,
+    () => undefined,
   );
-  const activeDesign = design === undefined ? liveDesign : design;
+  // A cached live profile is authoritative; the message snapshot is a fallback
+  // for messages received before this profile was seen online.
+  const activeDesign = liveDesign !== undefined ? liveDesign : (design ?? null);
+  const gridSize = activeDesign?.gridSize ?? 7;
   const color = PALETTE[fnv1a(identity + "#color") % PALETTE.length];
   const accent = PALETTE[fnv1a(identity + "#accent") % PALETTE.length];
   const pattern = MOB_PATTERNS[fnv1a(identity + "#mob-face") % MOB_PATTERNS.length];
@@ -62,22 +65,22 @@ export default function Identicon({
     <svg
       width={size}
       height={size}
-      viewBox="0 0 9 9"
+      viewBox={`0 0 ${gridSize + 2} ${gridSize + 2}`}
       shapeRendering="crispEdges"
       className={className}
       style={{ display: "block", flex: "none", borderRadius: 0 }}
       aria-hidden="true"
       focusable="false"
     >
-      <rect width="9" height="9" fill={FRAME} />
-      <rect x="1" y="1" width="7" height="7" fill={activeDesign?.background ?? color} />
+      <rect width={gridSize + 2} height={gridSize + 2} fill={FRAME} />
+      <rect x="1" y="1" width={gridSize} height={gridSize} fill={activeDesign?.background ?? color} />
       {activeDesign ? (
         <g>
           {activeDesign.cells.map((cell, index) => cell ? (
             <rect
               key={index}
-              x={(index % 7) + 1}
-              y={Math.floor(index / 7) + 1}
+              x={(index % gridSize) + 1}
+              y={Math.floor(index / gridSize) + 1}
               width="1"
               height="1"
               fill={cell}
