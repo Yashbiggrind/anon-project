@@ -4,6 +4,10 @@ const DEFAULT_PRODUCTION_SERVER_URL =
 const isDevelopment = process.env.NODE_ENV === "development";
 
 function resolveServerUrl() {
+  // Match the browser's serverUrl(): every hosted build targets the one
+  // verified ANON production backend. Only local development may override it.
+  if (!isDevelopment) return DEFAULT_PRODUCTION_SERVER_URL;
+
   const configured = (process.env.NEXT_PUBLIC_SERVER_URL || "").trim();
 
   if (!configured) {
@@ -97,7 +101,7 @@ const nextConfig = {
   async headers() {
     return [
       {
-        source: "/(.*)",
+        source: "/:path*",
         headers: [
           { key: "Content-Security-Policy", value: csp },
           { key: "X-Frame-Options", value: "DENY" },
@@ -116,6 +120,7 @@ const nextConfig = {
         headers: [
           { key: "Content-Security-Policy", value: profileEditorCsp },
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
+          { key: "Cache-Control", value: "no-store" },
         ],
       },
     ];
