@@ -20,6 +20,12 @@ function isPrivateOrLocalHost(hostname: string): boolean {
 export function serverUrl(): string {
   // NEXT_PUBLIC_* values are inlined into the frontend at build time.
   const isProduction = process.env.NODE_ENV === "production";
+
+  // All hosted ANON deployments use one verified production API.
+  // Preview-specific environment overrides previously let different Vercel
+  // deployments silently point at different or obsolete backends.
+  if (isProduction) return DEFAULT_PRODUCTION_SERVER_URL;
+
   const fromEnv = process.env.NEXT_PUBLIC_SERVER_URL;
 
   if (fromEnv && fromEnv.trim().length > 0) {
