@@ -58,14 +58,6 @@ export function sanitizeAvatarDesign(value: unknown): AvatarDesign | null {
   return { background: input.background.toLowerCase(), gridSize, cells };
 }
 
-function equalDesign(a: AvatarDesign | null | undefined, b: AvatarDesign | null | undefined): boolean {
-  return a === b || (!!a && !!b &&
-    a.background === b.background &&
-    a.gridSize === b.gridSize &&
-    a.cells.length === b.cells.length &&
-    a.cells.every((cell, i) => cell === b.cells[i]));
-}
-
 function notify() {
   listeners.forEach((listener) => listener());
 }
@@ -143,7 +135,7 @@ export function setOwnAvatarSession(
 }
 
 export function syncAvatarPresence(
-  users: Array<{ sessionId: string; profileId?: string; avatarDesign?: unknown }>
+  users: Array<{ sessionId: string; profileId?: string | null; avatarDesign?: unknown }>
 ): void {
   ensureCacheLoaded();
   for (const user of users) {
