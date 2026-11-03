@@ -280,14 +280,18 @@ export default function Home() {
   const timeShort = useCallback((ts: number): string => {
     const d = Math.floor((Date.now() - ts) / 1000);
     if (d < 60) return t("justNow");
-    if (d < 3600) return t("mAgo", { n: Math.max(1, Math.floor(d / 60)) });
+    if (d < 3600) {
+      const minutes = Math.max(1, Math.floor(d / 60));
+      if (lang === "en") return minutes === 1 ? "1 min ago" : `${minutes} mins ago`;
+      return t("mAgo", { n: minutes });
+    }
     if (d < 86400) return t("hAgo", { n: Math.floor(d / 3600) });
     if (d < 172800) return t("yesterday");
     if (d < 604800) return t("dAgo", { n: Math.floor(d / 86400) });
     if (d < 2592000) return t("wAgo", { n: Math.floor(d / 604800) });
     if (d < 31536000) return t("moAgo", { n: Math.floor(d / 2592000) });
     return t("yAgo", { n: Math.floor(d / 31536000) });
-  }, [t]);
+  }, [t, lang]);
 
   const timeFull = useCallback((ts: number): string => {
     return new Date(ts).toLocaleString(lang, {
