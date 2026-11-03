@@ -5,7 +5,15 @@ import type { CSSProperties } from "react"
 import { createPortal } from "react-dom";
 import Identicon from "@/components/Identicon";
 import ProfileBlockEditor from "@/components/ProfileBlockEditor";
-import { type AvatarDesign, loadSessionAvatarDesign, saveSessionAvatarDesign, setOwnAvatarSession, syncAvatarPresence } from "@/lib/avatarDesign";
+import {
+  type AvatarDesign,
+  loadSessionAvatarDesign,
+  saveSessionAvatarDesign,
+  getAvatarProfileToken,
+  setAvatarDesignForSession,
+  setOwnAvatarSession,
+  syncAvatarPresence,
+} from "@/lib/avatarDesign";
 import ConfessionTab from "@/components/ConfessionTab";
 import Link from "next/link";
 import { io, Socket } from "socket.io-client";
@@ -39,10 +47,12 @@ import {
 import { serverUrl, makeRandomName } from "@/lib/anonUtils";
 
 type Section = "chat" | "private" | "content" | "confession";
-type Identity = { sessionId: string; username: string; accent: string; status?: string; avatarDesign?: AvatarDesign | null };
+type Identity = { sessionId: string; profileId?: string | null; username: string; accent: string; status?: string; avatarDesign?: AvatarDesign | null };
 type ChatMessage = {
   id: string;
   senderSessionId: string;
+  senderProfileId?: string | null;
+  avatarDesign?: AvatarDesign | null;
   senderName: string;
   content: string;
   createdAt: number;
@@ -52,7 +62,7 @@ type ChatMessage = {
   localSent?: boolean;
   replyTo?: { id: string; senderName: string; content: string };
 };
-type OnlineUser = { sessionId: string; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null };
+type OnlineUser = { sessionId: string; profileId?: string | null; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null };
 type Invite = { inviteId: string; from: { sessionId: string; username: string }; capacity: number; occupancy: number };
 type RoomParticipant = {
   sessionId: string;
@@ -118,6 +128,8 @@ type DMMessage = {
   id: string;
   threadId: string;
   senderSessionId: string;
+  senderProfileId?: string | null;
+  avatarDesign?: AvatarDesign | null;
   senderName: string;
   content: string;
   createdAt: number;
@@ -267,9 +279,8 @@ export default function Home() {
 
   const timeShort = useCallback((ts: number): string => {
     const d = Math.floor((Date.now() - ts) / 1000);
-    if (d < 5) return t("justNow");
-    if (d < 60) return t("sAgo", { n: d });
-    if (d < 3600) return t("mAgo", { n: Math.floor(d / 60) });
+    if (d < 60) return t("justNow");
+    if (d < 3600) return t("mAgo", { n: Math.max(1, Math.floor(d / 60)) });
     if (d < 86400) return t("hAgo", { n: Math.floor(d / 3600) });
     if (d < 172800) return t("yesterday");
     if (d < 604800) return t("dAgo", { n: Math.floor(d / 86400) });
@@ -414,6 +425,8 @@ export default function Home() {
 
     const now = Date.now();
     const savedName = localStorage.getItem(LS_USERNAME) || "";
+    const savedAvatarDesign = loadSessionAvatarDesign();
+    const profileToken = getAvatarProfileToken();
     const rawLastOffer = localStorage.getItem(LS_LAST_OFFER);
 
     let lastOffer: number;
@@ -454,7 +467,11 @@ export default function Home() {
     let socket: Socket;
     try {
       socket = io(serverUrl(), {
-        auth: savedName ? { username: savedName } : {},
+        auth: {
+          ...(savedName ? { username: savedName } : {}),
+          ...(profileToken ? { profileToken } : {}),
+          avatarDesign: savedAvatarDesign,
+        },
         // Start with polling, then upgrade to WebSocket. This avoids a
         // WebSocket-first dead end on networks that block or interrupt upgrades.
         transports: ["polling", "websocket"],
@@ -537,13 +554,19 @@ export default function Home() {
 
     socket.on("session:ready", (s: Identity) => {
       selfRef.current = s.sessionId;
-      // Restore only the current tab's saved design; identity and design remain session-scoped.
-      const savedDesign = loadSessionAvatarDesign();
-      const activeDesign = s.avatarDesign ?? savedDesign;
+      // The opaque profileId stays stable across reloads; sessionId remains
+      // connection-scoped. Keep old session aliases so historical local messages
+      // resolve to the same anonymous profile after reconnecting.
+      const activeDesign = s.avatarDesign ?? savedAvatarDesign;
+      const previousSessionId = localStorage.getItem("anon.avatar.last-session.v1");
+      if (previousSessionId && s.profileId) {
+        setAvatarDesignForSession(previousSessionId, activeDesign, s.profileId);
+      }
       setIdentity({ ...s, avatarDesign: activeDesign });
-      setOwnAvatarSession(s.sessionId, activeDesign);
+      setOwnAvatarSession(s.sessionId, activeDesign, s.profileId ?? undefined);
+      localStorage.setItem("anon.avatar.last-session.v1", s.sessionId);
       if (s.username) localStorage.setItem(LS_USERNAME, s.username);
-      if (savedDesign && !s.avatarDesign) {
+      if (savedAvatarDesign && !s.avatarDesign) {
         socket.emit("avatar:update", { design: savedDesign }, (ack: ServerAck) => {
           if (ack && !ack.ok) console.warn("[avatar] live sync failed:", ack.error);
         });
@@ -1246,7 +1269,7 @@ export default function Home() {
   function handleSaveAvatarDesign(design: AvatarDesign | null) {
     saveSessionAvatarDesign(design);
     if (identity?.sessionId) {
-      setOwnAvatarSession(identity.sessionId, design);
+      setOwnAvatarSession(identity.sessionId, design, identity.profileId ?? undefined);
       setIdentity((current) => current ? { ...current, avatarDesign: design } : current);
       socketRef.current?.emit("avatar:update", { design }, (res: ServerAck) => {
         if (res && !res.ok) {
@@ -1309,6 +1332,8 @@ export default function Home() {
     const tempMsg: ChatMessage = {
       id: tempId,
       senderSessionId: identity?.sessionId ?? "me",
+      senderProfileId: identity?.profileId ?? null,
+      avatarDesign: identity?.avatarDesign ?? null,
       senderName: identity?.username ?? "you",
       content: text,
       createdAt: Date.now(),
