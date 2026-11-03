@@ -1357,6 +1357,8 @@ export default function Home() {
     const tempMsg: ChatMessage = {
       id: tempId,
       senderSessionId: identity?.sessionId ?? "me",
+      senderProfileId: identity?.profileId ?? null,
+      avatarDesign: identity?.avatarDesign ?? null,
       senderName: identity?.username ?? "you",
       content: text,
       createdAt: Date.now(),
@@ -1660,7 +1662,7 @@ export default function Home() {
             <button className="keepName" onClick={keepCurrentName}>
               <Identicon
                 name={identity?.username || "anon"}
-                seed={identity?.sessionId ?? identity?.username ?? "anon"}
+                seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anon"}
                 size={26}
                 className="keepNameAvatar"
               />
@@ -1790,7 +1792,7 @@ export default function Home() {
                   title="Open your pixel profile"
                 >
                   <span className="globalProfileDockAvatar">
-                    <Identicon name={identity?.username ?? "anonymous"} seed={identity?.sessionId ?? identity?.username ?? "anonymous"} size={34} />
+                    <Identicon name={identity?.username ?? "anonymous"} seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anonymous"} design={identity?.avatarDesign ?? undefined} size={34} />
                     <span className="globalProfileDockStatus" />
                   </span>
                   <span className="globalProfileDockCopy">
@@ -1887,7 +1889,7 @@ export default function Home() {
               ))}
             </nav>
             <div className="app-id">
-              <div className="app-ava" style={{ padding: 2 }}><Identicon name={identity?.username ?? "anon"} seed={identity?.sessionId ?? identity?.username ?? "anon"} size={32} /></div>
+              <div className="app-ava" style={{ padding: 2 }}><Identicon name={identity?.username ?? "anon"} seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anon"} design={identity?.avatarDesign ?? undefined} size={32} /></div>
               <div className="txt">
                 <small>{t("anonymousIdentity")}</small>
                 <b>{identity?.username ?? "…"}</b>
@@ -1950,7 +1952,7 @@ export default function Home() {
 
                   {missed.map((m) => (
                     <div className="msg missed" key={`missed-${m.id}`}>
-                      <div className="mini"><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>
+                      <div className="mini"><Identicon name={m.senderName} seed={m.senderProfileId ?? m.senderSessionId} design={m.avatarDesign ?? undefined} size={30} /></div>
                       <div className="bubble">
                         <div className="meta">
                           <b>{m.senderName}</b>
@@ -1971,7 +1973,7 @@ export default function Home() {
                         </div>
                         <div className="text">{q.content}</div>
                       </div>
-                      <div className="mini"><Identicon name={identity?.username ?? "you"} seed={identity?.sessionId ?? identity?.username ?? "you"} size={30} /></div>
+                      <div className="mini"><Identicon name={identity?.username ?? "you"} seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "you"} design={identity?.avatarDesign ?? undefined} size={30} /></div>
                     </div>
                   ))}
 
@@ -2994,7 +2996,7 @@ const MessageBubble = memo(
               className="mini clickable"
               onClick={() => onOpenDm?.(m.senderSessionId, m.senderName)}
               title="Private message"
-            ><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>
+            ><Identicon name={m.senderName} seed={m.senderProfileId ?? m.senderSessionId} design={m.avatarDesign ?? undefined} size={30} /></div>
           )}
 
           <div className="bubble">
@@ -3108,7 +3110,7 @@ const MessageBubble = memo(
             )}
           </div>
 
-          {mine && <div className="mini"><Identicon name={m.senderName} seed={m.senderSessionId} size={30} /></div>}
+          {mine && <div className="mini"><Identicon name={m.senderName} seed={m.senderProfileId ?? m.senderSessionId} design={m.avatarDesign ?? undefined} size={30} /></div>}
         </div>
 
         {showSheet && typeof document !== "undefined" && createPortal(
