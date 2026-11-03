@@ -754,6 +754,36 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [room?.roomId, roomLoadKey]);
 
+  // Migrate this browser's previously cached own messages to the stable profile
+  // identity. This repairs chat history created before profileId/avatar snapshots
+  // existed, without guessing identities for other users.
+  useEffect(() => {
+    if (!identity?.profileId || !identity.username) return;
+    const legacyOwnMessages = messages.filter((message) =>
+      message.localSent === true &&
+      !message.senderProfileId &&
+      message.senderName === identity.username
+    );
+    if (legacyOwnMessages.length === 0) return;
+
+    const migratedIds = new Set(legacyOwnMessages.map((message) => message.id));
+    setMessages((current) => current.map((message) => (
+      migratedIds.has(message.id)
+        ? {
+            ...message,
+            senderProfileId: identity.profileId,
+            avatarDesign: identity.avatarDesign ?? null,
+          }
+        : message
+    )));
+    for (const message of legacyOwnMessages) {
+      void persistUpdate(message.id, {
+        senderProfileId: identity.profileId,
+        avatarDesign: identity.avatarDesign ?? null,
+      });
+    }
+  }, [identity?.profileId, identity?.username, identity?.avatarDesign, messages]);
+
   useEffect(() => {
     const el = msgsRef.current;
     if (!el) return;
