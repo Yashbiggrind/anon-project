@@ -567,7 +567,7 @@ export default function Home() {
       localStorage.setItem("anon.avatar.last-session.v1", s.sessionId);
       if (s.username) localStorage.setItem(LS_USERNAME, s.username);
       if (savedAvatarDesign && !s.avatarDesign) {
-        socket.emit("avatar:update", { design: savedDesign }, (ack: ServerAck) => {
+        socket.emit("avatar:update", { design: savedAvatarDesign }, (ack: ServerAck) => {
           if (ack && !ack.ok) console.warn("[avatar] live sync failed:", ack.error);
         });
       }
