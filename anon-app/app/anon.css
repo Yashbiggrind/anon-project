@@ -4598,29 +4598,7 @@ a:focus-visible {
   transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
   -webkit-tap-highlight-color: transparent;
 }
-.profileIdentityButton::before {
-  content: "";
-  position: absolute;
-  z-index: 3;
-  inset: -1px;
-  padding: 1px;
-  border-radius: 11px;
-  background: conic-gradient(
-    from 0deg,
-    transparent 0deg 210deg,
-    rgba(255, 45, 85, .14) 232deg,
-    #ff2d55 266deg,
-    #ffe6ed 278deg,
-    #ff5c7c 292deg,
-    transparent 326deg 360deg
-  );
-  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask-composite: exclude;
-  opacity: .82;
-  animation: identityRingSpin 4.6s linear infinite;
-  pointer-events: none;
-}
+
 .profileIdentityButton:hover,
 .profileIdentityButton:focus-visible {
   transform: translateY(-2px);
@@ -4768,10 +4746,6 @@ a:focus-visible {
   pointer-events: none;
   animation: identityBoltFlash 4.2s steps(1, end) infinite;
 }
-@keyframes identityRingSpin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
 @keyframes identityEnergyPulse {
   0%, 100% { opacity: .24; transform: scale(.97); }
   50% { opacity: .78; transform: scale(1.035); }
@@ -4850,11 +4824,79 @@ a:focus-visible {
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  .profileIdentityButton::before,
   .profileIdentityEnergy,
   .profileIdentityScan,
   .profileIdentityFrame::before,
   .profileIdentityBolt {
     animation: none !important;
   }
+}
+
+
+/* Desktop uses the same clear three-band header structure as the mobile/tablet view:
+   brand, full-width navigation, then online/language/audio/profile utilities. */
+@media (min-width: 1101px) {
+  .topbar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    align-items: stretch !important;
+    gap: 10px !important;
+    margin: 6px 20px 0 !important;
+    padding: 10px 16px !important;
+    box-sizing: border-box !important;
+  }
+  .brandBlock {
+    display: flex !important;
+    width: 100% !important;
+    justify-content: center !important;
+    border-right: 0 !important;
+    border-bottom: 1px solid rgba(225, 29, 72, .15) !important;
+    padding: 2px 0 10px !important;
+  }
+  .centerNav {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    justify-content: space-between !important;
+    overflow: visible !important;
+    flex-wrap: nowrap !important;
+  }
+  .centerNav .navItem {
+    flex: 1 1 auto !important;
+    text-align: center !important;
+    padding: 9px clamp(12px, 1.5vw, 24px) !important;
+    white-space: nowrap !important;
+  }
+  .rightBar {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    box-sizing: border-box !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    padding: 9px 0 0 !important;
+    border-left: 0 !important;
+    border-top: 1px solid rgba(225, 29, 72, .15) !important;
+  }
+  .onlinePill {
+    flex: 1 1 auto !important;
+    min-width: 0 !important;
+  }
+  .profileIdentityButton {
+    flex: 0 0 166px !important;
+    width: 166px !important;
+    max-width: 166px !important;
+  }
+}
+@media (min-width: 1101px) and (max-width: 1320px) {
+  .brandTag { font-size: 7px !important; letter-spacing: 1.8px !important; }
+  .profileIdentityButton {
+    flex-basis: 154px !important;
+    width: 154px !important;
+    max-width: 154px !important;
+  }
+  .profileIdentityText b { font-size: 9px !important; }
 }
