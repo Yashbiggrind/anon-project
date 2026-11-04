@@ -156,4 +156,29 @@ const CSS = `
 
   .readBtn{margin-top:8px;padding:8px 14px;background:#160409;border:1px solid #4a0a14;border-radius:6px;color:#ff5875;font-family:inherit;font-size:10.5px;letter-spacing:1.6px;font-weight:700;text-transform:uppercase;cursor:pointer;transition:all .2s;}
   .readBtn:hover{background:#22060d;border-color:#e11d48;color:#fff;}
+
+  @media (max-width: 640px) {
+    .ctRoot{min-height:100dvh;padding:22px 12px calc(56px + env(safe-area-inset-bottom));}
+    .ctHead{margin-bottom:20px;padding-bottom:17px;}
+    .eyebrow{font-size:9px;letter-spacing:2px;}
+    .ctHead h1{font-size:clamp(29px,8vw,38px);line-height:1.08;}
+    .ctHead p{font-size:12px;line-height:1.6;}
+    .backBtn{min-height:40px;padding:9px 12px;font-size:10px;letter-spacing:1.4px;}
+    .ctGrid{gap:11px;}
+    .art{padding:15px;border-radius:9px;}
+    .artHead{align-items:flex-start;flex-wrap:wrap;gap:6px;}
+    .tag{font-size:9px;letter-spacing:1.5px;}
+    .read{font-size:9px;}
+    .artTitle{font-size:clamp(19px,5vw,23px);line-height:1.25;overflow-wrap:anywhere;}
+    .intro{font-size:12px;line-height:1.65;}
+    .artBody{gap:13px;margin:12px 0;padding-top:12px;}
+    .artBody section h3{font-size:16px;line-height:1.3;}
+    .artBody section p{font-size:13px;line-height:1.7;overflow-wrap:anywhere;}
+    .readBtn{min-height:42px;padding:10px 13px;font-size:9.5px;letter-spacing:1.2px;}
+  }
+  @media (max-width: 360px) {
+    .ctRoot{padding-left:9px;padding-right:9px;}
+    .art{padding:12px;}
+    .artTitle{font-size:19px;}
+  }
 `;
