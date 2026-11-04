@@ -267,4 +267,41 @@ const CSS = `
   .dot{color:#5a4048;}
   .ttl{color:#5a4048;font-size:10.5px;font-style:italic;}
   .text{color:#f4e8e8;font-size:14px;line-height:1.55;word-break:break-word;white-space:pre-wrap;}
+
+  @media (max-width: 640px) {
+    .cwRoot{min-height:100dvh;padding:22px 12px calc(56px + env(safe-area-inset-bottom));}
+    .cwHead{margin-bottom:18px;padding-bottom:16px;}
+    .eyebrow{font-size:9px;letter-spacing:2px;}
+    .cwHead h1{font-size:clamp(29px,8vw,38px);line-height:1.08;}
+    .cwHead p{font-size:12px;line-height:1.6;}
+    .backBtn{min-height:40px;padding:9px 12px;font-size:10px;letter-spacing:1.4px;}
+    .composer{margin-bottom:14px;padding:11px;border-radius:9px;}
+    .ta{min-height:110px;font-size:16px;line-height:1.5;}
+    .compFoot{align-items:stretch;flex-direction:column;gap:9px;}
+    .who{font-size:11px;min-width:0;}
+    .compRight{width:100%;justify-content:space-between;gap:8px;}
+    .btn{min-height:40px;justify-content:center;padding:9px 11px;font-size:9.5px;letter-spacing:1px;}
+    .tabs{width:100%;overflow-x:auto;gap:6px;padding-bottom:3px;scrollbar-width:none;-webkit-overflow-scrolling:touch;}
+    .tabs::-webkit-scrollbar{display:none;}
+    .tab{flex:0 0 auto;min-height:38px;padding:8px 11px;white-space:nowrap;font-size:9px;letter-spacing:1px;}
+    .count{flex:0 0 auto;white-space:nowrap;font-size:9px;}
+    .feed{gap:9px;}
+    .post{gap:9px;padding:11px;border-radius:9px;}
+    .voteCol{min-width:28px;}
+    .vbtn{width:30px;height:30px;font-size:13px;}
+    .bodyCol{min-width:0;}
+    .postHead{gap:6px;}
+    .author{font-size:10.5px;overflow-wrap:anywhere;}
+    .ttl{font-size:9px;}
+    .text{font-size:13px;line-height:1.65;overflow-wrap:anywhere;}
+    .empty{padding:40px 12px;font-size:12px;line-height:1.6;}
+  }
+  @media (max-width: 360px) {
+    .cwRoot{padding-left:9px;padding-right:9px;}
+    .composer{padding:9px;}
+    .post{padding:9px;gap:7px;}
+    .voteCol{min-width:26px;}
+    .vbtn{width:28px;height:28px;}
+    .compRight{flex-wrap:wrap;}
+  }
 `;
