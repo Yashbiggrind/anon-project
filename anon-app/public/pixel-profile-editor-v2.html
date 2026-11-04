@@ -27,7 +27,20 @@ input[type=color]{width:34px;height:28px;padding:0;border:1px solid var(--line);
 .pv{display:flex;gap:14px;align-items:flex-end}
 .pv canvas{border:1px solid var(--red);display:block;image-rendering:pixelated}
 textarea{width:100%;background:#0a0306;color:var(--txt);border:1px solid var(--line);border-radius:0;font:12px inherit;padding:8px;resize:vertical}
-#ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);align-items:center;justify-content:center;z-index:9;padding:20px}.ob{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:100%}#oc{border:2px solid var(--red);background:#000a04;image-rendering:pixelated}#os{margin:0;color:#3dff8a;font:12px/1.5 "Courier New",monospace;min-height:96px;width:100%;white-space:pre-wrap}</style></head><body><div class="wrap">
+#ov{display:none;position:fixed;inset:0;background:rgba(0,0,0,.93);align-items:center;justify-content:center;z-index:9;padding:20px}.ob{display:flex;flex-direction:column;gap:12px;align-items:center;max-width:100%}#oc{border:2px solid var(--red);background:#000a04;image-rendering:pixelated}#os{margin:0;color:#3dff8a;font:12px/1.5 "Courier New",monospace;min-height:96px;width:100%;white-space:pre-wrap}
+.confirmProfile{width:100%;margin-top:18px;padding:14px}
+.profileCodeAdvanced{margin-top:12px;border:1px solid rgba(58,15,26,.8);background:rgba(22,5,10,.56)}
+.profileCodeAdvanced summary{list-style:none;cursor:pointer;padding:12px 14px;color:#9c7d89;font:11px/1.4 "Courier New",monospace;letter-spacing:.12em;text-transform:uppercase;user-select:none}
+.profileCodeAdvanced summary::-webkit-details-marker{display:none}
+.profileCodeAdvanced summary::before{content:"＋";display:inline-block;margin-right:10px;color:var(--red);font-weight:bold}
+.profileCodeAdvanced[open] summary::before{content:"－"}
+.profileCodeAdvanced summary:hover{color:#f4e8ec;background:rgba(255,92,124,.045)}
+.profileCodeBody{padding:0 14px 14px;border-top:1px solid rgba(58,15,26,.5)}
+.profileCodeNote{margin:12px 0;color:#8a7a80;font:11px/1.6 "Courier New",monospace}
+.profileCodeActions{margin-top:7px}
+#codeStatus{color:#35d27c;font:10px "Courier New",monospace;letter-spacing:.06em}
+@media(max-width:620px){.wrap{padding:12px}.row{gap:12px}.side{min-width:0;width:100%}.profileCodeAdvanced summary{font-size:10px;letter-spacing:.07em}.profileCodeNote{font-size:10px}}
+</style></head><body><div class="wrap">
 <h1>Your Profile Block</h1>
 <p class="s">One click = one block. The profile square is always the same size, whatever grid you pick.</p>
 <div class="row">
@@ -46,9 +59,21 @@ textarea{width:100%;background:#0a0306;color:var(--txt);border:1px solid var(--l
 <button id="und">Undo</button><button id="rnd">Random</button><button id="clr">Clear</button></div></div>
 <div class="panel"><div class="lab">Preview (same size for every grid)</div><div class="pv"><canvas id="p1"></canvas><canvas id="p2"></canvas><canvas id="p3"></canvas></div></div>
 </div></div>
-<button id="cf" class="on" style="width:100%;margin-top:18px;padding:14px">Confirm profile</button>
-<div class="panel" style="margin-top:12px"><div class="lab">Profile code (save this in your database)</div>
-<textarea id="code" rows="2"></textarea><div class="bt" style="margin-top:6px"><button id="load">Load code</button></div></div>
+<button id="cf" class="on confirmProfile">Confirm profile</button>
+
+<details class="profileCodeAdvanced">
+  <summary>Advanced · import / export avatar backup</summary>
+  <div class="profileCodeBody">
+    <p class="profileCodeNote">Your avatar is saved to this browser when you confirm. This optional text code is only for keeping a manual backup or restoring a design on another device.</p>
+    <label class="lab" for="code">Avatar backup code</label>
+    <textarea id="code" rows="2" spellcheck="false" autocomplete="off"></textarea>
+    <div class="bt profileCodeActions">
+      <button id="load" type="button">Load backup</button>
+      <button id="copy" type="button">Copy backup code</button>
+      <span id="codeStatus" role="status" aria-live="polite"></span>
+    </div>
+  </div>
+</details>
 </div>
 <div id="ov"><div class="ob"><canvas id="oc"></canvas><pre id="os"></pre><button id="ob" class="on">Continue</button></div></div>
 <script>
@@ -109,7 +134,28 @@ $("und").onclick=function(){if(hist.length){cells=hist.pop();sync()}};
 $("clr").onclick=function(){hist.push(cells.slice());cells=blank(n);sync()};
 $("rnd").onclick=function(){hist.push(cells.slice());cells=blank(n);var c=PAL[Math.floor(Math.random()*8)],h=Math.ceil(n/2);
  for(var y=0;y<n;y++)for(var x=0;x<h;x++)if(Math.random()<.6){cells[y*n+x]=c;cells[y*n+n-1-x]=c}sync()};
-$("load").onclick=function(){dec($("code").value)};
+$("load").onclick=function(){
+ var before=n;
+ dec($("code").value);
+ if($("codeStatus"))$("codeStatus").textContent=n!==before?"BACKUP LOADED":"CHECK CODE FORMAT";
+};
+$("copy").onclick=function(){
+ var box=$("code"),status=$("codeStatus");
+ box.value=enc();
+ if(navigator.clipboard&&navigator.clipboard.writeText){
+  navigator.clipboard.writeText(box.value).then(function(){
+   if(status)status.textContent="BACKUP COPIED";
+  }).catch(function(){
+   box.focus();box.select();
+   var ok=document.execCommand("copy");
+   if(status)status.textContent=ok?"BACKUP COPIED":"SELECT THE CODE TO COPY";
+  });
+ }else{
+  box.focus();box.select();
+  var ok=document.execCommand("copy");
+  if(status)status.textContent=ok?"BACKUP COPIED":"SELECT THE CODE TO COPY";
+ }
+};
 window.onresize=sync;
 var GL="01ABCDEF23456789#$%<>/|ｱｲｳｴｵｶｷﾅﾆ",run=0;
 function hx(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619)}return(h>>>0).toString(16).toUpperCase().padStart(8,"0")}
