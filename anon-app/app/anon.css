@@ -5472,3 +5472,33 @@ a:focus-visible {
   line-height: 1;
 }
 .avatarEditLabel { display: inline-block; }
+
+
+/* Keep the compact dimensions authoritative after the shared desktop capsule rules. */
+@media (max-width: 1100px) {
+  .appProfileControl {
+    max-width: 178px !important;
+    margin-left: 0 !important;
+    padding: 4px !important;
+    gap: 6px !important;
+  }
+  .avatarEditTrigger {
+    min-height: 32px !important;
+    height: 32px !important;
+    padding: 0 9px !important;
+  }
+}
+@media (max-width: 560px) {
+  .appProfileControl { max-width: 148px !important; }
+  .avatarEditTrigger {
+    min-height: 30px !important;
+    height: 30px !important;
+    padding: 0 7px !important;
+    font-size: 8px !important;
+  }
+}
+@media (max-width: 380px) {
+  .appProfileControl { max-width: 126px !important; }
+  .avatarEditLabel { font-size: 7px !important; letter-spacing: .04em !important; }
+  .avatarEditGlyph { display: none !important; }
+}
