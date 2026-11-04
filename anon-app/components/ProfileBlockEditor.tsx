@@ -114,7 +114,7 @@ export default function ProfileBlockEditor({ name, sessionId, initialDesign, onS
             <div>
               <div className="globalProfileEyebrow">ANON // PERSONAL IDENTITY</div>
               <h2 id="globalProfileTitle">{name}</h2>
-              <p>{saved ? "PIXEL PROFILE SAVED FOR THIS SESSION" : "Edit your block avatar. No image uploads."}</p>
+              <p>{saved ? "PIXEL PROFILE SAVED TO THIS BROWSER" : "Edit your block avatar. No image uploads."}</p>
             </div>
           </div>
           <button type="button" className="globalProfileClose" onClick={close} aria-label="Close profile editor">×</button>
@@ -138,7 +138,7 @@ export default function ProfileBlockEditor({ name, sessionId, initialDesign, onS
         />
 
         <div className="globalProfileBottom">
-          <span>PIXEL GRID · SESSION IDENTITY · NO UPLOADS</span>
+          <span>PIXEL GRID · SAVED PROFILE · NO UPLOADS</span>
           <button type="button" onClick={close}>DONE</button>
         </div>
       </section>
