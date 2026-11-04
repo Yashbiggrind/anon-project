@@ -1826,7 +1826,7 @@ export default function Home() {
                 </span>
                 <span className="profileIdentityText">
                   <b>{identity?.username ?? "YOUR PROFILE"}</b>
-                  <small>PROFILE <i>//</i> EDIT</small>
+                  <small>PROFILE <i>{"//"}</i> EDIT</small>
                 </span>
                 <svg className="profileIdentityArrow" viewBox="0 0 16 16" aria-hidden="true">
                   <path d="M4 12 12 4M5 4h7v7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
