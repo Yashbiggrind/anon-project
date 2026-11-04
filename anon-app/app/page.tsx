@@ -1808,25 +1808,32 @@ export default function Home() {
 
               <button
                 type="button"
-                className="globalProfileDock"
+                className="profileIdentityButton"
                 onClick={() => setAvatarEditorOpen(true)}
                 aria-label={`Open profile editor for ${identity?.username ?? "your anonymous profile"}`}
                 title="Open your pixel profile"
               >
-                <span className="globalProfileDockAvatar">
+                <span className="profileIdentityEnergy" aria-hidden="true" />
+                <span className="profileIdentityScan" aria-hidden="true" />
+                <span className="profileIdentityFrame">
                   <Identicon
                     name={identity?.username ?? "anonymous"}
                     seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anonymous"}
                     design={identity?.avatarDesign ?? undefined}
-                    size={36}
+                    size={40}
                   />
-                  <span className="globalProfileDockStatus" />
+                  <span className="profileIdentityPresence" />
                 </span>
-                <span className="globalProfileDockCopy">
+                <span className="profileIdentityText">
                   <b>{identity?.username ?? "YOUR PROFILE"}</b>
-                  <small>PROFILE / EDIT</small>
+                  <small>PROFILE <i>//</i> EDIT</small>
                 </span>
-                <span className="globalProfileDockChevron" aria-hidden="true">↗</span>
+                <svg className="profileIdentityArrow" viewBox="0 0 16 16" aria-hidden="true">
+                  <path d="M4 12 12 4M5 4h7v7" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
+                </svg>
+                <svg className="profileIdentityBolt" viewBox="0 0 16 24" aria-hidden="true">
+                  <path d="M9 1 2 13h5l-1 10 8-14H9l1-8Z" fill="currentColor" />
+                </svg>
               </button>
             </div>
           </header>
