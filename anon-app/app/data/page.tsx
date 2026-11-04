@@ -257,4 +257,38 @@ const CSS = `
   .modal h3{font-family:'Bodoni Moda',serif;font-weight:900;font-size:22px;margin:0 0 10px;color:#f4e8e8;letter-spacing:-.02em;}
   .modal p{color:#a89098;font-size:13px;line-height:1.6;margin:0 0 18px;}
   .modalRow{display:flex;gap:8px;justify-content:flex-end;}
+
+  @media (max-width: 640px) {
+    .dlRoot{min-height:100dvh;padding:22px 12px calc(56px + env(safe-area-inset-bottom));}
+    .dlHead{margin-bottom:18px;padding-bottom:16px;}
+    .eyebrow{font-size:9px;letter-spacing:2px;}
+    .dlHead h1{font-size:clamp(27px,7vw,36px);line-height:1.1;}
+    .dlHead p{font-size:12px;line-height:1.6;}
+    .backBtn{min-height:40px;padding:9px 12px;font-size:10px;letter-spacing:1.3px;}
+    .stats{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:12px;}
+    .stat{min-width:0;padding:11px;border-radius:8px;}
+    .num{font-size:clamp(18px,5vw,22px);overflow-wrap:anywhere;}
+    .lbl{font-size:8px;letter-spacing:1.2px;line-height:1.4;overflow-wrap:anywhere;}
+    .actions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin-bottom:12px;}
+    .actions .btn{width:100%;min-width:0;min-height:42px;padding:9px 7px;font-size:9px;letter-spacing:.8px;white-space:normal;line-height:1.3;}
+    .toast{padding:10px 11px;font-size:10.5px;line-height:1.55;overflow-wrap:anywhere;}
+    .table{overflow-x:auto;overscroll-behavior-x:contain;-webkit-overflow-scrolling:touch;}
+    .tHead,.row{min-width:560px;grid-template-columns:minmax(130px,1.4fr) minmax(70px,.6fr) minmax(250px,2fr);gap:8px;padding:10px 12px;}
+    .tHead{font-size:8.5px;letter-spacing:1.4px;}
+    .row{font-size:10.5px;}
+    .k,.p{overflow-wrap:anywhere;}
+    .modalBg{padding:12px;align-items:center;overflow-y:auto;}
+    .modal{width:100%;max-width:420px;max-height:calc(100dvh - 24px);overflow-y:auto;padding:19px;}
+    .modal h3{font-size:20px;}
+    .modal p{font-size:12px;line-height:1.65;}
+    .modalRow{flex-direction:column-reverse;gap:8px;}
+    .modalRow .btn{width:100%;min-height:42px;justify-content:center;}
+  }
+  @media (max-width: 360px) {
+    .dlRoot{padding-left:9px;padding-right:9px;}
+    .stats{gap:6px;}
+    .stat{padding:9px;}
+    .lbl{font-size:7.5px;}
+    .actions .btn{font-size:8.3px;}
+  }
 `;
