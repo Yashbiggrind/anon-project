@@ -4658,35 +4658,125 @@ a:focus-visible {
   .globalProfileBottom { padding: 8px 10px; font-size: 7px; }
 }
 
-/* Visibility fix: keep the profile entry point above the Home hero/header layers.
-   The topbar uses a decorative clip-path; disable clipping so the fixed dock is not
-   cut off by the header's angled corners or responsive layout. */
-.topbar {
-  clip-path: none !important;
-}
+/* Header-integrated profile control.
+   The profile button stays in .rightBar's normal flex flow, so it reserves
+   its own space and can never cover navigation, language, or audio controls. */
 .globalProfileDock {
-  position: fixed !important;
-  top: max(12px, env(safe-area-inset-top)) !important;
-  right: max(12px, env(safe-area-inset-right)) !important;
-  z-index: 50000 !important;
-  width: max-content;
-  max-width: min(220px, calc(100vw - 24px)) !important;
-  flex-shrink: 0 !important;
-  visibility: visible !important;
-  opacity: 1 !important;
-  pointer-events: auto !important;
+  position: relative;
+  inset: auto;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex: 0 1 154px;
+  width: auto;
+  min-width: 0;
+  max-width: 154px;
+  gap: 8px;
+  padding: 5px 8px 5px 5px;
+  border: 1px solid rgba(255, 45, 85, .38);
+  border-radius: 9px;
+  background:
+    linear-gradient(135deg, rgba(255, 45, 85, .09), transparent 58%),
+    linear-gradient(180deg, rgba(18, 5, 11, .96), rgba(7, 3, 6, .96));
+  box-shadow: inset 0 0 0 1px rgba(255, 45, 85, .04);
+  visibility: visible;
+  opacity: 1;
+  pointer-events: auto;
+}
+.globalProfileDock:hover,
+.globalProfileDock:focus-visible {
+  transform: translateY(-1px);
+  border-color: rgba(255, 92, 124, .78);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 45, 85, .12),
+    0 0 16px rgba(255, 45, 85, .16);
+}
+.globalProfileDockAvatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+}
+.globalProfileDockAvatar svg {
+  width: 30px;
+  height: 30px;
 }
 .globalProfileDockCopy {
-  max-width: min(130px, 28vw);
+  flex: 1 1 auto;
+  max-width: 88px;
+  min-width: 0;
+  gap: 3px;
+}
+.globalProfileDockCopy b {
+  max-width: 88px;
+  font-size: 9px;
+  letter-spacing: .55px;
+}
+.globalProfileDockCopy small {
+  overflow: hidden;
+  max-width: 88px;
+  font-size: 6px;
+  letter-spacing: .75px;
+  text-overflow: ellipsis;
+}
+.globalProfileDockChevron {
+  flex: 0 0 auto;
+  align-self: center;
+  padding: 0;
+  font-size: 10px;
+}
+.rightBar {
+  min-width: 0;
+}
+@media (max-width: 1100px) {
+  .globalProfileDock {
+    flex: 0 1 146px;
+    max-width: 146px;
+  }
+}
+@media (max-width: 768px) {
+  .rightBar {
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: nowrap;
+    min-width: 0;
+  }
+  .globalProfileDock {
+    flex: 0 0 auto;
+    max-width: 136px;
+  }
+  .globalProfileDockCopy b { max-width: 76px; }
+  .globalProfileDockCopy small { max-width: 76px; }
 }
 @media (max-width: 560px) {
   .globalProfileDock {
-    top: max(8px, env(safe-area-inset-top)) !important;
-    right: max(8px, env(safe-area-inset-right)) !important;
-    max-width: min(164px, calc(100vw - 16px)) !important;
+    display: grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    max-width: 38px;
+    flex: 0 0 38px;
+    padding: 2px;
+    gap: 0;
   }
-  .globalProfileDockCopy {
-    max-width: 82px;
+  .globalProfileDockAvatar {
+    width: 30px;
+    height: 30px;
+    flex-basis: 30px;
+  }
+  .globalProfileDockAvatar svg {
+    width: 28px;
+    height: 28px;
+  }
+  .globalProfileDockCopy,
+  .globalProfileDockChevron {
+    display: none;
+  }
+  .rightBar {
+    gap: 6px;
+  }
+  .onlinePill {
+    flex: 1 1 auto;
   }
 }
-
