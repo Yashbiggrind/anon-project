@@ -1818,7 +1818,7 @@ export default function Home() {
                     name={identity?.username ?? "anonymous"}
                     seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anonymous"}
                     design={identity?.avatarDesign ?? undefined}
-                    size={30}
+                    size={36}
                   />
                   <span className="globalProfileDockStatus" />
                 </span>
