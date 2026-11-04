@@ -4413,94 +4413,9 @@ a:focus-visible {
 }
 
 /* ============================================================
-   Global profile identity dock + unchanged supplied editor frame
+   ANON profile editor modal + identity module
+   Legacy floating-dock rules have been removed.
    ============================================================ */
-.globalProfileDock {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-  max-width: 176px;
-  padding: 5px 9px 5px 6px;
-  border: 1px solid rgba(255, 45, 85, .52);
-  border-radius: 9px;
-  color: #ff5b7c;
-  background: linear-gradient(135deg, rgba(43, 5, 15, .98), rgba(10, 3, 7, .98));
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 45, 85, .08),
-    0 0 16px rgba(255, 45, 85, .18),
-    0 0 30px -14px #ff2d55;
-  transition: border-color .2s ease, box-shadow .2s ease, transform .2s ease;
-  cursor: pointer;
-  text-align: left;
-}
-.globalProfileDock:hover,
-.globalProfileDock:focus-visible {
-  border-color: #ff7892;
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 45, 85, .18),
-    0 0 20px rgba(255, 45, 85, .28),
-    0 0 38px -10px #ff2d55;
-  transform: translateY(-1px);
-  outline: none;
-}
-.globalProfileDockAvatar {
-  position: relative;
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  flex: 0 0 36px;
-  align-items: center;
-  justify-content: center;
-  padding: 1px;
-  border: 1px solid rgba(255, 45, 85, .65);
-  background: #090308;
-  box-shadow: 0 0 13px rgba(255, 45, 85, .24);
-}
-.globalProfileDockAvatar svg { image-rendering: pixelated; }
-.globalProfileDockStatus {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: 8px;
-  height: 8px;
-  border: 1px solid #050207;
-  border-radius: 50%;
-  background: #35d27c;
-  box-shadow: 0 0 8px #35d27c;
-}
-.globalProfileDockCopy {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-  gap: 3px;
-}
-.globalProfileDockCopy b {
-  display: block;
-  max-width: 104px;
-  overflow: hidden;
-  color: #ff7892;
-  font: 800 10px/1.2 'Courier New', monospace;
-  letter-spacing: .8px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-shadow: 0 0 9px rgba(255, 45, 85, .55);
-}
-.globalProfileDockCopy small {
-  display: block;
-  color: #98717f;
-  font: 700 7px/1.2 'Courier New', monospace;
-  letter-spacing: 1.05px;
-  white-space: nowrap;
-}
-.globalProfileDockChevron {
-  align-self: flex-start;
-  padding-top: 1px;
-  color: #ff2d55;
-  font: 800 11px/1 'Courier New', monospace;
-}
 .globalProfileBackdrop {
   position: fixed;
   inset: 0;
@@ -4634,20 +4549,16 @@ a:focus-visible {
   letter-spacing: .15em;
 }
 .globalProfileBottom button:hover { background: #850d2b; }
-@media (max-width: 1100px) {
-  .rightBar { justify-content: center; flex-wrap: wrap; padding: 9px 0 0; border-left: 0; border-top: 1px solid rgba(225,29,72,.15); }
-  .globalProfileDock { max-width: min(176px, 42vw); }
+
+@media (max-width: 768px) {
+  .globalProfileBackdrop { padding: 8px; }
+  .globalProfileDialog { max-height: 96dvh; }
+  .globalProfileHeading { padding: 10px 12px; }
+  .globalProfileHint { padding: 7px 12px; font-size: 8px; }
+  .globalProfileFrame { height: 74vh; min-height: 300px; }
 }
 @media (max-width: 560px) {
-  .rightBar { gap: 6px; }
-  .globalProfileDock { gap: 6px; max-width: 145px; padding: 4px 6px 4px 4px; }
-  .globalProfileDockAvatar { width: 30px; height: 30px; flex-basis: 30px; }
-  .globalProfileDockAvatar svg { width: 28px; height: 28px; }
-  .globalProfileDockCopy b { max-width: 75px; font-size: 9px; }
-  .globalProfileDockCopy small { font-size: 6px; letter-spacing: .7px; }
-  .globalProfileDockChevron { display: none; }
   .globalProfileBackdrop { padding: 5px; }
-  .globalProfileDialog { max-height: 97dvh; }
   .globalProfileHeading { padding: 9px 11px; }
   .globalProfileBigAvatar { width: 38px; height: 38px; flex-basis: 38px; }
   .globalProfileBigAvatar svg { width: 34px; height: 34px; }
@@ -4658,216 +4569,289 @@ a:focus-visible {
   .globalProfileBottom { padding: 8px 10px; font-size: 7px; }
 }
 
-/* Header-integrated profile control.
-   The profile button stays in .rightBar's normal flex flow, so it reserves
-   its own space and can never cover navigation, language, or audio controls. */
-.globalProfileDock {
+/* Identity module — self-contained, in-flow header component. */
+.profileIdentityButton {
+  --identity-red: #ff2d55;
   position: relative;
-  inset: auto;
-  z-index: 1;
+  isolation: isolate;
   display: inline-flex;
   align-items: center;
   justify-content: flex-start;
-  flex: 0 1 154px;
-  width: auto;
+  flex: 0 0 166px;
+  width: 166px;
   min-width: 0;
-  max-width: 154px;
-  gap: 8px;
-  padding: 5px 8px 5px 5px;
-  border: 1px solid rgba(255, 45, 85, .38);
-  border-radius: 9px;
+  height: 58px;
+  gap: 9px;
+  padding: 5px 9px 5px 6px;
+  border: 1px solid rgba(255, 92, 124, .52);
+  border-radius: 10px;
+  color: #f8eaf0;
   background:
-    linear-gradient(135deg, rgba(255, 45, 85, .09), transparent 58%),
-    linear-gradient(180deg, rgba(18, 5, 11, .96), rgba(7, 3, 6, .96));
-  box-shadow: inset 0 0 0 1px rgba(255, 45, 85, .04);
-  visibility: visible;
-  opacity: 1;
-  pointer-events: auto;
-}
-.globalProfileDock:hover,
-.globalProfileDock:focus-visible {
-  transform: translateY(-1px);
-  border-color: rgba(255, 92, 124, .78);
+    linear-gradient(112deg, rgba(255, 45, 85, .14), transparent 43%),
+    linear-gradient(180deg, #170811 0%, #080307 100%);
   box-shadow:
-    inset 0 0 0 1px rgba(255, 45, 85, .12),
-    0 0 16px rgba(255, 45, 85, .16);
+    inset 0 0 0 1px rgba(255, 92, 124, .07),
+    0 0 15px rgba(255, 45, 85, .12),
+    0 7px 20px rgba(0, 0, 0, .3);
+  cursor: pointer;
+  text-align: left;
+  transition: transform .22s ease, border-color .22s ease, box-shadow .22s ease;
+  -webkit-tap-highlight-color: transparent;
 }
-.globalProfileDockAvatar {
-  width: 32px;
-  height: 32px;
-  flex: 0 0 32px;
+.profileIdentityButton::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  padding: 1px;
+  border-radius: 11px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg 210deg,
+    rgba(255, 45, 85, .14) 232deg,
+    #ff2d55 266deg,
+    #ffe6ed 278deg,
+    #ff5c7c 292deg,
+    transparent 326deg 360deg
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: .82;
+  animation: identityRingSpin 4.6s linear infinite;
+  pointer-events: none;
 }
-.globalProfileDockAvatar svg {
-  width: 30px;
-  height: 30px;
+.profileIdentityButton:hover,
+.profileIdentityButton:focus-visible {
+  transform: translateY(-2px);
+  border-color: rgba(255, 134, 158, .9);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 92, 124, .14),
+    0 0 10px rgba(255, 45, 85, .3),
+    0 0 30px rgba(255, 45, 85, .2),
+    0 8px 22px rgba(0, 0, 0, .38);
+  outline: none;
 }
-.globalProfileDockCopy {
+.profileIdentityButton:focus-visible {
+  outline: 2px solid rgba(255, 190, 205, .8);
+  outline-offset: 3px;
+}
+.profileIdentityEnergy {
+  position: absolute;
+  z-index: -1;
+  inset: -9px;
+  border-radius: 14px;
+  background: radial-gradient(ellipse at 34% 50%, rgba(255, 45, 85, .2), transparent 65%);
+  opacity: .48;
+  filter: blur(9px);
+  pointer-events: none;
+  animation: identityEnergyPulse 3.8s ease-in-out infinite;
+}
+.profileIdentityScan {
+  position: absolute;
+  z-index: 2;
+  top: 2px;
+  bottom: 2px;
+  left: -42%;
+  width: 26%;
+  border-radius: 8px;
+  background: linear-gradient(90deg, transparent, rgba(255, 220, 230, .12), rgba(255, 92, 124, .2), transparent);
+  filter: blur(3px);
+  transform: skewX(-22deg);
+  pointer-events: none;
+  animation: identityScanSweep 5.4s ease-in-out infinite;
+}
+.profileIdentityFrame {
+  position: relative;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 46px;
+  height: 46px;
+  flex: 0 0 46px;
+  aspect-ratio: 1 / 1;
+  padding: 2px;
+  border: 1px solid rgba(255, 113, 143, .82);
+  border-radius: 0;
+  background: #090308;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 92, 124, .08),
+    0 0 10px rgba(255, 45, 85, .24);
+}
+.profileIdentityFrame::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 1px solid rgba(255, 45, 85, .36);
+  opacity: .52;
+  pointer-events: none;
+  animation: identityFramePulse 2.8s ease-in-out infinite;
+}
+.profileIdentityFrame svg {
+  display: block;
+  width: 40px;
+  height: 40px;
+  max-width: 40px;
+  max-height: 40px;
+  aspect-ratio: 1 / 1;
+  image-rendering: pixelated;
+  shape-rendering: crispEdges;
+}
+.profileIdentityPresence {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border: 1.5px solid #080307;
+  border-radius: 50%;
+  background: #35d27c;
+  box-shadow: 0 0 7px #35d27c, 0 0 13px rgba(53, 210, 124, .58);
+}
+.profileIdentityText {
+  display: flex;
   flex: 1 1 auto;
-  max-width: 88px;
+  flex-direction: column;
+  justify-content: center;
   min-width: 0;
-  gap: 3px;
+  gap: 4px;
 }
-.globalProfileDockCopy b {
-  max-width: 88px;
-  font-size: 9px;
-  letter-spacing: .55px;
-}
-.globalProfileDockCopy small {
+.profileIdentityText b {
+  display: block;
   overflow: hidden;
-  max-width: 88px;
-  font-size: 6px;
-  letter-spacing: .75px;
+  max-width: 100%;
+  color: #ffeaf0;
+  font: 700 10px/1.1 'IBM Plex Mono', 'Courier New', monospace;
+  letter-spacing: .035em;
   text-overflow: ellipsis;
+  white-space: nowrap;
+  text-shadow: 0 0 10px rgba(255, 92, 124, .3);
 }
-.globalProfileDockChevron {
-  flex: 0 0 auto;
-  align-self: center;
-  padding: 0;
-  font-size: 10px;
+.profileIdentityText small {
+  display: block;
+  color: #b77b8c;
+  font: 700 7px/1.1 'IBM Plex Mono', 'Courier New', monospace;
+  letter-spacing: .13em;
+  white-space: nowrap;
+}
+.profileIdentityText small i {
+  color: #ff5c7c;
+  font-style: normal;
+}
+.profileIdentityArrow {
+  display: block;
+  width: 13px;
+  height: 13px;
+  flex: 0 0 13px;
+  color: #ff6d8a;
+  filter: drop-shadow(0 0 4px rgba(255, 45, 85, .7));
+  transition: transform .2s ease;
+}
+.profileIdentityButton:hover .profileIdentityArrow {
+  transform: translate(2px, -2px);
+}
+.profileIdentityBolt {
+  position: absolute;
+  top: -5px;
+  right: 7px;
+  z-index: 3;
+  display: block;
+  width: 9px;
+  height: 16px;
+  color: #ffdce5;
+  filter: drop-shadow(0 0 3px #ff2d55) drop-shadow(0 0 7px rgba(255, 45, 85, .8));
+  opacity: .12;
+  pointer-events: none;
+  animation: identityBoltFlash 4.2s steps(1, end) infinite;
+}
+@keyframes identityRingSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes identityEnergyPulse {
+  0%, 100% { opacity: .24; transform: scale(.97); }
+  50% { opacity: .78; transform: scale(1.035); }
+}
+@keyframes identityScanSweep {
+  0%, 64% { left: -42%; opacity: 0; }
+  68% { opacity: .9; }
+  82% { left: 120%; opacity: .45; }
+  86%, 100% { left: 120%; opacity: 0; }
+}
+@keyframes identityFramePulse {
+  0%, 100% { opacity: .24; transform: scale(.98); }
+  50% { opacity: .78; transform: scale(1.035); }
+}
+@keyframes identityBoltFlash {
+  0%, 76%, 100% { opacity: .12; }
+  78% { opacity: .98; }
+  79% { opacity: .18; }
+  81% { opacity: .88; }
+  83% { opacity: .16; }
+  85% { opacity: .72; }
 }
 .rightBar {
   min-width: 0;
+  gap: 8px;
 }
 @media (max-width: 1100px) {
-  .globalProfileDock {
-    flex: 0 1 146px;
-    max-width: 146px;
+  .rightBar {
+    width: 100%;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 9px 0 0;
+    border-left: 0;
+    border-top: 1px solid rgba(225, 29, 72, .15);
   }
 }
 @media (max-width: 768px) {
   .rightBar {
-    align-items: center;
+    width: 100%;
     justify-content: space-between;
     flex-wrap: nowrap;
-    min-width: 0;
+    gap: 7px;
   }
-  .globalProfileDock {
-    flex: 0 0 auto;
-    max-width: 136px;
+  .profileIdentityButton {
+    flex-basis: 158px;
+    width: 158px;
   }
-  .globalProfileDockCopy b { max-width: 76px; }
-  .globalProfileDockCopy small { max-width: 76px; }
 }
 @media (max-width: 560px) {
-  .globalProfileDock {
-    display: grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    min-width: 38px;
-    max-width: 38px;
-    flex: 0 0 38px;
+  .profileIdentityButton {
+    width: 52px;
+    height: 52px;
+    flex: 0 0 52px;
+    justify-content: center;
     padding: 2px;
     gap: 0;
   }
-  .globalProfileDockAvatar {
-    width: 30px;
-    height: 30px;
-    flex-basis: 30px;
+  .profileIdentityFrame {
+    width: 44px;
+    height: 44px;
+    flex-basis: 44px;
   }
-  .globalProfileDockAvatar svg {
-    width: 28px;
-    height: 28px;
+  .profileIdentityFrame svg {
+    width: 38px;
+    height: 38px;
+    max-width: 38px;
+    max-height: 38px;
   }
-  .globalProfileDockCopy,
-  .globalProfileDockChevron {
+  .profileIdentityText,
+  .profileIdentityArrow {
     display: none;
   }
-  .rightBar {
-    gap: 6px;
+  .profileIdentityBolt {
+    top: -4px;
+    right: 5px;
   }
-  .onlinePill {
-    flex: 1 1 auto;
-  }
-}
-
-
-/* Final profile-chip polish: pixel-perfect square avatar + restrained electric edge FX.
-   The green presence dot is intentionally unchanged. */
-.globalProfileDock {
-  position: relative;
-  isolation: isolate;
-  overflow: visible;
-  border-color: rgba(255, 92, 124, .48);
-  box-shadow:
-    inset 0 0 0 1px rgba(255, 45, 85, .06),
-    0 0 12px rgba(255, 45, 85, .08);
-  animation: profileDockGlow 5.2s ease-in-out infinite;
-}
-.globalProfileDock::before {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  inset: -3px;
-  border: 1px solid rgba(255, 45, 85, .36);
-  border-radius: 12px;
-  box-shadow: 0 0 14px rgba(255, 45, 85, .18), inset 0 0 10px rgba(255, 45, 85, .05);
-  opacity: .55;
-  pointer-events: none;
-  animation: profileDockAura 4.8s ease-in-out infinite;
-}
-.globalProfileDock::after {
-  content: "";
-  position: absolute;
-  z-index: 0;
-  top: -5px;
-  right: 7px;
-  width: 8px;
-  height: 14px;
-  background: linear-gradient(180deg, #fff0f3 0%, #ff7892 30%, #ff2d55 100%);
-  clip-path: polygon(48% 0, 100% 0, 63% 39%, 100% 39%, 23% 100%, 40% 56%, 0 56%);
-  filter: drop-shadow(0 0 4px rgba(255, 45, 85, .9));
-  opacity: .82;
-  pointer-events: none;
-  animation: profileDockBolt 3.6s ease-in-out infinite;
-}
-.globalProfileDock > * {
-  position: relative;
-  z-index: 1;
-}
-.globalProfileDockAvatar {
-  box-sizing: border-box;
-  width: 42px;
-  height: 42px;
-  flex: 0 0 42px;
-  aspect-ratio: 1 / 1;
-  padding: 2px;
-  border-radius: 0;
-  overflow: visible;
-  border-color: rgba(255, 92, 124, .72);
-  box-shadow: 0 0 12px rgba(255, 45, 85, .2);
-}
-.globalProfileDockAvatar svg {
-  display: block;
-  width: 36px;
-  height: 36px;
-  aspect-ratio: 1 / 1;
-  image-rendering: pixelated;
-}
-.globalProfileDockStatus {
-  /* Keep the existing green online dot exactly as designed. */
-}
-@keyframes profileDockGlow {
-  0%, 100% {
-    box-shadow: inset 0 0 0 1px rgba(255, 45, 85, .05), 0 0 10px rgba(255, 45, 85, .08);
-  }
-  50% {
-    box-shadow: inset 0 0 0 1px rgba(255, 45, 85, .13), 0 0 19px rgba(255, 45, 85, .2);
-  }
-}
-@keyframes profileDockAura {
-  0%, 100% { opacity: .32; }
-  50% { opacity: .78; }
-}
-@keyframes profileDockBolt {
-  0%, 82%, 100% { opacity: .42; transform: translateY(0) scale(.92); }
-  86% { opacity: 1; transform: translateY(-1px) scale(1.08); }
-  90% { opacity: .58; transform: translateY(0) scale(.96); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .globalProfileDock,
-  .globalProfileDock::before,
-  .globalProfileDock::after {
+  .profileIdentityButton::before,
+  .profileIdentityEnergy,
+  .profileIdentityScan,
+  .profileIdentityFrame::before,
+  .profileIdentityBolt {
     animation: none !important;
   }
 }
