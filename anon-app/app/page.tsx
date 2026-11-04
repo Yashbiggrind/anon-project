@@ -1920,14 +1920,32 @@ export default function Home() {
                 </button>
               ))}
             </nav>
-            <div className="app-id">
-              <div className="app-ava" style={{ padding: 2 }}><Identicon name={identity?.username ?? "anon"} seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anon"} design={identity?.avatarDesign ?? undefined} size={32} /></div>
-              <div className="txt">
-                <small>{t("anonymousIdentity")}</small>
-                <b>{identity?.username ?? "…"}</b>
+            <div className="appProfileControl">
+              <div className="app-id">
+                <div className="app-ava" style={{ padding: 2 }}>
+                  <Identicon
+                    name={identity?.username ?? "anon"}
+                    seed={identity?.profileId ?? identity?.sessionId ?? identity?.username ?? "anon"}
+                    design={identity?.avatarDesign ?? undefined}
+                    size={32}
+                  />
+                </div>
+                <div className="txt">
+                  <small>{t("anonymousIdentity")}</small>
+                  <b>{identity?.username ?? "…"}</b>
+                </div>
               </div>
+              <button
+                type="button"
+                className="avatarEditTrigger"
+                onClick={() => setAvatarEditorOpen(true)}
+                title="Customize your pixel-block avatar"
+                aria-label="Edit avatar"
+              >
+                <span className="avatarEditGlyph" aria-hidden="true">▦</span>
+                <span className="avatarEditLabel">EDIT AVATAR</span>
+              </button>
             </div>
-            <button className="avatarEditTrigger" onClick={() => setAvatarEditorOpen(true)} title="Customize your pixel-block avatar">▦ EDIT AVATAR</button>
           </header>
 
           <main className="app-main">
