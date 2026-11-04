@@ -386,4 +386,32 @@ const CSS = `
     font-style:italic;
     margin-top:6px;
   }
+
+  @media (max-width: 640px) {
+    .trustRoot{min-height:100dvh;padding:22px 12px calc(56px + env(safe-area-inset-bottom));}
+    .tHead{margin-bottom:20px;padding-bottom:17px;}
+    .eyebrow{font-size:9px;letter-spacing:2px;}
+    .tHead h1{font-size:clamp(29px,8vw,38px);line-height:1.08;}
+    .tHead p{font-size:12px;line-height:1.65;}
+    .backBtn{min-height:40px;padding:9px 12px;font-size:10px;letter-spacing:1.3px;}
+    .tGrid{grid-template-columns:minmax(0,1fr);gap:11px;}
+    .card{min-width:0;padding:15px;border-radius:9px;gap:10px;}
+    .card h3{font-size:20px;line-height:1.25;overflow-wrap:anywhere;}
+    .card p{font-size:12px;line-height:1.65;overflow-wrap:anywhere;}
+    .status{font-size:8px;letter-spacing:1.4px;}
+    .bucket{grid-template-columns:repeat(12,minmax(0,1fr));gap:4px;}
+    .bucket i{min-width:0;}
+    .btnRow{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;}
+    .btnRow .btn{min-width:0;min-height:40px;justify-content:center;padding:9px 7px;font-size:9px;letter-spacing:.8px;white-space:normal;line-height:1.3;}
+    .code{max-width:100%;font-size:9px;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;}
+    .inp{min-height:42px;font-size:16px;}
+    .encOut{font-size:10px;overflow-wrap:anywhere;word-break:break-word;}
+    .note{font-size:10px;line-height:1.6;}
+  }
+  @media (max-width: 360px) {
+    .trustRoot{padding-left:9px;padding-right:9px;}
+    .card{padding:12px;}
+    .btnRow{grid-template-columns:minmax(0,1fr);}
+    .bucket{gap:3px;}
+  }
 `;
