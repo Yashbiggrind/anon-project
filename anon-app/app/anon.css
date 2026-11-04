@@ -4601,7 +4601,7 @@ a:focus-visible {
 .profileIdentityButton::before {
   content: "";
   position: absolute;
-  z-index: -1;
+  z-index: 3;
   inset: -1px;
   padding: 1px;
   border-radius: 11px;
@@ -4638,7 +4638,7 @@ a:focus-visible {
 }
 .profileIdentityEnergy {
   position: absolute;
-  z-index: -1;
+  z-index: 0;
   inset: -9px;
   border-radius: 14px;
   background: radial-gradient(ellipse at 34% 50%, rgba(255, 45, 85, .2), transparent 65%);
@@ -4688,6 +4688,8 @@ a:focus-visible {
   animation: identityFramePulse 2.8s ease-in-out infinite;
 }
 .profileIdentityFrame svg {
+  position: relative;
+  z-index: 2;
   display: block;
   width: 40px;
   height: 40px;
@@ -4699,15 +4701,16 @@ a:focus-visible {
 }
 .profileIdentityPresence {
   position: absolute;
-  right: -4px;
-  bottom: -4px;
-  width: 9px;
-  height: 9px;
-  flex: 0 0 9px;
-  border: 1.5px solid #080307;
+  right: -3px;
+  bottom: -3px;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 8px;
+  border: 1px solid #050207;
   border-radius: 50%;
   background: #35d27c;
-  box-shadow: 0 0 7px #35d27c, 0 0 13px rgba(53, 210, 124, .58);
+  box-shadow: 0 0 8px #35d27c;
+  z-index: 4;
 }
 .profileIdentityText {
   display: flex;
