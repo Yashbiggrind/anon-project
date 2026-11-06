@@ -100,6 +100,7 @@ type RoomListing = {
 };
 type ServerAck = {
   ok?: boolean;
+  persistent?: boolean;
   error?: string;
   id?: string;
   username?: string;
@@ -1180,7 +1181,7 @@ export default function Home() {
   const blockUser = useCallback((sessionId: string, username: string) => {
     socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: ServerAck) => {
       if (res?.ok) {
-        showToast(t("userBlocked", { name: username }), 2000);
+        showToast(res.persistent === false ? `${username} blocked for this session only.` : t("userBlocked", { name: username }), 2500);
         socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       } else {
         showToast(res?.error || t("couldNotBlock"));
