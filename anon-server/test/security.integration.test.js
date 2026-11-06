@@ -171,6 +171,8 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(retryIdempotentAck.ok, true);
     assert.equal(retryIdempotentAck.id, firstIdempotentAck.id, "retry must return the original message ID");
     assert.equal(retryIdempotentAck.deduplicated, true);
+    const conflictingRetry = await emitAck(a, "chat:public:send", { ...idempotentPayload, content: "different content" });
+    assert.equal(conflictingRetry.ok, false, "a client ID cannot be reused for different content");
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.equal(idempotentDeliveryCount, 1, "retry must not broadcast a duplicate message");
     b.off("chat:public:message", countIdempotentDelivery);
@@ -196,6 +198,21 @@ test("live server protects socket payloads, authorization, data flow, and persis
 
     const roomResult = await emitAck(a, "room:create", { capacity: 3, topic: "security test" });
     assert.equal(roomResult.ok, true);
+    const slowModeAck = await emitAck(a, "room:set-slowmode", { roomId: roomResult.room.roomId, seconds: 3 });
+    assert.equal(slowModeAck.ok, true);
+    const roomMessagePayload = {
+      roomId: roomResult.room.roomId,
+      content: "idempotent-room-retry",
+      clientMessageId: "room-idempotency-001",
+    };
+    const roomDelivery = waitForEvent(a, "room:message", (candidate) => candidate.content === "idempotent-room-retry");
+    const roomFirstAck = await emitAck(a, "room:message", roomMessagePayload);
+    assert.equal(roomFirstAck.ok, true);
+    await roomDelivery;
+    const roomRetryAck = await emitAck(a, "room:message", roomMessagePayload);
+    assert.equal(roomRetryAck.ok, true);
+    assert.equal(roomRetryAck.id, roomFirstAck.id);
+    assert.equal(roomRetryAck.deduplicated, true, "retry must bypass slow mode after original acceptance");
     const inviteResult = await emitAck(a, "room:invite", { roomId: roomResult.room.roomId, recipientUsername: identityB.username });
     assert.equal(inviteResult.ok, true);
     const wrongDecline = await emitAck(a, "invite:decline", { inviteId: inviteResult.inviteId });
