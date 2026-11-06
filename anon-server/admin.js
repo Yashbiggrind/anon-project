@@ -9,14 +9,14 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function renderPage() {
+function renderPage(nonce) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ANON// admin</title>
-<style>
+<style nonce="${nonce}">
   :root{--red:#e11d48;--red-hi:#ff2d55;--ink:#020104;--text:#e8dde2;--dim:#8a7276;--line:#24080f;}
   *{box-sizing:border-box}
   body{margin:0;background:#020104;color:#e8dde2;font-family:'Courier New',monospace;font-size:13px;padding:20px}
@@ -100,7 +100,7 @@ function renderPage() {
   <div class="footer">auto-refresh every 30s · <span id="lastUpdate"></span></div>
   </div>
 
-<script>
+<script nonce="${nonce}">
 let TOKEN = "";
 let refreshTimer = null;
 let filter = "unreviewed";
@@ -367,8 +367,23 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
 
   app.get("/admin", (req, res) => {
     if (!ADMIN_TOKEN) return res.status(500).send("ADMIN_TOKEN not configured. Set it in .env and restart.");
+    const nonce = crypto.randomBytes(18).toString("base64");
+    const policy = [
+      "default-src 'none'",
+      `script-src 'self' 'nonce-${nonce}'`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; ");
     res.setHeader("Cache-Control", "no-store");
-    res.type("html").send(renderPage());
+    res.setHeader("Content-Security-Policy", policy);
+    res.setHeader("X-Frame-Options", "DENY");
+    res.type("html").send(renderPage(nonce));
   });
 
   app.get("/api/admin/stats", checkToken, requireDatabase, (_req, res) => {
