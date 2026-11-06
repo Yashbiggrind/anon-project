@@ -119,6 +119,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const baseUrl = "http://127.0.0.1:" + port;
     await waitForHttp(baseUrl + "/", child, () => stdout + "\n" + stderr);
     const profileToken = "a".repeat(64);
+    const profileTokenB = "b".repeat(64);
     const fullResolutionAvatar = {
       background: "#0a0306",
       gridSize: 32,
@@ -128,7 +129,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
       autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
       auth: { profileToken, avatarDesign: fullResolutionAvatar },
     });
-    b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"] });
+    b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"], auth: { profileToken: profileTokenB } });
     const connectA = waitForEvent(a, "connect");
     const readyA = waitForEvent(a, "session:ready");
     const connectB = waitForEvent(b, "connect");
