@@ -340,20 +340,16 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
       return res.status(429).json({ ok: false, error: "Too many failed admin sign-in attempts. Try again later." });
     }
 
-    if (!valid) {
-      recent.push(now);
-      authFailures.set(clientKey, recent);
-      if (authFailures.size > AUTH_MAX_KEYS) {
-        for (const [key, attempts] of authFailures) {
-          if (!attempts.length || now - attempts[attempts.length - 1] >= AUTH_WINDOW_MS) authFailures.delete(key);
-          if (authFailures.size <= AUTH_MAX_KEYS) break;
-        }
-        if (authFailures.size > AUTH_MAX_KEYS) authFailures.delete(authFailures.keys().next().value);
+    recent.push(now);
+    authFailures.set(clientKey, recent);
+    if (authFailures.size > AUTH_MAX_KEYS) {
+      for (const [key, attempts] of authFailures) {
+        if (!attempts.length || now - attempts[attempts.length - 1] >= AUTH_WINDOW_MS) authFailures.delete(key);
+        if (authFailures.size <= AUTH_MAX_KEYS) break;
       }
-      return res.status(401).json({ ok: false, error: "Unauthorized" });
+      if (authFailures.size > AUTH_MAX_KEYS) authFailures.delete(authFailures.keys().next().value);
     }
-
-    next();
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
   app.get("/admin", (req, res) => {
