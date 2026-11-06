@@ -154,7 +154,10 @@ function ago(ts) {
 async function loadStats() {
   const r = await apiFetch("/api/admin/stats");
   const j = await r.json();
-  if (!j.ok) return;
+  if (!r.ok || !j.ok) {
+    document.getElementById("stats").innerHTML = '<div class="empty">Admin statistics are unavailable. Check the database connection.</div>';
+    return;
+  }
   const s = j.stats || {};
   const live = j.live || {};
   document.getElementById("stats").innerHTML = \`
@@ -171,9 +174,12 @@ async function loadReports() {
   const q = filter === "unreviewed" ? "?unreviewed=1" : "";
   const r = await apiFetch("/api/admin/reports" + q);
   const j = await r.json();
-  if (!j.ok) return;
-  const list = j.reports || [];
   const el = document.getElementById("reports");
+  if (!r.ok || !j.ok) {
+    el.innerHTML = '<div class="empty">Reports are unavailable. Check the database connection and try again.</div>';
+    return;
+  }
+  const list = j.reports || [];
   if (!list.length) {
     el.innerHTML = '<div class="empty">No reports to review. Quiet out there.</div>';
   } else {
