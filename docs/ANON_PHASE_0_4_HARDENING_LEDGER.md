@@ -2,73 +2,122 @@
 
 Last reviewed: 2026-11-06
 
-## Safety and change-control rules
+## Change-control and release rules
 
-- Keep `main` unchanged until an owner-approved pull request is ready.
-- Work on isolated branches and keep each change narrow enough to review and revert.
-- Do not delete or silently replace existing features, routes, user data, or configuration.
-- Do not change production Vercel/Railway settings, secrets, database files, or deployment state from this work.
-- Do not introduce persistent storage for user content until the product's retention, deletion, and privacy behavior is explicitly defined.
-- A green CI run is necessary but not sufficient: real two-client, reconnect, and mobile-device checks remain separate gates.
-- Never describe a demo as live encryption or a simulated feature as real multiplayer.
+- Keep `main` unchanged until the owner explicitly approves the reviewed PR stack.
+- Keep work on isolated branches; do not merge or deploy automatically.
+- Preserve existing routes, features, data, and visual identity. No silent feature removal.
+- Do not alter production Vercel/Railway settings, secrets, database files, or deployment state.
+- Do not persist anonymous chat content without an explicit retention, deletion, and privacy design.
+- CI is necessary, not sufficient. Live two-client, reconnect, and real-device checks remain release gates.
+- Never describe a demo as live encryption or simulated players as real multiplayer.
 
-## Current verified baseline
+## Current work prepared for review
 
-### Existing work awaiting owner review
+These are draft, unmerged PRs. They are not live in production. The PRs are stacked; review and merge in dependency order, not by number alone.
 
-- PR #13 (`fix/message-delivery-acknowledgements`) adds acknowledgement-aware public/private text sends and safer offline queue draining. It is one commit ahead of `main`; manual two-client and lost-ack tests are still required. A lost acknowledgement can still create duplicate delivery on a later retry because a client-generated idempotency key and server-side deduplication are not yet implemented.
-- PR #14 (`fix/ai-bot-transparency`) is stacked on PR #13. It makes AI participants disclose their nature and clarifies that the Trust Center WebCrypto example is a demo, not encryption of live ANON messages. Merge order must be #13, then #14.
-- An older privacy-foundation branch (`anon-privacy-foundation-2026-10`) contains a much broader 35-file change set, but its history is divergent from current `main` (155 commits ahead and 40 behind at review). It must not be merged wholesale or treated as a clean patch. Its useful changes require file-by-file review and selective porting.
+| PR | Scope | Current result |
+|---|---|---|
+| #13 | Chat acknowledgements and offline queue handling | Adds pending/failed/uncertain delivery states and ack-aware queue draining |
+| #14 | AI bot transparency and encryption-demo wording | Removes bot impersonation instructions; labels bots; clarifies demo-only crypto |
+| #15 | This phase ledger | Baseline and completion gates |
+| #16 | Public persistent-row statistics | Uses the existing database stats API instead of nonexistent `countAll` |
+| #17 | Persistent profile blocking | Stores stable profile-to-profile blocks and restores them on reconnect |
+| #18 | Report delivery acknowledgement | Reports are acknowledged only after SQLite save succeeds |
+| #19 | Message idempotency proposal | Superseded and closed; PR #26 contains the more complete DM implementation and client retry behavior |
+| #20 | AI provider and CSP transparency | Discloses external AI-provider message processing; corrects the CSP status |
+| #21 | Local data wipe scope | Explains that wipe clears this browser/device, not server-side reports, blocks, or logs |
+| #22 | Admin review persistence | Reports failed review writes and clarifies that current review labels do not enforce a live warning or shadow-ban |
+| #23 | Updated phase ledger | Records verified findings, risks, and outstanding exit gates |
+| #24 | Borderland mobile layout | Adds tablet/mobile reflow and labels the local bot simulation accurately |
+| #25 | Admin authentication | Adds timing-safe token comparison and failed-login throttling |
+| #26 | Direct-message reliability | Adds acknowledgement-aware sends, stable retry IDs, composer restoration, and DM idempotency |
+| #27 | Admin database availability | Admin data views fail clearly with HTTP 503 when SQLite is unavailable |
+| #28 | Accessibility defaults | Adds visible keyboard focus and reduced-motion support |
+| #29 | Admin dashboard CSP | Adds a nonce-based CSP for the separately served admin dashboard |
 
-### Backend findings verified on current main
+## Verified architecture and risk findings
 
-- A stable anonymous `profileId` is derived from the browser-held profile token when present. The current block feature instead keys `session.blocked` by transient `sessionId`, so blocks do not naturally survive a reconnect.
-- SQLite already has a `blocks` table, but the current `db.js` exports no block save/load/delete operations. The table is not currently wired into the block handlers.
-- Reports are written through `db.saveReport`; moderation strike records are loaded from SQLite at startup and saved/removed through database helpers. These are materially different from the transient block map.
-- Public history, rooms, invites, DMs, confessions, votes, reactions, and message ownership are in-memory with bounded/TTL behavior. Do not make them persistent by default: that would change privacy and retention semantics.
-- Current `main` bot prompt still tells bots to conceal that they are AI and filters out direct AI disclosures. PR #14 contains the correction, but this trust issue remains in production until the ordered PRs are reviewed and merged.
-- The standalone `/confession` page explicitly labels itself a local-only 24-hour preview, while the integrated Confession tab uses the shared backend feed. The distinction is disclosed in page copy, but the two experiences still need end-to-end product and mobile QA.
-- The current `/borderland` implementation uses local React state and hardcoded simulated bot players; it is not real multiplayer. Do not market it as a live multiplayer experience until a real server-backed implementation exists.
-- Current `main` bot prompt still tells bots to conceal that they are AI and filters out direct AI disclosures. PR #14 contains the correction, but this trust issue remains in production until the ordered PRs are reviewed and merged.
-- The standalone `/confession` page explicitly labels itself a local-only 24-hour preview, while the integrated Confession tab uses the shared backend feed. The distinction is disclosed in page copy, but the two experiences still need end-to-end product and mobile QA.
-- The current `/borderland` implementation uses local React state and hardcoded simulated bot players; it is not real multiplayer. Do not market it as a live multiplayer experience until a real server-backed implementation exists.
-- `/api/stats` checks for `db.countAll`, but the current database module exports `getStats` and does not export `countAll`. The `persistent_rows` field therefore falls back to zero. Confirm the intended API contract before fixing it.
-- Current main has persistent session metadata logging with a 180-day purge. The older privacy branch changes this to opt-in; that is a policy-sensitive change and needs explicit deployment/operator review before adoption.
+### Chat and delivery
 
-## Phase execution
+- Socket.IO delivery is not automatically exactly-once. PR #13 adds acknowledgement-aware sending; the idempotency implementation in the review stack uses client message IDs and bounded, expiring server-side deduplication for public and private-room text messages. PR #26 extends this to direct messages.
+- Idempotency records are in-memory, scoped by stable profile identity and destination, bounded to 20,000 entries, and expire after 24 hours. They protect retries while the server process is alive; they do not make chat history durable across server restarts.
+- PR #26 extends acknowledgement and same-ID retry behavior to direct messages. DM threads remain session-scoped and in-memory; the change does not make DMs durable or resume them after a new session.
+- The offline queue now sends its stored item ID as the idempotency key. Integration coverage includes retry, conflicting payload rejection, slow-mode retry, and retry after reconnect.
+- Real browser-to-browser tests for delayed/lost acknowledgements and offline recovery remain required.
 
-| Phase | Scope | Status | Exit gate |
+### Identity and blocking
+
+- The browser-held profile token is hashed server-side; the raw token is not persisted or exposed.
+- PR #17 uses stable profile IDs for persistent blocks while retaining transient session IDs for live routing.
+- The server resolves the target session and derives its profile ID; it does not trust a client-supplied target profile ID.
+- Profile-based blocks load from the existing SQLite table on reconnect. Offline blocked users can still be unblocked.
+- If a client cannot provide a stable profile token, its block is session-only and the UI discloses that limitation.
+- AI bot participants receive deterministic profile IDs so existing block behavior remains compatible with bot users.
+- The block regression test covers an offline target, reconnect, unblock, and bot participant compatibility.
+
+### Reports, strikes, and administration
+
+- Strike records are loaded from SQLite at startup and saved/removed through the existing database helpers.
+- PR #18 makes report submission fail visibly if the SQLite insert fails; the client waits for the server acknowledgement.
+- The admin report list reads persisted reports. PR #22 makes review updates return a real database outcome and makes the dashboard surface failures.
+- Important limitation: the current admin review labels record an administrator decision only. They do not apply an actual live warning or profile-level shadow-ban. The UI now says so rather than implying enforcement.
+- A retention policy for reports and persistent blocks still needs an explicit product/operator decision. Do not invent or silently add a retention period.
+
+### Data and privacy
+
+- Public history, rooms, invites, DMs, confessions, votes, reactions, and message ownership remain in-memory with their existing bounded/TTL behavior. They have not been made durable by this work.
+- Connection metadata is stored with a 180-day purge. This is a current implementation detail, not a claim of legal compliance.
+- The data page scans localStorage and clears browser-local stores, IndexedDB message data, ANON cache entries, and the service-worker registration. It does not delete server-side reports, blocks, or connection logs. PR #21 makes this boundary explicit.
+- The Trust Center now discloses that AI-generated replies may send the latest relevant public-chat or bot-room message to Pollinations, with OpenRouter as a fallback when configured. Operators can disable bot activity with `ENABLE_BOTS=false`.
+- The WebCrypto card remains a browser-only demonstration; it is not live end-to-end encryption.
+- `anon-app/next.config.ts` configures a frontend Content-Security-Policy, HSTS, Permissions-Policy, frame restrictions, and related headers. Production `script-src` allows `unsafe-inline` for current Next.js rendering but does not allow `unsafe-eval`; the profile editor has a same-origin framing exception. `anon-server/index.js` separately sends `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. The deployed response headers have not been independently live-verified.
+- PR #25 adds timing-safe admin-token comparison, a bounded failed-authentication throttle, and no-store headers. It does not change the production token or proxy configuration.
+- PR #27 makes admin stats, report, review, and session-export views fail closed with a clear database-unavailable response instead of silently showing empty data.
+- PR #29 adds a nonce-based CSP to the separately served admin dashboard. Frontend CSP configuration and admin CSP are distinct; deployed response headers still need live verification.
+
+### Product capability truth
+
+- The standalone `/confession` page is a local-only preview with a different expiry behavior from the shared Confession tab. The distinction is disclosed but still needs product/UX validation.
+- `/borderland` remains a local React simulation with hardcoded simulated bot players; it is not real multiplayer.
+- AI participants are visibly labeled and instructed not to claim to be human.
+
+### Mobile UI code audit
+
+- The main stylesheet is approximately 5,500 lines, contains 41 media-query blocks, and has a large number of `!important` declarations and layered responsive overrides.
+- The final responsive layer explicitly defines mobile/tablet header containment, profile capsule sizing, three-column app navigation, single-column private/content layouts, and composer sizing.
+- PR #24 adds targeted mobile/tablet reflow to Borderland: fixed-width visa and player panels become fluid, the simulated players reflow to a two-column grid, and controls/logs wrap. It also labels Borderland as a local bot simulation rather than live multiplayer.
+- PR #28 adds a visible keyboard-focus treatment and respects reduced-motion preferences. This is a code-level accessibility improvement, not a substitute for assistive-technology or physical-device testing.
+- These rules should not be broadly consolidated without visual regression testing. The stylesheet is layered; deleting earlier overrides by static inspection risks reintroducing the header/profile escape issue.
+- No real-device screenshot or browser-viewport interaction test has been completed in this work.
+
+## Phase execution and exit gates
+
+| Phase | Status | Verified progress | Remaining exit gates |
 |---|---|---|---|
-| 0 | Baseline, branch isolation, inventory, change-control | In progress; this ledger records verified findings | Confirm current production deployment/repository SHA and capture baseline test results |
-| 1 | Message acknowledgements, queue correctness, reconnect and duplicate handling | Partial: PR #13 | Add idempotency/deduplication; test accept/reject/timeout/late-ack/offline/reconnect with two clients |
-| 2 | Blocks, reports, strikes, data lifecycle, export/deletion boundaries | Audit findings recorded; implementation not complete | Stable identity semantics; block persistence tests; admin report/strike lifecycle tests; documented retention policy |
-| 3 | Mobile layout and interaction audit | Not yet device-verified | Test 320/360/390/430 px and tablet widths; navigation/profile containment; keyboard, overflow, dialogs, touch targets |
-| 4 | Bot transparency, Trust Center claims, security and feature-truth audit | Partial: PR #14 covers bot disclosure and encryption-demo wording | Review CORS/admin/rate limits/input validation; verify Borderland capability; verify confession experiences; two-client security regression suite |
+| 0 — Foundation | Partial | Baseline ledger, isolated branches, scoped PRs, no production changes | Confirm deployed production SHA and capture an actual production baseline |
+| 1 — Reliability | Implementation prepared; manual QA pending | Acknowledgements, queue handling, public/room/DM idempotency, duplicate/conflict tests, reconnect tests; CI green on inspected commits | Two real clients; delayed/lost ack; queue recovery; room/DM regression; server restart behavior |
+| 2 — Data and privacy | Core fixes prepared; policy and production verification pending | Stable profile blocks, report persistence acknowledgements, admin review persistence, local/server deletion boundaries, admin DB fail-closed behavior; CI green on inspected commits | Explicit report/block retention policy; full export/deletion review; admin enforcement design; production DB backup/restore test |
+| 3 — Mobile experience | Code improvements prepared; full-app device QA pending | Borderland mobile/tablet reflow in PR #24; global focus and reduced-motion defaults in PR #28; responsive layers inspected | Real visual/interaction checks at 320, 360, 390, 430, 768, and 1024 CSS px across all routes; keyboard, overflow, dialogs, touch targets |
+| 4 — Security and trust | Implementation prepared; production and independent review pending | Bot transparency, provider disclosure, demo encryption wording, admin auth throttling, admin DB fail-closed behavior, frontend CSP disclosure, nonce-based admin CSP; CI green on inspected commits | Verify deployed CSP/headers; full authorization/input validation audit; actual moderation enforcement design; confession and Borderland capability decisions |
 
-## Phase 2 design constraints
+## Phase 3 device verification matrix
 
-For block persistence, use the stable profile identity as the durable key only when the browser supplies a valid profile token. Keep transient session IDs for live socket routing. Preserve the existing block/unblock event contract during migration where possible, and return both stable identity and current online session identity only where needed by the UI. Add tests for reconnect, offline targets, unblock, mutual blocking, room messages, DMs, invitations, and legacy session-only records. Do not store raw profile tokens.
+Test Chat, Private, Content, Confession, Trust, Borderland, Data, profile/avatar surfaces, room member lists, DMs, modals, and keyboard interactions at:
 
-For reports and strikes, retain existing database-backed behavior and verify the admin read/review path before changing it. Do not delete unreviewed reports or active sanctions. Retention periods must be explicit and tested against active/unreviewed records.
+- 320 × 700
+- 360 × 800
+- 390 × 844
+- 430 × 932
+- 768 × 1024
+- 1024 × 768
 
-## Phase 3 verification matrix
-
-Run visual and interaction checks at 320, 360, 390, 430, 768, and 1024 CSS pixels. Check every primary tab, profile/avatar surfaces, chat composer, online/member lists, modals, room controls, confession, Trust, Borderland, and data/privacy screens. Verify no horizontal page overflow, no header/profile escape from its container, no hidden primary actions, and no unusably small touch targets. Automated build/lint cannot replace real-device verification.
-
-## Phase 4 security and trust checklist
-
-- AI participants are visibly disclosed and never instructed to impersonate humans.
-- Encryption language accurately distinguishes HTTPS transport, local encrypted export, demo cryptography, and genuine end-to-end encryption.
-- Verify production CORS allowlists, admin token handling, proxy trust, request-size limits, rate limits, and authorization on every administrative/destructive event.
-- Verify all untrusted text and image payload boundaries.
-- Verify privacy controls state what is local versus server-side and what cannot be deleted from the browser.
-- Confirm Borderland's actual implementation before presenting it as multiplayer.
-- Resolve the two confession experiences' different storage/expiry behavior or label their distinction clearly.
+Record screenshots and verify no horizontal page overflow, header/profile escape, clipped primary actions, unusable composer, obscured dialogs, keyboard overlap, or undersized touch targets. Automated lint/build is not a substitute for this gate.
 
 ## Current non-goals
 
-No live end-to-end encryption implementation, no broad persistence of anonymous chat content, no infrastructure migration, no dependency upgrade, no redesign of the black/crimson visual identity, and no feature removal is authorized by this ledger.
+No live end-to-end encryption, no broad persistence of anonymous message content, no infrastructure migration, no dependency upgrade, no redesign of the black/crimson identity, and no removal of existing features.
 
 ## Completion standard
 
-A phase is complete only when its implementation is reviewed, automated tests pass, relevant manual checks are recorded, known limitations are documented, and the owner approves the pull request. A draft PR or a passing build alone does not satisfy completion.
+A phase is complete only when the implementation is reviewed, automated tests pass, relevant manual checks are recorded, known limitations are documented, and the owner approves the PR. Draft PRs and green builds alone do not satisfy completion. Production deployment requires separate approval.
