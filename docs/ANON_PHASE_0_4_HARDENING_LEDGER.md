@@ -24,20 +24,23 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 | #16 | Public persistent-row statistics | Uses the existing database stats API instead of nonexistent `countAll` |
 | #17 | Persistent profile blocking | Stores stable profile-to-profile blocks and restores them on reconnect |
 | #18 | Report delivery acknowledgement | Reports are acknowledged only after SQLite save succeeds |
-| #19 | Message idempotency | Public and room text retries reuse the original message ID and do not rebroadcast duplicates |
+| #19 | Message idempotency proposal | Superseded and closed; PR #26 contains the more complete DM implementation and client retry behavior |
 | #20 | AI provider and CSP transparency | Discloses external AI-provider message processing; corrects the CSP status |
 | #21 | Local data wipe scope | Explains that wipe clears this browser/device, not server-side reports, blocks, or logs |
 | #22 | Admin review persistence | Reports failed review writes and clarifies that current review labels do not enforce a live warning or shadow-ban |
 | #23 | Updated phase ledger | Records verified findings, risks, and outstanding exit gates |
 | #24 | Borderland mobile layout | Adds tablet/mobile reflow and labels the local bot simulation accurately |
 | #25 | Admin authentication | Adds timing-safe token comparison and failed-login throttling |
-| #26 | Direct-message reliability | Adds acknowledgement-aware sends and idempotent retry handling for DMs |
+| #26 | Direct-message reliability | Adds acknowledgement-aware sends, stable retry IDs, composer restoration, and DM idempotency |
+| #27 | Admin database availability | Admin data views fail clearly with HTTP 503 when SQLite is unavailable |
+| #28 | Accessibility defaults | Adds visible keyboard focus and reduced-motion support |
+| #29 | Admin dashboard CSP | Adds a nonce-based CSP for the separately served admin dashboard |
 
 ## Verified architecture and risk findings
 
 ### Chat and delivery
 
-- Socket.IO delivery is not automatically exactly-once. PR #13 adds acknowledgement-aware sending; PR #19 adds a client message ID and bounded, expiring server-side deduplication for public and private-room text messages.
+- Socket.IO delivery is not automatically exactly-once. PR #13 adds acknowledgement-aware sending; the idempotency implementation in the review stack uses client message IDs and bounded, expiring server-side deduplication for public and private-room text messages. PR #26 extends this to direct messages.
 - Idempotency records are in-memory, scoped by stable profile identity and destination, bounded to 20,000 entries, and expire after 24 hours. They protect retries while the server process is alive; they do not make chat history durable across server restarts.
 - PR #26 extends acknowledgement and same-ID retry behavior to direct messages. DM threads remain session-scoped and in-memory; the change does not make DMs durable or resume them after a new session.
 - The offline queue now sends its stored item ID as the idempotency key. Integration coverage includes retry, conflicting payload rejection, slow-mode retry, and retry after reconnect.
@@ -70,6 +73,8 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 - The WebCrypto card remains a browser-only demonstration; it is not live end-to-end encryption.
 - `anon-app/next.config.ts` configures a frontend Content-Security-Policy, HSTS, Permissions-Policy, frame restrictions, and related headers. Production `script-src` allows `unsafe-inline` for current Next.js rendering but does not allow `unsafe-eval`; the profile editor has a same-origin framing exception. `anon-server/index.js` separately sends `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. The deployed response headers have not been independently live-verified.
 - PR #25 adds timing-safe admin-token comparison, a bounded failed-authentication throttle, and no-store headers. It does not change the production token or proxy configuration.
+- PR #27 makes admin stats, report, review, and session-export views fail closed with a clear database-unavailable response instead of silently showing empty data.
+- PR #29 adds a nonce-based CSP to the separately served admin dashboard. Frontend CSP configuration and admin CSP are distinct; deployed response headers still need live verification.
 
 ### Product capability truth
 
@@ -82,6 +87,7 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 - The main stylesheet is approximately 5,500 lines, contains 41 media-query blocks, and has a large number of `!important` declarations and layered responsive overrides.
 - The final responsive layer explicitly defines mobile/tablet header containment, profile capsule sizing, three-column app navigation, single-column private/content layouts, and composer sizing.
 - PR #24 adds targeted mobile/tablet reflow to Borderland: fixed-width visa and player panels become fluid, the simulated players reflow to a two-column grid, and controls/logs wrap. It also labels Borderland as a local bot simulation rather than live multiplayer.
+- PR #28 adds a visible keyboard-focus treatment and respects reduced-motion preferences. This is a code-level accessibility improvement, not a substitute for assistive-technology or physical-device testing.
 - These rules should not be broadly consolidated without visual regression testing. The stylesheet is layered; deleting earlier overrides by static inspection risks reintroducing the header/profile escape issue.
 - No real-device screenshot or browser-viewport interaction test has been completed in this work.
 
@@ -90,10 +96,10 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 | Phase | Status | Verified progress | Remaining exit gates |
 |---|---|---|---|
 | 0 — Foundation | Partial | Baseline ledger, isolated branches, scoped PRs, no production changes | Confirm deployed production SHA and capture an actual production baseline |
-| 1 — Reliability | Implementation prepared; manual QA pending | Acknowledgements, queue handling, public/room/DM idempotency, duplicate/conflict tests, reconnect tests | Two real clients; delayed/lost ack; queue recovery; room/DM regression; server restart behavior |
-| 2 — Data and privacy | Partial | Stable profile blocks, report persistence acknowledgements, admin review persistence, local/server deletion boundaries | Explicit report/block retention policy; full export/deletion review; admin enforcement design; production DB backup/restore test |
-| 3 — Mobile experience | Partial; device QA pending | Main responsive layers inspected; Borderland receives targeted mobile/tablet reflow in PR #24 | Real visual/interaction checks at 320, 360, 390, 430, 768, and 1024 CSS px across all routes; keyboard, overflow, dialogs, touch targets |
-| 4 — Security and trust | Partial | Bot transparency, provider disclosure, demo encryption wording, CSP status corrected, admin auth throttling, CORS/rate-limit review | CSP implementation and compatibility tests; full authorization/input validation audit; actual moderation enforcement design; confession and Borderland capability decisions |
+| 1 — Reliability | Implementation prepared; manual QA pending | Acknowledgements, queue handling, public/room/DM idempotency, duplicate/conflict tests, reconnect tests; CI green on inspected commits | Two real clients; delayed/lost ack; queue recovery; room/DM regression; server restart behavior |
+| 2 — Data and privacy | Core fixes prepared; policy and production verification pending | Stable profile blocks, report persistence acknowledgements, admin review persistence, local/server deletion boundaries, admin DB fail-closed behavior; CI green on inspected commits | Explicit report/block retention policy; full export/deletion review; admin enforcement design; production DB backup/restore test |
+| 3 — Mobile experience | Code improvements prepared; full-app device QA pending | Borderland mobile/tablet reflow in PR #24; global focus and reduced-motion defaults in PR #28; responsive layers inspected | Real visual/interaction checks at 320, 360, 390, 430, 768, and 1024 CSS px across all routes; keyboard, overflow, dialogs, touch targets |
+| 4 — Security and trust | Implementation prepared; production and independent review pending | Bot transparency, provider disclosure, demo encryption wording, admin auth throttling, admin DB fail-closed behavior, frontend CSP disclosure, nonce-based admin CSP; CI green on inspected commits | Verify deployed CSP/headers; full authorization/input validation audit; actual moderation enforcement design; confession and Borderland capability decisions |
 
 ## Phase 3 device verification matrix
 
