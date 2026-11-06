@@ -1,4 +1,6 @@
-﻿// admin.js — v21.4 ANON admin dashboard
+﻿const crypto = require("node:crypto");
+
+// admin.js — v21.4 ANON admin dashboard
 // Routes: GET /admin?token=XXX | GET /api/admin/* | POST /api/admin/reports/:id/review
 // v21.4 — adds session log export (Rule 3(1)(i))
 
@@ -307,13 +309,47 @@ document.getElementById("exCsv").addEventListener("click", async () => {
 }
 
 function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN }) {
+  const authFailures = new Map();
+  const AUTH_WINDOW_MS = 5 * 60 * 1000;
+  const AUTH_MAX_FAILURES = 10;
+  const AUTH_MAX_KEYS = 5000;
+
   function checkToken(req, res, next) {
+    res.setHeader("Cache-Control", "no-store");
     if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set on server" });
+
+    const now = Date.now();
+    const clientKey = String(req.ip || req.socket?.remoteAddress || "unknown").slice(0, 100);
+    const recent = (authFailures.get(clientKey) || []).filter((at) => now - at < AUTH_WINDOW_MS);
     const authorization = String(req.headers.authorization || "");
     const bearer = authorization.match(/^Bearer\s+(.+)$/i);
-    const token = req.headers["x-admin-token"] || (bearer ? bearer[1] : "");
-    if (!token || token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "Unauthorized" });
-    next();
+    const token = String(req.headers["x-admin-token"] || (bearer ? bearer[1] : ""));
+    const supplied = Buffer.from(token);
+    const expected = Buffer.from(String(ADMIN_TOKEN));
+    const valid = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+
+    // A correct token always succeeds; failed attempts only throttle further failures.
+    if (valid) {
+      authFailures.delete(clientKey);
+      return next();
+    }
+    if (recent.length >= AUTH_MAX_FAILURES) {
+      const retryAfter = Math.max(1, Math.ceil((recent[0] + AUTH_WINDOW_MS - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfter));
+      authFailures.set(clientKey, recent);
+      return res.status(429).json({ ok: false, error: "Too many failed admin sign-in attempts. Try again later." });
+    }
+
+    recent.push(now);
+    authFailures.set(clientKey, recent);
+    if (authFailures.size > AUTH_MAX_KEYS) {
+      for (const [key, attempts] of authFailures) {
+        if (!attempts.length || now - attempts[attempts.length - 1] >= AUTH_WINDOW_MS) authFailures.delete(key);
+        if (authFailures.size <= AUTH_MAX_KEYS) break;
+      }
+      if (authFailures.size > AUTH_MAX_KEYS) authFailures.delete(authFailures.keys().next().value);
+    }
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
   app.get("/admin", (req, res) => {

@@ -252,6 +252,14 @@ test("live server protects socket payloads, authorization, data flow, and persis
       body: JSON.stringify({ action: "dismiss" }),
     });
     assert.equal(reviewResponse.status, 200, "admin review should acknowledge a saved decision");
+    for (let attempt = 0; attempt < 10; attempt += 1) {
+      const denied = await fetch(baseUrl + "/api/admin/stats", { headers: { "x-admin-token": "incorrect-admin-token" } });
+      assert.equal(denied.status, 401);
+    }
+    const throttled = await fetch(baseUrl + "/api/admin/stats", { headers: { "x-admin-token": "incorrect-admin-token" } });
+    assert.equal(throttled.status, 429, "repeated failed admin sign-in attempts should be throttled");
+    const validAfterThrottle = await fetch(baseUrl + "/api/admin/stats", { headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" } });
+    assert.equal(validAfterThrottle.status, 200, "valid credentials must still work after failed attempts");
     const reviewedResponse = await fetch(baseUrl + "/api/admin/reports", {
       headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
     });
