@@ -1033,7 +1033,7 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: errors[spam.reason] || "Slow down." });
     }
 
-    rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo)
+    rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastPublicMessage(msg);
     ack?.({ ok: true, id: msg.id });
   });
@@ -1530,7 +1530,7 @@ io.on("connection", (socket) => {
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
     const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `room:${roomId}`);
     if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
-    const previousMessageId = getIdempotentMessage(idempotencyKey, text, replyTo)
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text, replyTo);
     if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
     if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
