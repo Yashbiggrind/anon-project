@@ -198,13 +198,21 @@ async function loadReports() {
 
 async function act(id, action) {
   if (!confirm("Mark this report as: " + action + "?")) return;
-  await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action }),
-  });
-  loadReports();
-  loadStats();
+  try {
+    const response = await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      alert(result.error || "The review decision could not be saved. Please try again.");
+      return;
+    }
+    await Promise.all([loadReports(), loadStats()]);
+  } catch (error) {
+    alert(error instanceof Error ? error.message : "The review decision could not be saved.");
+  }
 }
 
 document.addEventListener("click", (e) => {
