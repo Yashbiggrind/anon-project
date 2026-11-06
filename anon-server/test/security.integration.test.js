@@ -115,6 +115,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
   let a;
   let b;
   let c;
+  let d;
   try {
     const baseUrl = "http://127.0.0.1:" + port;
     await waitForHttp(baseUrl + "/", child, () => stdout + "\n" + stderr);
@@ -267,6 +268,20 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(unblockBotAck.ok, true);
 
 
+    d = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"] });
+    const connectD = waitForEvent(d, "connect");
+    const readyD = waitForEvent(d, "session:ready");
+    d.connect();
+    const [, identityD] = await Promise.all([connectD, readyD]);
+    const ephemeralBlockAck = await emitAck(a, "block:user", {
+      targetSessionId: identityD.sessionId,
+      targetUsername: identityD.username,
+    });
+    assert.equal(ephemeralBlockAck.ok, true);
+    assert.equal(ephemeralBlockAck.persistent, false, "a profile without a stable browser token must be session-only");
+    d.disconnect();
+    d = null;
+
     const originalProfileId = identityA.profileId;
     b.disconnect();
     b = null;
@@ -289,6 +304,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
     assert.equal(blockedAfterReconnect.ok, true);
     assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
+    assert.ok(!blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityD.profileId), "session-only blocks must not become misleading persistent records");
     assert.equal(blockedAfterReconnect.blocked.find((entry) => entry.profileId === identityB.profileId).sessionId, "", "offline blocked users remain manageable without an active session");
     const unblockAck = await emitAck(c, "unblock:user", { profileId: identityB.profileId });
     assert.equal(unblockAck.ok, true, "unblocking must remove the persisted profile block");
@@ -310,6 +326,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     if (a) a.disconnect();
     if (b) b.disconnect();
     if (c) c.disconnect();
+    if (d) d.disconnect();
     await stopChild(child);
     await fs.rm(tempDir, { recursive: true, force: true });
   }
