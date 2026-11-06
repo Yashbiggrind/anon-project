@@ -60,6 +60,7 @@ type ChatMessage = {
   deleted?: boolean;
   image?: string;
   localSent?: boolean;
+  deliveryStatus?: "pending" | "failed" | "unknown";
   replyTo?: { id: string; senderName: string; content: string };
 };
 type OnlineUser = { sessionId: string; profileId?: string | null; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null };
@@ -535,13 +536,31 @@ export default function Home() {
       if (pendingMsgs.length > 0) {
         let i = 0;
         const sendNext = () => {
-          if (i >= pendingMsgs.length) { setQueued([]); return; }
+          if (i >= pendingMsgs.length) {
+            setQueued(listQueue());
+            return;
+          }
           const m = pendingMsgs[i];
-          socket.emit("chat:public:send", { content: m.content }, (ack: ServerAck) => {
-            if (ack?.ok) removeQueue(m.id);
-            i++;
-            sendNext();
-          });
+          socket.timeout(10000).emit(
+            "chat:public:send",
+            { content: m.content },
+            (error: Error | null, ack: ServerAck) => {
+              if (error) {
+                setQueued(listQueue());
+                showToast("Could not confirm a queued message. It remains saved on this device.", 4500, "error");
+                return;
+              }
+              if (!ack?.ok) {
+                setQueued(listQueue());
+                showToast(ack?.error || "A queued message was not accepted. It remains saved on this device.", 4500, "error");
+                return;
+              }
+              removeQueue(m.id);
+              setQueued(listQueue());
+              i++;
+              sendNext();
+            }
+          );
         };
         sendNext();
       }
@@ -1380,11 +1399,30 @@ export default function Home() {
       content: text,
       createdAt: Date.now(),
       localSent: true,
+      deliveryStatus: "pending",
       replyTo: replyPayload,
     };
     startTransition(() => setMessages((p) => [...p.slice(-499), tempMsg]));
     if (socketRef.current) {
-      socketRef.current.emit("chat:public:send", { content: text, replyTo: replyPayload }, () => {});
+      socketRef.current.timeout(10000).emit(
+        "chat:public:send",
+        { content: text, replyTo: replyPayload },
+        (error: Error | null, ack: ServerAck) => {
+          if (error) {
+            setMessages((items) => items.map((item) =>
+              item.id === tempId ? { ...item, deliveryStatus: "unknown" } : item
+            ));
+            showToast("Message delivery could not be confirmed. Check the chat before sending it again.", 4500, "error");
+            return;
+          }
+          if (!ack?.ok) {
+            setMessages((items) => items.map((item) =>
+              item.id === tempId ? { ...item, deliveryStatus: "failed" } : item
+            ));
+            showToast(ack?.error || "Message was not sent.", 4000, "error");
+          }
+        }
+      );
     }
     setReplyTo(null);
   }
@@ -1405,10 +1443,29 @@ export default function Home() {
       content: text,
       createdAt: Date.now(),
       localSent: true,
+      deliveryStatus: "pending",
       replyTo: replyPayload,
     };
     startTransition(() => setPrivateMessages((p) => [...p.slice(-499), tempMsg]));
-    socketRef.current.emit("room:message", { roomId: room.roomId, content: text, replyTo: replyPayload }, () => {});
+    socketRef.current.timeout(10000).emit(
+      "room:message",
+      { roomId: room.roomId, content: text, replyTo: replyPayload },
+      (error: Error | null, ack: ServerAck) => {
+        if (error) {
+          setPrivateMessages((items) => items.map((item) =>
+            item.id === tempId ? { ...item, deliveryStatus: "unknown" } : item
+          ));
+          showToast("Private message delivery could not be confirmed. Check the room before sending it again.", 4500, "error");
+          return;
+        }
+        if (!ack?.ok) {
+          setPrivateMessages((items) => items.map((item) =>
+            item.id === tempId ? { ...item, deliveryStatus: "failed" } : item
+          ));
+          showToast(ack?.error || "Private message was not sent.", 4000, "error");
+        }
+      }
+    );
     setReplyTo(null);
   }
 
@@ -3074,6 +3131,11 @@ const MessageBubble = memo(
                 {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
               </button>
               {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
+              {m.deliveryStatus && (
+                <span className="deliveryStatus" role="status">
+                  {m.deliveryStatus === "pending" ? "Sending…" : m.deliveryStatus === "failed" ? "Not sent" : "Delivery uncertain"}
+                </span>
+              )}
               {roomId && messageLifetime > 0 && m.createdAt && !m.deleted && (() => {
                 const remaining = Math.max(0, m.createdAt + messageLifetime - nowTick);
                 if (remaining <= 0) return null;
