@@ -1984,9 +1984,11 @@ io.on("connection", (socket) => {
       reason: clean(String(reason || "")).slice(0, 500),
       createdAt: Date.now(),
     };
+    if (!db.saveReport(report)) {
+      return ack?.({ ok: false, error: "Report could not be saved. Please try again." });
+    }
     reports.push(report);
     if (reports.length > 100) reports.shift();
-    db.saveReport(report);
     ack?.({ ok: true });
   });
 
