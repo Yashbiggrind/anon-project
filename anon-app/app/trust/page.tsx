@@ -150,9 +150,9 @@ export default function TrustPage() {
 
           {/* ---------- E2E ---------- */}
           <div className="card">
-            <span className="status ready">READY TO SHIP</span>
-            <h3>End-to-end encryption</h3>
-            <p>Room messages encrypted in the browser with a key derived from the room code. Server stores only ciphertext. Try it here with WebCrypto (AES-GCM).</p>
+            <span className="status planned">DEMO ONLY</span>
+            <h3>Encryption demonstration</h3>
+            <p>This browser-only WebCrypto example encrypts and decrypts the text entered below. It is not connected to ANON chat or private rooms, and it does not encrypt real messages in transit beyond HTTPS. Do not enter private information here.</p>
             <input className="inp" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="message to encrypt" />
             <input className="inp" value={code} onChange={(e) => setCode(e.target.value)} placeholder="room code" />
             <div className="btnRow">
