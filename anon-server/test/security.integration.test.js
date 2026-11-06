@@ -204,6 +204,16 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
 
+    const blockAck = await emitAck(a, "block:user", {
+      targetSessionId: identityB.sessionId,
+      targetUsername: identityB.username,
+    });
+    assert.equal(blockAck.ok, true, "blocking an active profile should succeed");
+    const blockedBeforeReconnect = await emitAck(a, "blocked:list", {});
+    assert.equal(blockedBeforeReconnect.ok, true);
+    assert.ok(blockedBeforeReconnect.blocked.some((entry) => entry.profileId === identityB.profileId));
+
+
     const originalProfileId = identityA.profileId;
     a.disconnect();
     a = null;
