@@ -70,6 +70,7 @@ function renderPage() {
     <button id="refresh">⟳ Refresh</button>
     <button id="openExport" style="margin-left:auto;">⇩ Export Sessions</button>
   </div>
+  <div class="dim" style="margin:-6px 0 14px;line-height:1.5;">Review actions record an administrator decision only. They do not currently apply a live warning or shadow-ban to a user profile.</div>
 
   <div id="exportPanel" style="display:none;margin-bottom:14px;padding:14px;background:#0c0407;border:1px solid #24080f;border-radius:8px;">
     <div style="font-size:11px;letter-spacing:2px;color:#7c5a63;text-transform:uppercase;margin-bottom:10px;">Session Log Export — Rule 3(1)(i)</div>
@@ -185,9 +186,9 @@ async function loadReports() {
         <td>\${r.reviewed ? '<span class="tag done">reviewed</span>' : '<span class="tag new">new</span>'}</td>
         <td>
           \${!r.reviewed ? \`
-            <button class="act primary" data-id="\${r.id}" data-action="dismiss">Dismiss</button>
-            <button class="act" data-id="\${r.id}" data-action="warned">Warn</button>
-            <button class="act" data-id="\${r.id}" data-action="shadow-banned">Shadow-ban</button>
+            <button class="act primary" data-id="\${r.id}" data-action="dismiss">Record dismissal</button>
+            <button class="act" data-id="\${r.id}" data-action="warned">Record warning</button>
+            <button class="act" data-id="\${r.id}" data-action="shadow-banned">Record shadow-ban</button>
           \` : \`<span class="dim">\${esc(r.actionTaken || "—")}</span>\`}
         </td>
       </tr>
@@ -198,13 +199,21 @@ async function loadReports() {
 
 async function act(id, action) {
   if (!confirm("Mark this report as: " + action + "?")) return;
-  await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action }),
-  });
-  loadReports();
-  loadStats();
+  try {
+    const response = await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      alert(result.error || "The review decision could not be saved. Please try again.");
+      return;
+    }
+    await Promise.all([loadReports(), loadStats()]);
+  } catch (error) {
+    alert(error instanceof Error ? error.message : "The review decision could not be saved.");
+  }
 }
 
 document.addEventListener("click", (e) => {
@@ -331,7 +340,9 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     const id = String(req.params.id || "");
     const action = String(req.body?.action || "").slice(0, 100);
     if (!id) return res.status(400).json({ ok: false, error: "Missing id" });
-    db.markReportReviewed(id, action);
+    if (!db.markReportReviewed(id, action)) {
+      return res.status(500).json({ ok: false, error: "Report review could not be saved." });
+    }
     res.json({ ok: true });
   });
 
