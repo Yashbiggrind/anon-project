@@ -10,7 +10,8 @@ const { io } = require("socket.io-client");
 
 process.env.NODE_ENV = "test";
 process.env.IP_HASH_SECRET = "anon-test-hmac-secret-with-at-least-32-characters";
-const { hashIp } = require("../db");
+const db = require("../db");
+const { hashIp } = db;
 
 function waitForEvent(socket, eventName, predicate = () => true, timeoutMs = 7000) {
   return new Promise((resolve, reject) => {
@@ -81,6 +82,19 @@ async function stopChild(child) {
     await Promise.race([forcedExit, new Promise((resolve) => setTimeout(resolve, 2000))]);
   }
 }
+
+test("database-backed moderation operations fail closed before initialization", () => {
+  assert.equal(db.isReady(), false);
+  assert.equal(db.saveReport({
+    id: "not-persisted",
+    reporter: "profile_test",
+    target: "session_test",
+    reason: "test",
+    createdAt: Date.now(),
+  }), false);
+  assert.equal(db.markReportReviewed("missing-report", "dismiss"), false);
+  assert.equal(db.getStats(), null);
+});
 
 test("HMAC connection identifiers are normalized, keyed, and fixed-length", () => {
   const v4 = hashIp("192.0.2.25");
