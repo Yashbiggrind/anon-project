@@ -227,6 +227,14 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const [, identityAfterReload] = await Promise.all([reconnectConnect, reconnectReady]);
     assert.notEqual(identityAfterReload.sessionId, identityA.sessionId, "each socket connection still gets a fresh session ID");
     assert.equal(identityAfterReload.profileId, originalProfileId, "the anonymous profile ID must survive a reload");
+    const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
+    assert.equal(blockedAfterReconnect.ok, true);
+    assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
+    const unblockAck = await emitAck(c, "unblock:user", { profileId: identityB.profileId });
+    assert.equal(unblockAck.ok, true, "unblocking must remove the persisted profile block");
+    const blockedAfterUnblock = await emitAck(c, "blocked:list", {});
+    assert.equal(blockedAfterUnblock.blocked.length, 0);
+
     assert.equal(identityAfterReload.avatarDesign.gridSize, 32, "the avatar must survive a reload at full resolution");
     c.disconnect();
     b.disconnect();
