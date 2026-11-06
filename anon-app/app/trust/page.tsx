@@ -3,19 +3,20 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const CSP_CODE = `// next.config.ts (Next.js)
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' ws: wss:",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-].join("; ");
+const SECURITY_HEADERS_STATUS = `FRONTEND — anon-app/next.config.ts
+Content-Security-Policy: CONFIGURED
+script-src: 'self' 'unsafe-inline'
+unsafe-eval: not allowed in production
+frame-ancestors: 'none' (profile editor: same-origin exception)
+Strict-Transport-Security: max-age=63072000; includeSubDomains
+Permissions-Policy: camera=(), microphone=(), geolocation=()
 
-headers: [{ key: "Content-Security-Policy", value: csp }]`;
+BACKEND — anon-server/index.js
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
+
+Deployment response headers have not been live-verified.`;
 
 const TOR_CODE = `# /etc/tor/torrc
 HiddenServiceDir /var/lib/tor/anon/
@@ -140,12 +141,19 @@ export default function TrustPage() {
             </div>
           </div>
 
-          {/* ---------- CSP ---------- */}
+          {/* ---------- Security headers ---------- */}
           <div className="card">
-            <span className="status ready">READY TO SHIP</span>
-            <h3>Security headers + CSP</h3>
-            <p>Locks scripts, frames and connections to your own origin. Snippet is in the backend file.</p>
-            <pre className="code">{CSP_CODE}</pre>
+            <span className="status ready">CONFIGURED IN APP</span>
+            <h3>Security headers</h3>
+            <p>The Next.js app config defines a Content-Security-Policy and additional browser security headers. Production permits inline scripts for current Next.js rendering but does not permit unsafe-eval. The profile editor has a same-origin framing exception. Deployment response headers have not been independently checked live.</p>
+            <pre className="code">{SECURITY_HEADERS_STATUS}</pre>
+          </div>
+
+          {/* ---------- AI participant data use ---------- */}
+          <div className="card">
+            <span className="status live">LIVE IN PROTOTYPE</span>
+            <h3>AI participant data use</h3>
+            <p>AI participants are labeled as bots. When one generates a reply, the latest relevant message from public chat or a room containing that bot may be sent to Pollinations, with OpenRouter as a fallback when configured. These are external services with their own data practices. Avoid sharing sensitive personal information in bot-enabled conversations. Operators can disable bot activity with the server setting ENABLE_BOTS=false.</p>
           </div>
 
           {/* ---------- E2E ---------- */}
