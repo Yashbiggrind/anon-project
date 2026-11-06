@@ -314,6 +314,13 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
   const AUTH_MAX_FAILURES = 10;
   const AUTH_MAX_KEYS = 5000;
 
+  function requireDatabase(_req, res, next) {
+    if (!db.isReady()) {
+      return res.status(503).json({ ok: false, error: "Database unavailable; stored records cannot be read or changed." });
+    }
+    next();
+  }
+
   function checkToken(req, res, next) {
     res.setHeader("Cache-Control", "no-store");
     if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set on server" });
@@ -358,7 +365,7 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     res.type("html").send(renderPage());
   });
 
-  app.get("/api/admin/stats", checkToken, (_req, res) => {
+  app.get("/api/admin/stats", checkToken, requireDatabase, (_req, res) => {
     res.json({
       ok: true,
       stats: db.getStats() || {},
@@ -366,13 +373,13 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     });
   });
 
-  app.get("/api/admin/reports", checkToken, (req, res) => {
+  app.get("/api/admin/reports", checkToken, requireDatabase, (req, res) => {
     const onlyUnreviewed = req.query.unreviewed === "1";
     const limit = Math.min(500, parseInt(req.query.limit, 10) || 100);
     res.json({ ok: true, reports: db.listReports(limit, onlyUnreviewed) });
   });
 
-  app.post("/api/admin/reports/:id/review", checkToken, (req, res) => {
+  app.post("/api/admin/reports/:id/review", checkToken, requireDatabase, (req, res) => {
     const id = String(req.params.id || "");
     const action = String(req.body?.action || "").slice(0, 100);
     if (!id) return res.status(400).json({ ok: false, error: "Missing id" });
@@ -383,7 +390,7 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
   });
 
   // v21.4 — session log export (Rule 3(1)(i) — lawful order response)
-  app.get("/api/admin/sessions", checkToken, (req, res) => {
+  app.get("/api/admin/sessions", checkToken, requireDatabase, (req, res) => {
     const since = parseInt(req.query.since, 10) || 0;
     const until = parseInt(req.query.until, 10) || Date.now();
     const ipHash = req.query.ip ? String(req.query.ip).slice(0, 64) : null;
@@ -394,7 +401,7 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     res.json({ ok: true, count: rows.length, sessions: rows });
   });
 
-  app.get("/api/admin/sessions.csv", checkToken, (req, res) => {
+  app.get("/api/admin/sessions.csv", checkToken, requireDatabase, (req, res) => {
     const since = parseInt(req.query.since, 10) || 0;
     const until = parseInt(req.query.until, 10) || Date.now();
     const ipHash = req.query.ip ? String(req.query.ip).slice(0, 64) : null;
