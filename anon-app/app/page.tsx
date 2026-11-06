@@ -1677,13 +1677,23 @@ export default function Home() {
 
   function sendReport(reason: string) {
     if (!reportOpen) return;
-    socketRef.current?.emit("report:user", {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      showToast("Reconnect before submitting this report.");
+      return;
+    }
+    socket.timeout(10000).emit("report:user", {
       targetSessionId: reportOpen.sessionId,
       targetUsername: reportOpen.username,
       reason,
-    }, () => {});
-    setReportOpen(null);
-    showToast(t("reportSubmitted"));
+    }, (error: Error | null, response: ServerAck) => {
+      if (error || !response?.ok) {
+        showToast(response?.error || "Report could not be submitted. Please try again.");
+        return;
+      }
+      setReportOpen(null);
+      showToast(t("reportSubmitted"));
+    });
   }
 
   function unblockUser(profileId: string, username: string) {
