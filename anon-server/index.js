@@ -157,7 +157,7 @@ function messageIdempotencyKey(session, rawId, scope) {
   if (!/^[A-Za-z0-9_-]{8,100}$/.test(clientMessageId)) return false;
   return `${session.profileId || session.sessionId}:${scope}:${clientMessageId}`;
 }
-function getIdempotentMessage(key, content) {
+function getIdempotentMessage(key, content, replyTo) {
   if (!key) return null;
   const existing = idempotentMessages.get(key);
   if (!existing) return null;
@@ -165,12 +165,12 @@ function getIdempotentMessage(key, content) {
     idempotentMessages.delete(key);
     return null;
   }
-  const contentHash = crypto.createHash("sha256").update(String(content)).digest("hex");
+  const contentHash = crypto.createHash("sha256").update(JSON.stringify({ content: String(content), replyTo: replyTo || null })).digest("hex");
   return existing.contentHash === contentHash ? existing.messageId : false;
 }
-function rememberIdempotentMessage(key, messageId, content) {
+function rememberIdempotentMessage(key, messageId, content, replyTo) {
   if (!key) return;
-  const contentHash = crypto.createHash("sha256").update(String(content)).digest("hex");
+  const contentHash = crypto.createHash("sha256").update(JSON.stringify({ content: String(content), replyTo: replyTo || null })).digest("hex");
   idempotentMessages.set(key, { messageId, contentHash, createdAt: Date.now() });
   while (idempotentMessages.size > IDEMPOTENCY_MAX_ENTRIES) {
     const oldestKey = idempotentMessages.keys().next().value;
@@ -992,7 +992,7 @@ io.on("connection", (socket) => {
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Message too long" });
     const idempotencyKey = messageIdempotencyKey(s, clientMessageId, "public");
     if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
-    const previousMessageId = getIdempotentMessage(idempotencyKey, text);
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text, replyTo);
     if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
     if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
@@ -1014,7 +1014,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
-      rememberIdempotentMessage(idempotencyKey, msg.id, text);
+      rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
       io.to(socket.id).emit("chat:public:message", msg);
       return ack?.({ ok: true, id: msg.id });
     }
