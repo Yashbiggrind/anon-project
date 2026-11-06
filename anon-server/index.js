@@ -2019,7 +2019,7 @@ io.on("connection", (socket) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
     const targetProfileId = String(profileId || "");
-    if (!/^profile_[a-f0-9]{32}$/.test(targetProfileId) || !s.blocked.has(targetProfileId)) {
+    if (!/^profile_[a-z0-9]{8,64}$/.test(targetProfileId) || !s.blocked.has(targetProfileId)) {
       return ack?.({ ok: false, error: "Invalid block entry" });
     }
     if (!db.deleteBlock(s.profileId, targetProfileId)) {
