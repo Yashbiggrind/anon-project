@@ -321,19 +321,24 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     const now = Date.now();
     const clientKey = String(req.ip || req.socket?.remoteAddress || "unknown").slice(0, 100);
     const recent = (authFailures.get(clientKey) || []).filter((at) => now - at < AUTH_WINDOW_MS);
-    if (recent.length >= AUTH_MAX_FAILURES) {
-      const retryAfter = Math.max(1, Math.ceil((recent[0] + AUTH_WINDOW_MS - now) / 1000));
-      res.setHeader("Retry-After", String(retryAfter));
-      authFailures.set(clientKey, recent);
-      return res.status(429).json({ ok: false, error: "Too many failed admin sign-in attempts. Try again later." });
-    }
-
     const authorization = String(req.headers.authorization || "");
     const bearer = authorization.match(/^Bearer\s+(.+)$/i);
     const token = String(req.headers["x-admin-token"] || (bearer ? bearer[1] : ""));
     const supplied = Buffer.from(token);
     const expected = Buffer.from(String(ADMIN_TOKEN));
     const valid = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+
+    // A correct token always succeeds; failed attempts only throttle further failures.
+    if (valid) {
+      authFailures.delete(clientKey);
+      return next();
+    }
+    if (recent.length >= AUTH_MAX_FAILURES) {
+      const retryAfter = Math.max(1, Math.ceil((recent[0] + AUTH_WINDOW_MS - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfter));
+      authFailures.set(clientKey, recent);
+      return res.status(429).json({ ok: false, error: "Too many failed admin sign-in attempts. Try again later." });
+    }
 
     if (!valid) {
       recent.push(now);
@@ -348,7 +353,6 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
       return res.status(401).json({ ok: false, error: "Unauthorized" });
     }
 
-    authFailures.delete(clientKey);
     next();
   }
 
