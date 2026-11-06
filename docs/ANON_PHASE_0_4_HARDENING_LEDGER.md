@@ -26,6 +26,9 @@ Last reviewed: 2026-11-06
 - SQLite already has a `blocks` table, but the current `db.js` exports no block save/load/delete operations. The table is not currently wired into the block handlers.
 - Reports are written through `db.saveReport`; moderation strike records are loaded from SQLite at startup and saved/removed through database helpers. These are materially different from the transient block map.
 - Public history, rooms, invites, DMs, confessions, votes, reactions, and message ownership are in-memory with bounded/TTL behavior. Do not make them persistent by default: that would change privacy and retention semantics.
+- Current `main` bot prompt still tells bots to conceal that they are AI and filters out direct AI disclosures. PR #14 contains the correction, but this trust issue remains in production until the ordered PRs are reviewed and merged.
+- The standalone `/confession` page explicitly labels itself a local-only 24-hour preview, while the integrated Confession tab uses the shared backend feed. The distinction is disclosed in page copy, but the two experiences still need end-to-end product and mobile QA.
+- The current `/borderland` implementation uses local React state and hardcoded simulated bot players; it is not real multiplayer. Do not market it as a live multiplayer experience until a real server-backed implementation exists.
 - `/api/stats` checks for `db.countAll`, but the current database module exports `getStats` and does not export `countAll`. The `persistent_rows` field therefore falls back to zero. Confirm the intended API contract before fixing it.
 - Current main has persistent session metadata logging with a 180-day purge. The older privacy branch changes this to opt-in; that is a policy-sensitive change and needs explicit deployment/operator review before adoption.
 
