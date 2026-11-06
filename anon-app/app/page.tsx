@@ -206,7 +206,7 @@ export default function Home() {
   /* v22 — new feature state */
   const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
     const [favoriteRooms, setFavoriteRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
-  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string } | null>(null);
+  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string; profileId?: string } | null>(null);
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
 
   /* v20.7 — DM state */
