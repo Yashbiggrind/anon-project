@@ -232,7 +232,10 @@ app.use(express.json({ limit: "200kb" }));
 app.get("/", (req, res) => res.json({ ok: true, online: sessions.size, rooms: rooms.size }));
 app.get("/api/stats", (req, res) => {
   let persistent = 0;
-  try { persistent = db.countAll ? db.countAll() : 0; } catch { persistent = 0; }
+  try {
+    const stats = db.getStats?.();
+    if (stats) persistent = Number(stats.reports || 0) + Number(stats.strikes || 0) + Number(stats.sessions || 0);
+  } catch { persistent = 0; }
   res.json({
     online: sessions.size,
     away: 0,

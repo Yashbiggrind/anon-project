@@ -194,6 +194,16 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const repeated = await emitAck(a, "chat:public:send", { content: "repeat-for-strike-test" });
     assert.equal(repeated.ok, false);
 
+    const reportAck = await emitAck(a, "report:user", {
+      targetSessionId: identityB.sessionId,
+      targetUsername: identityB.username,
+      reason: "integration test report",
+    });
+    assert.equal(reportAck.ok, true);
+    const statsResponse = await fetch(baseUrl + "/api/stats");
+    const statsPayload = await statsResponse.json();
+    assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
+
     const originalProfileId = identityA.profileId;
     a.disconnect();
     a = null;
