@@ -331,7 +331,9 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     const id = String(req.params.id || "");
     const action = String(req.body?.action || "").slice(0, 100);
     if (!id) return res.status(400).json({ ok: false, error: "Missing id" });
-    db.markReportReviewed(id, action);
+    if (!db.markReportReviewed(id, action)) {
+      return res.status(500).json({ ok: false, error: "Report review could not be saved." });
+    }
     res.json({ ok: true });
   });
 
