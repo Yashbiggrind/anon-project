@@ -403,16 +403,20 @@ const publicRoom = (r) => ({
 
 const findSocketBySession = (sid) => socketBySession.get(sid) || null;
 
+function getSessionBySessionId(sessionId) {
+  const key = String(sessionId || "");
+  if (!key) return null;
+  const socketId = findSocketBySession(key);
+  return (socketId && sessions.get(socketId)) || sessions.get(key) || null;
+}
 function isSessionBlocked(session, targetSessionId) {
   if (!session || !targetSessionId) return false;
-  const targetSocketId = findSocketBySession(String(targetSessionId));
-  const target = targetSocketId ? sessions.get(targetSocketId) : null;
+  const target = getSessionBySessionId(targetSessionId);
   const targetProfileId = target?.profileId;
   return session.blocked.has(targetProfileId || String(targetSessionId));
 }
 function isBlocked(a, b) {
-  const socketId = findSocketBySession(a);
-  const session = socketId ? sessions.get(socketId) : null;
+  const session = getSessionBySessionId(a);
   return session ? isSessionBlocked(session, b) : false;
 }
 function isMutuallyBlocked(a, b) {
@@ -2045,8 +2049,7 @@ io.on("connection", (socket) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
     const target = String(targetSessionId || "");
-    const targetSocketId = findSocketBySession(target);
-    const targetSession = targetSocketId ? sessions.get(targetSocketId) : null;
+    const targetSession = getSessionBySessionId(target);
     if (!targetSession || !targetSession.profileId || target === s.sessionId || targetSession.profileId === s.profileId) {
       return ack?.({ ok: false, error: "Invalid or unavailable target" });
     }
@@ -2181,6 +2184,8 @@ function initBots() {
     const spamKey = "bot:" + profile.name;
     sessions.set(sessionId, {
       sessionId,
+      profileId: "profile_" + crypto.createHash("sha256").update("anon-bot:" + profile.name).digest("hex").slice(0, 32),
+      hasStableProfile: true,
       spamKey,
       ip: "bot",
       username: profile.name,
