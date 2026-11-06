@@ -3,12 +3,20 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const SECURITY_HEADERS_STATUS = `ACTIVE RESPONSE HEADERS
+const SECURITY_HEADERS_STATUS = `FRONTEND — anon-app/next.config.ts
+Content-Security-Policy: CONFIGURED
+script-src: 'self' 'unsafe-inline'
+unsafe-eval: not allowed in production
+frame-ancestors: 'none' (profile editor: same-origin exception)
+Strict-Transport-Security: max-age=63072000; includeSubDomains
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+
+BACKEND — anon-server/index.js
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 Referrer-Policy: no-referrer
 
-Content-Security-Policy: NOT CONFIGURED`;
+Deployment response headers have not been live-verified.`;
 
 const TOR_CODE = `# /etc/tor/torrc
 HiddenServiceDir /var/lib/tor/anon/
@@ -135,9 +143,9 @@ export default function TrustPage() {
 
           {/* ---------- Security headers ---------- */}
           <div className="card">
-            <span className="status plan">CSP NOT ACTIVE</span>
+            <span className="status ready">CONFIGURED IN APP</span>
             <h3>Security headers</h3>
-            <p>The backend currently sends the headers listed below. A Content-Security-Policy is not configured yet; it needs compatibility testing with the Next.js app before activation.</p>
+            <p>The Next.js app config defines a Content-Security-Policy and additional browser security headers. Production permits inline scripts for current Next.js rendering but does not permit unsafe-eval. The profile editor has a same-origin framing exception. Deployment response headers have not been independently checked live.</p>
             <pre className="code">{SECURITY_HEADERS_STATUS}</pre>
           </div>
 
