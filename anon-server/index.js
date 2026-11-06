@@ -369,9 +369,17 @@ const publicRoom = (r) => ({
 
 const findSocketBySession = (sid) => socketBySession.get(sid) || null;
 
+function isSessionBlocked(session, targetSessionId) {
+  if (!session || !targetSessionId) return false;
+  const targetSocketId = findSocketBySession(String(targetSessionId));
+  const target = targetSocketId ? sessions.get(targetSocketId) : null;
+  const targetProfileId = target?.profileId;
+  return session.blocked.has(targetProfileId || String(targetSessionId));
+}
 function isBlocked(a, b) {
-  const s = sessions.get(findSocketBySession(a) || "");
-  return s ? s.blocked.has(b) : false;
+  const socketId = findSocketBySession(a);
+  const session = socketId ? sessions.get(socketId) : null;
+  return session ? isSessionBlocked(session, b) : false;
 }
 function isMutuallyBlocked(a, b) {
   return isBlocked(a, b) || isBlocked(b, a);
@@ -382,8 +390,8 @@ function broadcastOnline() {
     const list = [];
     for (const u of sessions.values()) {
       if (u.sessionId === session.sessionId) continue;
-      if (session.blocked.has(u.sessionId)) continue;
-      if (u.blocked.has(session.sessionId)) continue;
+      if (isSessionBlocked(session, u.sessionId)) continue;
+      if (isSessionBlocked(u, session.sessionId)) continue;
       list.push(publicUser(u));
     }
     io.to(socketId).emit("online:list", list);
@@ -401,7 +409,7 @@ function broadcastPublicMessage(msg) {
   for (const [socketId, session] of sessions) {
     if (
       session.sessionId !== msg.senderSessionId &&
-      (session.blocked.has(msg.senderSessionId) || isBlocked(msg.senderSessionId, session.sessionId))
+      (isSessionBlocked(session, msg.senderSessionId) || isBlocked(msg.senderSessionId, session.sessionId))
     ) continue;
     if (shadowed && session.sessionId !== msg.senderSessionId) continue;
     io.to(socketId).emit("chat:public:message", publicChatMessage(msg));
@@ -411,7 +419,7 @@ function broadcastPublicMessage(msg) {
 function broadcastSystemFor(userSessionId, payload) {
   for (const [socketId, session] of sessions) {
     if (session.sessionId !== userSessionId &&
-      (session.blocked.has(userSessionId) || isBlocked(userSessionId, session.sessionId))) continue;
+      (isSessionBlocked(session, userSessionId) || isBlocked(userSessionId, session.sessionId))) continue;
     io.to(socketId).emit("system:public", payload);
   }
 }
@@ -467,7 +475,7 @@ function broadcastReactionPublic(messageId, actorSessionId) {
   for (const [socketId, session] of sessions) {
     if (
       session.sessionId !== actorSessionId &&
-      (session.blocked.has(actorSessionId) || isBlocked(actorSessionId, session.sessionId))
+      (isSessionBlocked(session, actorSessionId) || isBlocked(actorSessionId, session.sessionId))
     ) continue;
     io.to(socketId).emit("reaction:update", {
       messageId,
@@ -813,7 +821,7 @@ io.on("connection", (socket) => {
     accent: pick(ACCENTS),
     status: "available",
     avatarDesign: initialAvatarDesign,
-    blocked: new Map(),
+    blocked: new Map(db.loadBlocks(profileId).map((entry) => [entry.profileId, entry.username])),
   };
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
@@ -930,7 +938,7 @@ io.on("connection", (socket) => {
       if (m.createdAt <= ts) continue;
       if (m.senderSessionId === s.sessionId) continue;
       if (isShadowBanned(m.senderSpamKey)) continue;
-      if (s.blocked.has(m.senderSessionId)) continue;
+      if (isSessionBlocked(s, m.senderSessionId)) continue;
       if (isBlocked(m.senderSessionId, s.sessionId)) continue;
       out.push(publicChatMessage(m));
     }
@@ -1041,7 +1049,7 @@ io.on("connection", (socket) => {
     if (!s) return;
     for (const [socketId, sess] of sessions) {
       if (sess.sessionId === s.sessionId) continue;
-      if (sess.blocked.has(s.sessionId) || s.blocked.has(sess.sessionId)) continue;
+      if (isSessionBlocked(sess, s.sessionId) || isSessionBlocked(s, sess.sessionId)) continue;
       io.to(socketId).emit("typing:public", { sessionId: s.sessionId, username: s.username });
     }
   });
@@ -1352,7 +1360,7 @@ io.on("connection", (socket) => {
     }
     if (!found) return ack?.({ ok: false, error: "User is offline or not found" });
     if (sessionRooms.has(found.sessionId)) return ack?.({ ok: false, error: "That user is already in a room" });
-    if (s.blocked.has(found.sessionId) || found.blocked.has(s.sessionId)) {
+    if (isSessionBlocked(s, found.sessionId) || isSessionBlocked(found, s.sessionId)) {
       return ack?.({ ok: false, error: "Unable to send invitation." });
     }
     const targetSocketId = findSocketBySession(found.sessionId);
@@ -1683,7 +1691,7 @@ io.on("connection", (socket) => {
       }
     } else {
       for (const [socketId, sess] of sessions) {
-        if (sess.sessionId !== s.sessionId && (sess.blocked.has(s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
+        if (sess.sessionId !== s.sessionId && (isSessionBlocked(sess, s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
         io.to(socketId).emit("message:edited", payload);
       }
     }
@@ -1718,7 +1726,7 @@ io.on("connection", (socket) => {
       }
     } else {
       for (const [socketId, sess] of sessions) {
-        if (sess.sessionId !== s.sessionId && (sess.blocked.has(s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
+        if (sess.sessionId !== s.sessionId && (isSessionBlocked(sess, s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
         io.to(socketId).emit("message:deleted", payload);
       }
     }
@@ -1737,7 +1745,7 @@ io.on("connection", (socket) => {
     const targetSession = sessions.get(targetSocketId);
     if (!targetSession) return ack?.({ ok: false, error: "User offline" });
 
-    if (s.blocked.has(target) || targetSession.blocked.has(s.sessionId)) {
+    if (isSessionBlocked(s, target) || isSessionBlocked(targetSession, s.sessionId)) {
       return ack?.({ ok: false, error: "Cannot message this user" });
     }
 
@@ -1984,27 +1992,40 @@ io.on("connection", (socket) => {
   socket.on("block:user", ({ targetSessionId, targetUsername } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    if (!targetSessionId || targetSessionId === s.sessionId) {
-      return ack?.({ ok: false, error: "Invalid target" });
+    const target = String(targetSessionId || "");
+    const targetSocketId = findSocketBySession(target);
+    const targetSession = targetSocketId ? sessions.get(targetSocketId) : null;
+    if (!targetSession || !targetSession.profileId || target === s.sessionId || targetSession.profileId === s.profileId) {
+      return ack?.({ ok: false, error: "Invalid or unavailable target" });
     }
-    s.blocked.set(String(targetSessionId), String(targetUsername || "unknown"));
+    const username = String(targetSession.username || targetUsername || "unknown").slice(0, 40);
+    if (!db.saveBlock(s.profileId, targetSession.profileId, username)) {
+      return ack?.({ ok: false, error: "Could not save block. Please try again." });
+    }
+    s.blocked.set(targetSession.profileId, username);
 
     const roomId = sessionRooms.get(s.sessionId);
     if (roomId) {
       const room = rooms.get(roomId);
-      if (room && room.participants.some((p) => p.sessionId === String(targetSessionId))) {
+      if (room && room.participants.some((p) => p.sessionId === target)) {
         removeFromRoom(roomId, s.sessionId, "left");
       }
     }
-
     broadcastOnline();
     ack?.({ ok: true });
   });
 
-  socket.on("unblock:user", ({ targetSessionId } = {}, ack) => {
+  socket.on("unblock:user", ({ profileId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    s.blocked.delete(String(targetSessionId));
+    const targetProfileId = String(profileId || "");
+    if (!/^profile_[a-f0-9]{32}$/.test(targetProfileId) || !s.blocked.has(targetProfileId)) {
+      return ack?.({ ok: false, error: "Invalid block entry" });
+    }
+    if (!db.deleteBlock(s.profileId, targetProfileId)) {
+      return ack?.({ ok: false, error: "Could not remove block. Please try again." });
+    }
+    s.blocked.delete(targetProfileId);
     broadcastOnline();
     ack?.({ ok: true });
   });
@@ -2012,7 +2033,10 @@ io.on("connection", (socket) => {
   socket.on("blocked:list", (_payload, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    const list = [...s.blocked.entries()].map(([sessionId, username]) => ({ sessionId, username }));
+    const list = [...s.blocked.entries()].map(([profileId, username]) => {
+      const active = [...sessions.values()].find((candidate) => candidate.profileId === profileId);
+      return { profileId, sessionId: active?.sessionId || "", username };
+    });
     ack?.({ ok: true, blocked: list });
   });
 
