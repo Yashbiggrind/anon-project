@@ -286,6 +286,7 @@ const publicUser = (s) => ({
   accent: s.accent,
   status: s.status || "available",
   avatarDesign: s.avatarDesign ?? null,
+  isBot: Boolean(s.isBot),
 });
 
 // Internal spam identifiers must never cross the Socket.IO boundary.
@@ -355,6 +356,7 @@ const publicRoom = (r) => ({
   participants: r.participants.map((p) => ({
     sessionId: p.sessionId,
     username: p.username,
+    isBot: p.sessionId.startsWith("bot_"),
     isAdmin: p.sessionId === r.admin,
     isHost: p.sessionId === r.host,
     timedOutUntil: r.timeouts.get(p.sessionId) || 0,
