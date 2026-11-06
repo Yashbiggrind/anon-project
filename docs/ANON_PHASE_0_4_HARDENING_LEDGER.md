@@ -28,7 +28,10 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 | #20 | AI provider and CSP transparency | Discloses external AI-provider message processing; corrects the CSP status |
 | #21 | Local data wipe scope | Explains that wipe clears this browser/device, not server-side reports, blocks, or logs |
 | #22 | Admin review persistence | Reports failed review writes and clarifies that current review labels do not enforce a live warning or shadow-ban |
-| #23 | Updated phase ledger | Records current findings, risks, and outstanding exit gates |
+| #23 | Updated phase ledger | Records verified findings, risks, and outstanding exit gates |
+| #24 | Borderland mobile layout | Adds tablet/mobile reflow and labels the local bot simulation accurately |
+| #25 | Admin authentication | Adds timing-safe token comparison and failed-login throttling |
+| #26 | Direct-message reliability | Adds acknowledgement-aware sends and idempotent retry handling for DMs |
 
 ## Verified architecture and risk findings
 
@@ -36,6 +39,7 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 
 - Socket.IO delivery is not automatically exactly-once. PR #13 adds acknowledgement-aware sending; PR #19 adds a client message ID and bounded, expiring server-side deduplication for public and private-room text messages.
 - Idempotency records are in-memory, scoped by stable profile identity and destination, bounded to 20,000 entries, and expire after 24 hours. They protect retries while the server process is alive; they do not make chat history durable across server restarts.
+- PR #26 extends acknowledgement and same-ID retry behavior to direct messages. DM threads remain session-scoped and in-memory; the change does not make DMs durable or resume them after a new session.
 - The offline queue now sends its stored item ID as the idempotency key. Integration coverage includes retry, conflicting payload rejection, slow-mode retry, and retry after reconnect.
 - Real browser-to-browser tests for delayed/lost acknowledgements and offline recovery remain required.
 
@@ -65,6 +69,7 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 - The Trust Center now discloses that AI-generated replies may send the latest relevant public-chat or bot-room message to Pollinations, with OpenRouter as a fallback when configured. Operators can disable bot activity with `ENABLE_BOTS=false`.
 - The WebCrypto card remains a browser-only demonstration; it is not live end-to-end encryption.
 - The backend currently sends `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. A Content-Security-Policy is not configured. Do not mark CSP complete until a compatible policy is implemented and tested.
+- PR #25 adds timing-safe admin-token comparison, a bounded failed-authentication throttle, and no-store headers. It does not change the production token or proxy configuration.
 
 ### Product capability truth
 
@@ -76,6 +81,7 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 
 - The main stylesheet is approximately 5,500 lines, contains 41 media-query blocks, and has a large number of `!important` declarations and layered responsive overrides.
 - The final responsive layer explicitly defines mobile/tablet header containment, profile capsule sizing, three-column app navigation, single-column private/content layouts, and composer sizing.
+- PR #24 adds targeted mobile/tablet reflow to Borderland: fixed-width visa and player panels become fluid, the simulated players reflow to a two-column grid, and controls/logs wrap. It also labels Borderland as a local bot simulation rather than live multiplayer.
 - These rules should not be broadly consolidated without visual regression testing. The stylesheet is layered; deleting earlier overrides by static inspection risks reintroducing the header/profile escape issue.
 - No real-device screenshot or browser-viewport interaction test has been completed in this work.
 
@@ -84,10 +90,10 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 | Phase | Status | Verified progress | Remaining exit gates |
 |---|---|---|---|
 | 0 — Foundation | Partial | Baseline ledger, isolated branches, scoped PRs, no production changes | Confirm deployed production SHA and capture an actual production baseline |
-| 1 — Reliability | Implementation prepared; manual QA pending | Acknowledgements, queue handling, idempotency, duplicate/conflict tests, reconnect tests | Two real clients; delayed/lost ack; queue recovery; room/DM regression; server restart behavior |
+| 1 — Reliability | Implementation prepared; manual QA pending | Acknowledgements, queue handling, public/room/DM idempotency, duplicate/conflict tests, reconnect tests | Two real clients; delayed/lost ack; queue recovery; room/DM regression; server restart behavior |
 | 2 — Data and privacy | Partial | Stable profile blocks, report persistence acknowledgements, admin review persistence, local/server deletion boundaries | Explicit report/block retention policy; full export/deletion review; admin enforcement design; production DB backup/restore test |
-| 3 — Mobile experience | Code audit only | Responsive CSS layers and main header/profile rules inspected | Real visual/interaction checks at 320, 360, 390, 430, 768, and 1024 CSS px across all routes; keyboard, overflow, dialogs, touch targets |
-| 4 — Security and trust | Partial | Bot transparency, provider disclosure, demo encryption wording, CSP status corrected, CORS/admin/rate-limit code inspected | CSP implementation and compatibility tests; full authorization/input validation audit; actual moderation enforcement design; confession and Borderland capability decisions |
+| 3 — Mobile experience | Partial; device QA pending | Main responsive layers inspected; Borderland receives targeted mobile/tablet reflow in PR #24 | Real visual/interaction checks at 320, 360, 390, 430, 768, and 1024 CSS px across all routes; keyboard, overflow, dialogs, touch targets |
+| 4 — Security and trust | Partial | Bot transparency, provider disclosure, demo encryption wording, CSP status corrected, admin auth throttling, CORS/rate-limit review | CSP implementation and compatibility tests; full authorization/input validation audit; actual moderation enforcement design; confession and Borderland capability decisions |
 
 ## Phase 3 device verification matrix
 
