@@ -48,7 +48,7 @@ function buildSystemPrompt(bot, roomTopic) {
     "- If asked whether you are automated, answer clearly and honestly.\n" +
     "- Do not use hashtags, bullets, or asterisks.\n" +
     "- Do not show thinking steps. Just reply with the message.\n" +
-    "- Be warm, real, human.\n" +
+    "- Be warm and conversational without implying you are human.\n" +
     "- Reply with ONLY the message text. No quotes. No prefixes.";
 }
 
