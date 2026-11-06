@@ -132,6 +132,17 @@ test("live server protects socket payloads, authorization, data flow, and persis
   try {
     const baseUrl = "http://127.0.0.1:" + port;
     await waitForHttp(baseUrl + "/", child, () => stdout + "\n" + stderr);
+    const adminPageResponse = await fetch(baseUrl + "/admin");
+    assert.equal(adminPageResponse.status, 200);
+    const adminCsp = adminPageResponse.headers.get("content-security-policy") || "";
+    assert.match(adminCsp, /script-src 'self' 'nonce-[^']+'/);
+    assert.match(adminCsp, /frame-ancestors 'none'/);
+    assert.doesNotMatch(adminCsp, /unsafe-eval/);
+    const adminHtml = await adminPageResponse.text();
+    const adminNonce = adminCsp.match(/'nonce-([^']+)'/)?.[1];
+    assert.ok(adminNonce);
+    assert.ok(adminHtml.includes(`<script nonce="${adminNonce}">`), "admin inline script must carry the response nonce");
+    assert.ok(adminHtml.includes(`<style nonce="${adminNonce}">`), "admin inline style must carry the response nonce");
     const profileToken = "a".repeat(64);
     const profileTokenB = "b".repeat(64);
     const fullResolutionAvatar = {
