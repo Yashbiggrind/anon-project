@@ -201,6 +201,9 @@ test("live server protects socket payloads, authorization, data flow, and persis
       reason: "integration test report",
     });
     assert.equal(reportAck.ok, true);
+    const adminReportsResponse = await fetch(baseUrl + "/api/admin/reports", { headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" } });
+    const adminReportsPayload = await adminReportsResponse.json();
+    assert.ok(adminReportsPayload.reports.some((report) => report.reason === "integration test report"), "admin review must read the durably stored report");
     const statsResponse = await fetch(baseUrl + "/api/stats");
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");

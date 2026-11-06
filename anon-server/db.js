@@ -139,11 +139,12 @@ function init() {
 
 // ---------- reports ----------
 function saveReport(r) {
-  if (!ready) return;
+  if (!ready) return false;
   try {
     db.prepare("INSERT INTO reports (id, reporter, target, target_username, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)")
       .run(r.id, r.reporter, r.target, r.targetUsername || null, r.reason, r.createdAt);
-  } catch (e) { console.error("[db] saveReport:", e.message); }
+    return true;
+  } catch (e) { console.error("[db] saveReport:", e.message); return false; }
 }
 function listReports(limit = 100, onlyUnreviewed = false) {
   if (!ready) return [];
