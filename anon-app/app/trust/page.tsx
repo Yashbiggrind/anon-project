@@ -117,7 +117,7 @@ export default function TrustPage() {
           <div className="card">
             <span className="status live">LIVE IN PROTOTYPE</span>
             <h3>Delete my data</h3>
-            <p>One flow, with a receipt. Everything erasable is erased. The 180-day log is stated honestly.</p>
+            <p>The data page exports or clears local data stored by this browser on this device. It does not delete server-side reports, blocks, or connection logs; connection logs are retained for up to 180 days.</p>
             <div className="btnRow">
               <Link href="/data" className="btn sm">OPEN DATA LOG →</Link>
             </div>
