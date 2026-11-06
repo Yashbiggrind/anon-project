@@ -805,7 +805,8 @@ io.on("connection", (socket) => {
   const profileToken = String(socket.handshake.auth?.profileToken || "").trim().toLowerCase();
   // The random bearer token remains in the owner's browser. Only this derived,
   // non-secret profile identifier is ever shared with other clients.
-  const profileId = /^[a-f0-9]{32,64}$/.test(profileToken)
+  const hasStableProfile = /^[a-f0-9]{32,64}$/.test(profileToken);
+  const profileId = hasStableProfile
     ? "profile_" + crypto.createHash("sha256").update(profileToken).digest("hex").slice(0, 32)
     : "profile_" + makeId();
   const initialAvatarDesign = sanitizeAvatarDesign(socket.handshake.auth?.avatarDesign);
@@ -816,12 +817,13 @@ io.on("connection", (socket) => {
   const session = {
     sessionId: makeId(),
     profileId,
+    hasStableProfile,
     spamKey,
     username: validName || makeUsername(),
     accent: pick(ACCENTS),
     status: "available",
     avatarDesign: initialAvatarDesign,
-    blocked: new Map(db.loadBlocks(profileId).map((entry) => [entry.profileId, entry.username])),
+    blocked: new Map(hasStableProfile ? db.loadBlocks(profileId).map((entry) => [entry.profileId, entry.username]) : []),
   };
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
@@ -1999,9 +2001,12 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: "Invalid or unavailable target" });
     }
     const username = String(targetSession.username || targetUsername || "unknown").slice(0, 40);
-    if (!db.saveBlock(s.profileId, targetSession.profileId, username)) {
+    const canPersist = s.hasStableProfile && targetSession.hasStableProfile;
+    if (canPersist && !db.saveBlock(s.profileId, targetSession.profileId, username)) {
       return ack?.({ ok: false, error: "Could not save block. Please try again." });
     }
+    // When browser storage is unavailable, retain a session-only block rather than
+    // persisting an identity that cannot survive reconnects.
     s.blocked.set(targetSession.profileId, username);
 
     const roomId = sessionRooms.get(s.sessionId);
@@ -2012,7 +2017,7 @@ io.on("connection", (socket) => {
       }
     }
     broadcastOnline();
-    ack?.({ ok: true });
+    ack?.({ ok: true, persistent: canPersist });
   });
 
   socket.on("unblock:user", ({ profileId } = {}, ack) => {
