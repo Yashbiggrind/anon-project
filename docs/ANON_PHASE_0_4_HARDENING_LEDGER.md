@@ -68,7 +68,7 @@ These are draft, unmerged PRs. They are not live in production. The PRs are stac
 - The data page scans localStorage and clears browser-local stores, IndexedDB message data, ANON cache entries, and the service-worker registration. It does not delete server-side reports, blocks, or connection logs. PR #21 makes this boundary explicit.
 - The Trust Center now discloses that AI-generated replies may send the latest relevant public-chat or bot-room message to Pollinations, with OpenRouter as a fallback when configured. Operators can disable bot activity with `ENABLE_BOTS=false`.
 - The WebCrypto card remains a browser-only demonstration; it is not live end-to-end encryption.
-- The backend currently sends `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. A Content-Security-Policy is not configured. Do not mark CSP complete until a compatible policy is implemented and tested.
+- `anon-app/next.config.ts` configures a frontend Content-Security-Policy, HSTS, Permissions-Policy, frame restrictions, and related headers. Production `script-src` allows `unsafe-inline` for current Next.js rendering but does not allow `unsafe-eval`; the profile editor has a same-origin framing exception. `anon-server/index.js` separately sends `X-Content-Type-Options`, `X-Frame-Options`, and `Referrer-Policy`. The deployed response headers have not been independently live-verified.
 - PR #25 adds timing-safe admin-token comparison, a bounded failed-authentication throttle, and no-store headers. It does not change the production token or proxy configuration.
 
 ### Product capability truth
