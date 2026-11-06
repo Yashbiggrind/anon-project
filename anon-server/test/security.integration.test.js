@@ -271,6 +271,10 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const [, identityAfterReload] = await Promise.all([reconnectConnect, reconnectReady]);
     assert.notEqual(identityAfterReload.sessionId, identityA.sessionId, "each socket connection still gets a fresh session ID");
     assert.equal(identityAfterReload.profileId, originalProfileId, "the anonymous profile ID must survive a reload");
+    const retryAfterReconnect = await emitAck(c, "chat:public:send", idempotentPayload);
+    assert.equal(retryAfterReconnect.ok, true);
+    assert.equal(retryAfterReconnect.id, firstIdempotentAck.id, "the same profile can safely retry after reconnecting");
+    assert.equal(retryAfterReconnect.deduplicated, true);
     const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
     assert.equal(blockedAfterReconnect.ok, true);
     assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
