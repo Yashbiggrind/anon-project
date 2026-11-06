@@ -164,9 +164,10 @@ test("live server protects socket payloads, authorization, data flow, and persis
       content: "idempotent-retry-message",
       clientMessageId: "client-idempotency-001",
     };
+    const firstIdempotentDelivery = waitForEvent(b, "chat:public:message", (candidate) => candidate.content === "idempotent-retry-message");
     const firstIdempotentAck = await emitAck(a, "chat:public:send", idempotentPayload);
     assert.equal(firstIdempotentAck.ok, true);
-    await waitForEvent(b, "chat:public:message", (candidate) => candidate.content === "idempotent-retry-message");
+    await firstIdempotentDelivery;
     const retryIdempotentAck = await emitAck(a, "chat:public:send", idempotentPayload);
     assert.equal(retryIdempotentAck.ok, true);
     assert.equal(retryIdempotentAck.id, firstIdempotentAck.id, "retry must return the original message ID");
