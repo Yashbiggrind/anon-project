@@ -254,6 +254,17 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const blockedBeforeReconnect = await emitAck(a, "blocked:list", {});
     assert.equal(blockedBeforeReconnect.ok, true);
     assert.ok(blockedBeforeReconnect.blocked.some((entry) => entry.profileId === identityB.profileId));
+    const botBlockAck = await emitAck(a, "block:user", {
+      targetSessionId: "bot_SilentWolf482",
+      targetUsername: "SilentWolf482",
+    });
+    assert.equal(botBlockAck.ok, true, "blocking an AI participant must remain supported");
+    assert.equal(botBlockAck.persistent, true, "AI participant identities are stable");
+    const blockedWithBot = await emitAck(a, "blocked:list", {});
+    const blockedBot = blockedWithBot.blocked.find((entry) => entry.username === "SilentWolf482");
+    assert.ok(blockedBot, "blocked list must include the AI participant");
+    const unblockBotAck = await emitAck(a, "unblock:user", { profileId: blockedBot.profileId });
+    assert.equal(unblockBotAck.ok, true);
 
 
     const originalProfileId = identityA.profileId;
