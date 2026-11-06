@@ -152,7 +152,7 @@ export default function DataPage() {
       <div className="dlRoot">
         <div className="dlHead">
           <div className="eyebrow">{"// DATA LOG"}</div>
-          <h1>See what&apos;s on your device. Wipe it in one click.</h1>
+          <h1>See what&apos;s on this device. Wipe local ANON data.</h1>
           <p>This report lists localStorage keys only. It does not include server-side connection metadata or active in-memory chat state.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
@@ -177,7 +177,7 @@ export default function DataPage() {
           <button className="btn" onClick={exportCsv}>↓ EXPORT CSV</button>
           <button className="btn" onClick={copyAll}>⧉ COPY TO CLIPBOARD</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
-          <button className="btn danger" onClick={() => setConfirm(true)}>✕ WIPE EVERYTHING</button>
+          <button className="btn danger" onClick={() => setConfirm(true)}>✕ WIPE THIS DEVICE</button>
         </div>
 
         {toast && <div className="toast">{toast}</div>}
@@ -203,11 +203,11 @@ export default function DataPage() {
         {confirm && (
           <div className="modalBg" onClick={() => setConfirm(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Wipe everything?</h3>
-              <p>This clears ANON localStorage, sessionStorage, saved chat messages in IndexedDB, app cache entries, and the service-worker registration. Another open ANON tab may temporarily prevent database deletion. This cannot be undone.</p>
+              <h3>Wipe local ANON data?</h3>
+              <p>This clears ANON data stored in this browser on this device: localStorage, sessionStorage, saved chat messages in IndexedDB, app cache entries, and the service-worker registration. It does not delete server-side reports, blocks, or connection logs. Another open ANON tab may temporarily prevent local database deletion. This cannot be undone.</p>
               <div className="modalRow">
                 <button className="btn" onClick={() => setConfirm(false)}>CANCEL</button>
-                <button className="btn danger" onClick={wipe}>YES, WIPE</button>
+                <button className="btn danger" onClick={wipe}>YES, WIPE LOCAL DATA</button>
               </div>
             </div>
           </div>
