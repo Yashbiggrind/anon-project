@@ -157,7 +157,7 @@ function messageIdempotencyKey(session, rawId, scope) {
   if (!/^[A-Za-z0-9_-]{8,100}$/.test(clientMessageId)) return false;
   return `${session.profileId || session.sessionId}:${scope}:${clientMessageId}`;
 }
-function getIdempotentMessage(key) {
+function getIdempotentMessage(key, content) {
   if (!key) return null;
   const existing = idempotentMessages.get(key);
   if (!existing) return null;
@@ -165,11 +165,13 @@ function getIdempotentMessage(key) {
     idempotentMessages.delete(key);
     return null;
   }
-  return existing.messageId;
+  const contentHash = crypto.createHash("sha256").update(String(content)).digest("hex");
+  return existing.contentHash === contentHash ? existing.messageId : false;
 }
-function rememberIdempotentMessage(key, messageId) {
+function rememberIdempotentMessage(key, messageId, content) {
   if (!key) return;
-  idempotentMessages.set(key, { messageId, createdAt: Date.now() });
+  const contentHash = crypto.createHash("sha256").update(String(content)).digest("hex");
+  idempotentMessages.set(key, { messageId, contentHash, createdAt: Date.now() });
   while (idempotentMessages.size > IDEMPOTENCY_MAX_ENTRIES) {
     const oldestKey = idempotentMessages.keys().next().value;
     if (oldestKey === undefined) break;
@@ -990,7 +992,8 @@ io.on("connection", (socket) => {
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Message too long" });
     const idempotencyKey = messageIdempotencyKey(s, clientMessageId, "public");
     if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
-    const previousMessageId = getIdempotentMessage(idempotencyKey);
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
     if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
@@ -1011,7 +1014,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
-      rememberIdempotentMessage(idempotencyKey, msg.id);
+      rememberIdempotentMessage(idempotencyKey, msg.id, text);
       io.to(socket.id).emit("chat:public:message", msg);
       return ack?.({ ok: true, id: msg.id });
     }
@@ -1522,6 +1525,15 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: "Not in this room" });
     }
 
+    const text = clean(String(content ?? "").trim());
+    if (!text) return ack?.({ ok: false, error: "Empty" });
+    if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `room:${roomId}`);
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
+
     const timeoutLeft = roomTimeoutRemaining(room, s.sessionId);
     if (timeoutLeft > 0) {
       return ack?.({
@@ -1539,14 +1551,6 @@ io.on("connection", (socket) => {
         slowModeMs: slowLeft,
       });
     }
-
-    const text = clean(String(content ?? "").trim());
-    if (!text) return ack?.({ ok: false, error: "Empty" });
-    if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
-    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `room:${roomId}`);
-    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
-    const previousMessageId = getIdempotentMessage(idempotencyKey);
-    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
       return ack?.({ ok: false, error: "Slow down." });
