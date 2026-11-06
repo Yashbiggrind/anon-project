@@ -1570,7 +1570,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
-      rememberIdempotentMessage(idempotencyKey, msg.id);
+      rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
       const sid = findSocketBySession(s.sessionId);
       if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
@@ -1591,7 +1591,7 @@ io.on("connection", (socket) => {
     }
 
     room.lastMessageAt.set(s.sessionId, Date.now());
-    rememberIdempotentMessage(idempotencyKey, msg.id);
+    rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastRoomMessage(room, msg);
     ack?.({ ok: true, id: msg.id });
   });
