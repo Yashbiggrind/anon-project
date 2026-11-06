@@ -241,7 +241,22 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(reportAck.ok, true);
     const adminReportsResponse = await fetch(baseUrl + "/api/admin/reports", { headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" } });
     const adminReportsPayload = await adminReportsResponse.json();
-    assert.ok(adminReportsPayload.reports.some((report) => report.reason === "integration test report"), "admin review must read the durably stored report");
+    const persistedReport = adminReportsPayload.reports.find((report) => report.reason === "integration test report");
+    assert.ok(persistedReport, "admin review must read the durably stored report");
+    const reviewResponse = await fetch(baseUrl + "/api/admin/reports/" + encodeURIComponent(persistedReport.id) + "/review", {
+      method: "POST",
+      headers: {
+        "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ action: "dismiss" }),
+    });
+    assert.equal(reviewResponse.status, 200, "admin review should acknowledge a saved decision");
+    const reviewedResponse = await fetch(baseUrl + "/api/admin/reports", {
+      headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
+    });
+    const reviewedPayload = await reviewedResponse.json();
+    assert.equal(reviewedPayload.reports.find((report) => report.id === persistedReport.id).reviewed, true);
     const statsResponse = await fetch(baseUrl + "/api/stats");
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
