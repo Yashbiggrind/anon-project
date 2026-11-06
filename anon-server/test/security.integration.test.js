@@ -215,6 +215,31 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(roomRetryAck.ok, true);
     assert.equal(roomRetryAck.id, roomFirstAck.id);
     assert.equal(roomRetryAck.deduplicated, true, "retry must bypass slow mode after original acceptance");
+
+    const dmOpen = await emitAck(a, "dm:open", { targetSessionId: identityB.sessionId });
+    assert.equal(dmOpen.ok, true);
+    let dmDeliveryCount = 0;
+    const countDmDelivery = (candidate) => {
+      if (candidate.content === "idempotent-dm-retry") dmDeliveryCount += 1;
+    };
+    b.on("dm:message", countDmDelivery);
+    const dmPayload = {
+      threadId: dmOpen.thread.threadId,
+      content: "idempotent-dm-retry",
+      clientMessageId: "dm-idempotency-001",
+    };
+    const dmDelivery = waitForEvent(b, "dm:message", (candidate) => candidate.content === "idempotent-dm-retry");
+    const dmFirstAck = await emitAck(a, "dm:send", dmPayload);
+    assert.equal(dmFirstAck.ok, true);
+    await dmDelivery;
+    const dmRetryAck = await emitAck(a, "dm:send", dmPayload);
+    assert.equal(dmRetryAck.ok, true);
+    assert.equal(dmRetryAck.id, dmFirstAck.id);
+    assert.equal(dmRetryAck.deduplicated, true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(dmDeliveryCount, 1, "DM retry must not broadcast a duplicate");
+    b.off("dm:message", countDmDelivery);
+
     const inviteResult = await emitAck(a, "room:invite", { roomId: roomResult.room.roomId, recipientUsername: identityB.username });
     assert.equal(inviteResult.ok, true);
     const wrongDecline = await emitAck(a, "invite:decline", { inviteId: inviteResult.inviteId });
