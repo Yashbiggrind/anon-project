@@ -79,6 +79,9 @@ const REACTION_TTL = 60 * 60 * 1000;
 
 const messageOwners = new Map();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
+const idempotentMessages = new Map();
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const IDEMPOTENCY_MAX_ENTRIES = 20000;
 
 // ============================================================
 // v17 â€” ANTI-SPAM ENGINE
@@ -148,6 +151,32 @@ function getClientIp(socket) {
   return socket.handshake.address || "unknown";
 }
 
+function messageIdempotencyKey(session, rawId, scope) {
+  if (rawId == null || rawId === "") return null;
+  const clientMessageId = String(rawId);
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(clientMessageId)) return false;
+  return `${session.profileId || session.sessionId}:${scope}:${clientMessageId}`;
+}
+function getIdempotentMessage(key) {
+  if (!key) return null;
+  const existing = idempotentMessages.get(key);
+  if (!existing) return null;
+  if (Date.now() - existing.createdAt > IDEMPOTENCY_TTL_MS) {
+    idempotentMessages.delete(key);
+    return null;
+  }
+  return existing.messageId;
+}
+function rememberIdempotentMessage(key, messageId) {
+  if (!key) return;
+  idempotentMessages.set(key, { messageId, createdAt: Date.now() });
+  while (idempotentMessages.size > IDEMPOTENCY_MAX_ENTRIES) {
+    const oldestKey = idempotentMessages.keys().next().value;
+    if (oldestKey === undefined) break;
+    idempotentMessages.delete(oldestKey);
+  }
+}
+
 function rateLimit(key, limit, windowMs) {
   const now = Date.now();
   const arr = (rateBuckets.get(key) || []).filter((t) => now - t < windowMs);
@@ -168,6 +197,9 @@ setInterval(() => {
       reactions.delete(mid);
       reactionTimes.delete(mid);
     }
+  }
+  for (const [key, entry] of idempotentMessages) {
+    if (now - entry.createdAt > IDEMPOTENCY_TTL_MS) idempotentMessages.delete(key);
   }
   for (const [mid, meta] of messageOwners) {
     if (now - meta.createdAt > MESSAGE_TTL) messageOwners.delete(mid);
@@ -949,13 +981,17 @@ io.on("connection", (socket) => {
   });
 
   // ---------- public chat ----------
-  socket.on("chat:public:send", ({ content, replyTo } = {}, ack) => {
+  socket.on("chat:public:send", ({ content, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
 
     const text = clean(String(content ?? "").trim());
     if (!text) return ack?.({ ok: false, error: "Empty message" });
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Message too long" });
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, "public");
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey);
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
       return ack?.({ ok: false, error: "Slow down â€” too many messages." });
@@ -975,6 +1011,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
+      rememberIdempotentMessage(idempotencyKey, msg.id);
       io.to(socket.id).emit("chat:public:message", msg);
       return ack?.({ ok: true, id: msg.id });
     }
@@ -993,6 +1030,7 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: errors[spam.reason] || "Slow down." });
     }
 
+    rememberIdempotentMessage(idempotencyKey, msg.id);
     broadcastPublicMessage(msg);
     ack?.({ ok: true, id: msg.id });
   });
@@ -1474,7 +1512,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------- room message ----------
-  socket.on("room:message", ({ roomId, content, replyTo } = {}, ack) => {
+  socket.on("room:message", ({ roomId, content, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
 
@@ -1505,6 +1543,10 @@ io.on("connection", (socket) => {
     const text = clean(String(content ?? "").trim());
     if (!text) return ack?.({ ok: false, error: "Empty" });
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `room:${roomId}`);
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey);
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
       return ack?.({ ok: false, error: "Slow down." });
@@ -1524,6 +1566,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
+      rememberIdempotentMessage(idempotencyKey, msg.id);
       const sid = findSocketBySession(s.sessionId);
       if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
@@ -1544,6 +1587,7 @@ io.on("connection", (socket) => {
     }
 
     room.lastMessageAt.set(s.sessionId, Date.now());
+    rememberIdempotentMessage(idempotencyKey, msg.id);
     broadcastRoomMessage(room, msg);
     ack?.({ ok: true, id: msg.id });
   });
