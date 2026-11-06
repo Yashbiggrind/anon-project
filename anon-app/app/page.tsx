@@ -86,7 +86,7 @@ type PrivateRoom = {
   messageLifetime?: number;
   mode?: "ask" | "open";
 };
-type BlockedUser = { sessionId: string; username: string };
+type BlockedUser = { profileId: string; sessionId?: string; username: string };
 type RoomListing = {
   roomId: string;
   topic: string;
@@ -100,6 +100,7 @@ type RoomListing = {
 };
 type ServerAck = {
   ok?: boolean;
+  persistent?: boolean;
   error?: string;
   id?: string;
   username?: string;
@@ -206,7 +207,7 @@ export default function Home() {
   /* v22 — new feature state */
   const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
     const [favoriteRooms, setFavoriteRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
-  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string } | null>(null);
+  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string; profileId?: string } | null>(null);
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
 
   /* v20.7 — DM state */
@@ -1180,7 +1181,7 @@ export default function Home() {
   const blockUser = useCallback((sessionId: string, username: string) => {
     socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: ServerAck) => {
       if (res?.ok) {
-        showToast(t("userBlocked", { name: username }), 2000);
+        showToast(res.persistent === false ? `${username} blocked for this session only.` : t("userBlocked", { name: username }), 2500);
         socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       } else {
         showToast(res?.error || t("couldNotBlock"));
@@ -1515,8 +1516,8 @@ export default function Home() {
     });
   }
 
-  function openProfile(sessionId: string, username: string) {
-    setProfileOpen({ sessionId, username });
+  function openProfile(sessionId: string, username: string, profileId?: string | null) {
+    setProfileOpen({ sessionId, username, profileId: profileId || undefined });
   }
 
   function createRoom(capacity: number) {
@@ -1685,8 +1686,8 @@ export default function Home() {
     showToast(t("reportSubmitted"));
   }
 
-  function unblockUser(sessionId: string, username: string) {
-    socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: ServerAck) => {
+  function unblockUser(profileId: string, username: string) {
+    socketRef.current?.emit("unblock:user", { profileId }, (res: ServerAck) => {
       if (res?.ok) {
         showToast(t("userUnblocked", { name: username }), 2000);
         socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
@@ -2781,9 +2782,9 @@ export default function Home() {
             <div className="pickList">
               {blockedList.length === 0 && <div className="muted" style={{ padding: "10px 0" }}>{t("notBlockedAnyone")}</div>}
               {blockedList.map((b) => (
-                <div key={b.sessionId} className="pickRow" style={{ cursor: "default" }}>
+                <div key={b.profileId} className="pickRow" style={{ cursor: "default" }}>
                   <span className="name">{b.username}</span>
-                  <button className="miniAct" onClick={() => unblockUser(b.sessionId, b.username)}>{t("unblock")}</button>
+                  <button className="miniAct" onClick={() => unblockUser(b.profileId, b.username)}>{t("unblock")}</button>
                 </div>
               ))}
             </div>
@@ -2840,7 +2841,7 @@ export default function Home() {
       {toast && <div className={`toast show toast-${toastKind}`}>{toast}</div>}
 
       {profileOpen && (() => {
-        const isBlockedUser = blockedList.some((b) => b.sessionId === profileOpen.sessionId);
+        const isBlockedUser = Boolean(profileOpen.profileId && blockedList.some((b) => b.profileId === profileOpen.profileId));
         const isSelf = profileOpen.sessionId === identity?.sessionId;
         return (
           <div className="modalbg show" onClick={() => setProfileOpen(null)}>
@@ -2866,7 +2867,7 @@ export default function Home() {
                     <button
                       className="primary"
                       onClick={() => {
-                        unblockUser(profileOpen.sessionId, profileOpen.username);
+                        unblockUser(profileOpen.profileId || "", profileOpen.username);
                         setProfileOpen(null);
                       }}
                     >↺ Unblock</button>

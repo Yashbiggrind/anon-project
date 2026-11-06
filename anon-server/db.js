@@ -169,6 +169,28 @@ function rowToReport(r) {
   };
 }
 
+// ---------- persistent profile blocks ----------
+function saveBlock(blockerProfileId, blockedProfileId, username) {
+  if (!ready || !blockerProfileId || !blockedProfileId) return false;
+  try {
+    db.prepare("INSERT INTO blocks (blocker_key, blocked_key, blocked_username, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(blocker_key, blocked_key) DO UPDATE SET blocked_username = excluded.blocked_username")
+      .run(String(blockerProfileId), String(blockedProfileId), String(username || "unknown").slice(0, 40), Date.now());
+    return true;
+  } catch (e) { console.error("[db] saveBlock:", e.message); return false; }
+}
+function deleteBlock(blockerProfileId, blockedProfileId) {
+  if (!ready || !blockerProfileId || !blockedProfileId) return false;
+  try { db.prepare("DELETE FROM blocks WHERE blocker_key = ? AND blocked_key = ?").run(String(blockerProfileId), String(blockedProfileId)); return true; }
+  catch (e) { console.error("[db] deleteBlock:", e.message); return false; }
+}
+function loadBlocks(blockerProfileId) {
+  if (!ready || !blockerProfileId) return [];
+  try {
+    return db.prepare("SELECT blocked_key AS profileId, blocked_username AS username FROM blocks WHERE blocker_key = ? ORDER BY created_at DESC")
+      .all(String(blockerProfileId)).map((row) => ({ profileId: row.profileId, username: row.username || "unknown" }));
+  } catch (e) { console.error("[db] loadBlocks:", e.message); return []; }
+}
+
 // ---------- strikes ----------
 function saveStrike(spamKey, s) {
   if (!ready) return;
@@ -275,6 +297,7 @@ module.exports = {
   isReady: () => ready,
   hashIp,
   saveReport, listReports, markReportReviewed,
+  saveBlock, deleteBlock, loadBlocks,
   saveStrike, deleteStrike, loadAllStrikes,
   logConnect, logDisconnect, purgeOldSessions,
   listSessions, getSessionCount,

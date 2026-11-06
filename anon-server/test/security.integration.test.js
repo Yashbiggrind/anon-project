@@ -119,6 +119,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const baseUrl = "http://127.0.0.1:" + port;
     await waitForHttp(baseUrl + "/", child, () => stdout + "\n" + stderr);
     const profileToken = "a".repeat(64);
+    const profileTokenB = "b".repeat(64);
     const fullResolutionAvatar = {
       background: "#0a0306",
       gridSize: 32,
@@ -128,7 +129,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
       autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
       auth: { profileToken, avatarDesign: fullResolutionAvatar },
     });
-    b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"] });
+    b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"], auth: { profileToken: profileTokenB } });
     const connectA = waitForEvent(a, "connect");
     const readyA = waitForEvent(a, "session:ready");
     const connectB = waitForEvent(b, "connect");
@@ -204,7 +205,19 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
 
+    const blockAck = await emitAck(a, "block:user", {
+      targetSessionId: identityB.sessionId,
+      targetUsername: identityB.username,
+    });
+    assert.equal(blockAck.ok, true, "blocking an active profile should succeed");
+    const blockedBeforeReconnect = await emitAck(a, "blocked:list", {});
+    assert.equal(blockedBeforeReconnect.ok, true);
+    assert.ok(blockedBeforeReconnect.blocked.some((entry) => entry.profileId === identityB.profileId));
+
+
     const originalProfileId = identityA.profileId;
+    b.disconnect();
+    b = null;
     a.disconnect();
     a = null;
     c = io(baseUrl, {
@@ -217,10 +230,17 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const [, identityAfterReload] = await Promise.all([reconnectConnect, reconnectReady]);
     assert.notEqual(identityAfterReload.sessionId, identityA.sessionId, "each socket connection still gets a fresh session ID");
     assert.equal(identityAfterReload.profileId, originalProfileId, "the anonymous profile ID must survive a reload");
+    const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
+    assert.equal(blockedAfterReconnect.ok, true);
+    assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
+    assert.equal(blockedAfterReconnect.blocked.find((entry) => entry.profileId === identityB.profileId).sessionId, "", "offline blocked users remain manageable without an active session");
+    const unblockAck = await emitAck(c, "unblock:user", { profileId: identityB.profileId });
+    assert.equal(unblockAck.ok, true, "unblocking must remove the persisted profile block");
+    const blockedAfterUnblock = await emitAck(c, "blocked:list", {});
+    assert.equal(blockedAfterUnblock.blocked.length, 0);
+
     assert.equal(identityAfterReload.avatarDesign.gridSize, 32, "the avatar must survive a reload at full resolution");
     c.disconnect();
-    b.disconnect();
-    b = null;
     c = null;
     await stopChild(child);
 
