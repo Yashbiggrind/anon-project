@@ -155,6 +155,26 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(Object.hasOwn(message, "senderSpamKey"), false, "broadcast messages must not expose anti-abuse keys");
     assert.equal(Object.hasOwn(message, "ip"), false);
 
+    let idempotentDeliveryCount = 0;
+    const countIdempotentDelivery = (candidate) => {
+      if (candidate.content === "idempotent-retry-message") idempotentDeliveryCount += 1;
+    };
+    b.on("chat:public:message", countIdempotentDelivery);
+    const idempotentPayload = {
+      content: "idempotent-retry-message",
+      clientMessageId: "client-idempotency-001",
+    };
+    const firstIdempotentAck = await emitAck(a, "chat:public:send", idempotentPayload);
+    assert.equal(firstIdempotentAck.ok, true);
+    await waitForEvent(b, "chat:public:message", (candidate) => candidate.content === "idempotent-retry-message");
+    const retryIdempotentAck = await emitAck(a, "chat:public:send", idempotentPayload);
+    assert.equal(retryIdempotentAck.ok, true);
+    assert.equal(retryIdempotentAck.id, firstIdempotentAck.id, "retry must return the original message ID");
+    assert.equal(retryIdempotentAck.deduplicated, true);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(idempotentDeliveryCount, 1, "retry must not broadcast a duplicate message");
+    b.off("chat:public:message", countIdempotentDelivery);
+
     const createPost = await emitAck(a, "confession:create", { text: "Shared feature test", author: "ForgedAuthor123" });
     assert.equal(createPost.ok, true);
     const listResult = await emitAck(b, "confession:list", {});
