@@ -60,16 +60,18 @@ type ChatMessage = {
   deleted?: boolean;
   image?: string;
   localSent?: boolean;
+  isBot?: boolean;
   deliveryStatus?: "pending" | "failed" | "unknown";
   replyTo?: { id: string; senderName: string; content: string };
 };
-type OnlineUser = { sessionId: string; profileId?: string | null; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null };
+type OnlineUser = { sessionId: string; profileId?: string | null; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null; isBot?: boolean };
 type Invite = { inviteId: string; from: { sessionId: string; username: string }; capacity: number; occupancy: number };
 type RoomParticipant = {
   sessionId: string;
   username: string;
   isAdmin: boolean;
   isHost: boolean;
+  isBot?: boolean;
   timedOutUntil: number;
 };
 type PrivateRoom = {
@@ -2063,6 +2065,7 @@ export default function Home() {
                       <div className="bubble">
                         <div className="meta">
                           <b>{m.senderName}</b>
+                          {m.isBot && <span className="editedTag">AI BOT</span>}
                           <span className="timeChip">{timeShort(m.createdAt)}</span>
                           <span className="missedTag">{t("missedTag")}</span>
                         </div>
@@ -2448,6 +2451,7 @@ export default function Home() {
                                 </span>
                                 <span className="memberName">
                                   {p.username}
+                                  {p.isBot && <span className="editedTag">AI BOT</span>}
                                   {isMe && <span className="youTag">you</span>}
                                 </span>
                                 {isTimedOut && <span className="timeoutTag" title="Timed out">⏱</span>}
@@ -2515,6 +2519,7 @@ export default function Home() {
                         <div className="online-row" key={u.sessionId}>
                           <span className="dot" style={{ background: u.accent }} />
                           <span className="name">{u.username}</span>
+                          {u.isBot && <span className="editedTag">AI BOT</span>}
                           <span className={`statusTag ${u.status === "in-room" ? "busy" : ""}`}>
                             {u.status === "in-room" ? t("inAPrivateRoom") : t("available")}
                           </span>
@@ -3127,6 +3132,7 @@ const MessageBubble = memo(
                   title="View profile"
                 >{m.senderName}</b>
               )}
+              {m.isBot && <span className="editedTag">AI BOT</span>}
               <button type="button" className="timeChip" title={timeFull(m.createdAt)} onClick={() => onToggleTime(m.id)}>
                 {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
               </button>
