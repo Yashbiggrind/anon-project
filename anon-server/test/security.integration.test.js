@@ -215,6 +215,8 @@ test("live server protects socket payloads, authorization, data flow, and persis
 
 
     const originalProfileId = identityA.profileId;
+    b.disconnect();
+    b = null;
     a.disconnect();
     a = null;
     c = io(baseUrl, {
@@ -230,6 +232,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
     assert.equal(blockedAfterReconnect.ok, true);
     assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
+    assert.equal(blockedAfterReconnect.blocked.find((entry) => entry.profileId === identityB.profileId).sessionId, "", "offline blocked users remain manageable without an active session");
     const unblockAck = await emitAck(c, "unblock:user", { profileId: identityB.profileId });
     assert.equal(unblockAck.ok, true, "unblocking must remove the persisted profile block");
     const blockedAfterUnblock = await emitAck(c, "blocked:list", {});
@@ -237,8 +240,6 @@ test("live server protects socket payloads, authorization, data flow, and persis
 
     assert.equal(identityAfterReload.avatarDesign.gridSize, 32, "the avatar must survive a reload at full resolution");
     c.disconnect();
-    b.disconnect();
-    b = null;
     c = null;
     await stopChild(child);
 
