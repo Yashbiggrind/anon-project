@@ -546,7 +546,7 @@ export default function Home() {
           const m = pendingMsgs[i];
           socket.timeout(10000).emit(
             "chat:public:send",
-            { content: m.content },
+            { content: m.content, clientMessageId: m.id },
             (error: Error | null, ack: ServerAck) => {
               if (error) {
                 setQueued(listQueue());
@@ -1409,7 +1409,7 @@ export default function Home() {
     if (socketRef.current) {
       socketRef.current.timeout(10000).emit(
         "chat:public:send",
-        { content: text, replyTo: replyPayload },
+        { content: text, replyTo: replyPayload, clientMessageId: tempId },
         (error: Error | null, ack: ServerAck) => {
           if (error) {
             setMessages((items) => items.map((item) =>
@@ -1452,7 +1452,7 @@ export default function Home() {
     startTransition(() => setPrivateMessages((p) => [...p.slice(-499), tempMsg]));
     socketRef.current.timeout(10000).emit(
       "room:message",
-      { roomId: room.roomId, content: text, replyTo: replyPayload },
+      { roomId: room.roomId, content: text, replyTo: replyPayload, clientMessageId: tempId },
       (error: Error | null, ack: ServerAck) => {
         if (error) {
           setPrivateMessages((items) => items.map((item) =>
