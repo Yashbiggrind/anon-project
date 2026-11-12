@@ -179,6 +179,22 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(idempotentDeliveryCount, 1, "retry must not broadcast a duplicate message");
     b.off("chat:public:message", countIdempotentDelivery);
 
+    const dmOpenAck = await emitAck(a, "dm:open", { targetSessionId: identityB.sessionId });
+    assert.equal(dmOpenAck.ok, true);
+    const dmMessagePayload = {
+      threadId: dmOpenAck.thread.threadId,
+      content: "idempotent-direct-message",
+      clientMessageId: "dm-idempotency-001",
+    };
+    const dmDelivery = waitForEvent(b, "dm:message", (candidate) => candidate.content === "idempotent-direct-message");
+    const dmFirstAck = await emitAck(a, "dm:send", dmMessagePayload);
+    assert.equal(dmFirstAck.ok, true);
+    await dmDelivery;
+    const dmRetryAck = await emitAck(a, "dm:send", dmMessagePayload);
+    assert.equal(dmRetryAck.ok, true);
+    assert.equal(dmRetryAck.id, dmFirstAck.id);
+    assert.equal(dmRetryAck.deduplicated, true, "direct-message retry must not create a second message");
+
     const createPost = await emitAck(a, "confession:create", { text: "Shared feature test", author: "ForgedAuthor123" });
     assert.equal(createPost.ok, true);
     const listResult = await emitAck(b, "confession:list", {});

@@ -215,6 +215,7 @@ export default function Home() {
   const [dmMessages, setDmMessages] = useState<DMMessage[]>([]);
   const [dmTypingFrom, setDmTypingFrom] = useState<{ username: string; at: number } | null>(null);
   const dmInputRef = useRef<HTMLInputElement>(null);
+  const dmRetryRef = useRef<{ threadId: string; content: string; id: string } | null>(null);
   const dmMsgsRef = useRef<HTMLDivElement>(null);
   const dmLastTypingRef = useRef(0);
 
@@ -1236,10 +1237,39 @@ export default function Home() {
   const sendDm = useCallback(() => {
     const el = dmInputRef.current;
     const text = (el?.value ?? "").trim();
-    if (!text || !dmPanel?.threadId) return;
+    const threadId = dmPanel?.threadId;
+    if (!text || !threadId) return;
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      showToast("Reconnect before sending this direct message.");
+      return;
+    }
+    const previous = dmRetryRef.current;
+    const clientMessageId = previous && previous.threadId === threadId && previous.content === text
+      ? previous.id
+      : `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const retryRecord = { threadId, content: text, id: clientMessageId };
+    dmRetryRef.current = retryRecord;
     if (el) el.value = "";
-    socketRef.current?.emit("dm:send", { threadId: dmPanel.threadId, content: text }, () => {});
-  }, [dmPanel]);
+    socket.timeout(10000).emit("dm:send", {
+      threadId,
+      content: text,
+      clientMessageId,
+    }, (error: Error | null, response: ServerAck) => {
+      if (error) {
+        if (el && !el.value) el.value = text;
+        showToast("Direct message delivery is uncertain. Resend the same text to retry safely.");
+        return;
+      }
+      if (!response?.ok) {
+        if (dmRetryRef.current?.id === clientMessageId) dmRetryRef.current = null;
+        if (el && !el.value) el.value = text;
+        showToast(response?.error || "Direct message could not be sent.");
+        return;
+      }
+      if (dmRetryRef.current?.id === clientMessageId) dmRetryRef.current = null;
+    });
+  }, [dmPanel, showToast]);
 
   const notifyDmTyping = useCallback(() => {
     if (!dmPanel?.threadId) return;
