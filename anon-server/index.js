@@ -1775,6 +1775,11 @@ io.on("connection", (socket) => {
     if (meta.roomId) {
       const room = rooms.get(meta.roomId);
       if (room && room.status === "active") {
+        const historical = (room.messages || []).find((message) => message.id === String(messageId));
+        if (historical) {
+          historical.content = text;
+          historical.editedAt = payload.editedAt;
+        }
         for (const p of room.participants) {
           if (isMutuallyBlocked(p.sessionId, s.sessionId)) continue;
           const sid = findSocketBySession(p.sessionId);
@@ -1812,6 +1817,8 @@ io.on("connection", (socket) => {
     if (meta.roomId) {
       const room = rooms.get(meta.roomId);
       if (room && room.status === "active") {
+        const historyIndex = (room.messages || []).findIndex((message) => message.id === String(messageId));
+        if (historyIndex >= 0) room.messages.splice(historyIndex, 1);
         for (const p of room.participants) {
           if (isMutuallyBlocked(p.sessionId, s.sessionId)) continue;
           const sid = findSocketBySession(p.sessionId);
