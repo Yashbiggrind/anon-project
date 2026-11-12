@@ -2213,53 +2213,60 @@ function initBots() {
   }
   console.log("[bots] " + BOT_ACTIVITY.activeBots.size + " bots initialized");
   setInterval(botTick, BOT_ACTIVITY.intervalMs);
-  setTimeout(botPublicChat, 4000);
+  setTimeout(botTick, 4000);
 }
 
+let botTickRunning = false;
+
 async function botTick() {
-  if (!BOT_ACTIVITY.enabled) return;
-  await botPublicChat();
+  if (!BOT_ACTIVITY.enabled || botTickRunning) return;
+  botTickRunning = true;
+  try {
+    await botPublicChat();
 
-  for (const room of rooms.values()) {
-    // AI providers must never receive messages from ordinary user-created rooms.
-    if (room.status !== "active" || !room.isBotRoom) continue;
-    const botMembers = room.participants.filter(p => p.sessionId.startsWith("bot_"));
-    if (botMembers.length === 0) continue;
-    if (Math.random() > 0.3) continue;
+    for (const room of rooms.values()) {
+      // AI providers must never receive messages from ordinary user-created rooms.
+      if (room.status !== "active" || !room.isBotRoom) continue;
+      const botMembers = room.participants.filter(p => p.sessionId.startsWith("bot_"));
+      if (botMembers.length === 0) continue;
+      if (Math.random() > 0.3) continue;
 
-    const bot = botMembers[Math.floor(Math.random() * botMembers.length)];
-    const profile = getBotByName(bot.username);
-    if (!profile) continue;
+      const bot = botMembers[Math.floor(Math.random() * botMembers.length)];
+      const profile = getBotByName(bot.username);
+      if (!profile) continue;
 
-    const lastMsg = (room.messages || []).slice().reverse().find(m => !m.isBot);
-    const lastContent = lastMsg ? lastMsg.content : null;
+      const lastMsg = (room.messages || []).slice().reverse().find(m => !m.isBot);
+      const lastContent = lastMsg ? lastMsg.content : null;
 
-    try {
-      const content = await generateBotMessage(profile, {
-        topic: room.topic,
-        lastMessage: lastContent,
-        roomType: "public"
-      });
-      const msg = {
-        id: "bot_" + Math.random().toString(36).slice(2, 10),
-        senderSessionId: bot.sessionId,
-        senderSpamKey: bot.spamKey,
-        senderName: bot.username,
-        content,
-        createdAt: Date.now(),
-        isBot: true
-      };
-      if (!room.messages) room.messages = [];
-      room.messages.push(msg);
-      if (room.messages.length > 200) room.messages.shift();
-      broadcastRoomMessage(room, msg);
-    } catch (e) {
-      console.error("[bots] private reply failed:", e.message);
+      try {
+        const content = await generateBotMessage(profile, {
+          topic: room.topic,
+          lastMessage: lastContent,
+          roomType: "public"
+        });
+        const msg = {
+          id: "bot_" + Math.random().toString(36).slice(2, 10),
+          senderSessionId: bot.sessionId,
+          senderSpamKey: bot.spamKey,
+          senderName: bot.username,
+          content,
+          createdAt: Date.now(),
+          isBot: true
+        };
+        if (!room.messages) room.messages = [];
+        room.messages.push(msg);
+        if (room.messages.length > 200) room.messages.shift();
+        broadcastRoomMessage(room, msg);
+      } catch (e) {
+        console.error("[bots] AI-room reply failed:", e.message);
+      }
     }
-  }
 
-  if (Math.random() < 0.15) botJoinRoom();
-  if (Math.random() < 0.05) botCreateRoom();
+    if (Math.random() < 0.15) botJoinRoom();
+    if (Math.random() < 0.05) botCreateRoom();
+  } finally {
+    botTickRunning = false;
+  }
 }
 
 async function botPublicChat() {
