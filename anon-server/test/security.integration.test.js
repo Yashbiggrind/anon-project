@@ -343,6 +343,15 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(retryAfterReconnect.ok, true);
     assert.equal(retryAfterReconnect.id, firstIdempotentAck.id, "the same profile can safely retry after reconnecting");
     assert.equal(retryAfterReconnect.deduplicated, true);
+    const editAfterReconnect = await emitAck(c, "message:edit", {
+      messageId: firstIdempotentAck.id,
+      content: "Edited after reconnect",
+    });
+    assert.equal(editAfterReconnect.ok, true, "stable profile owners can edit their earlier messages after reconnecting");
+    const deleteAfterReconnect = await emitAck(c, "message:delete", { messageId: firstIdempotentAck.id });
+    assert.equal(deleteAfterReconnect.ok, true, "stable profile owners can delete their earlier messages after reconnecting");
+    const historyAfterDelete = await emitAck(c, "messages:since", { since: 0 });
+    assert.equal(historyAfterDelete.messages.some((message) => message.id === firstIdempotentAck.id), false);
     const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
     assert.equal(blockedAfterReconnect.ok, true);
     assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
