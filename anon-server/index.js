@@ -2187,6 +2187,7 @@ const { BOT_PROFILES, generateBotMessage, getBotByName } = require("./bots");
 
 const BOT_ACTIVITY = {
   enabled: process.env.ENABLE_BOTS !== "false",
+  activityEnabled: process.env.ENABLE_BOT_ACTIVITY !== "false",
   intervalMs: 15000,
   activeBots: new Map(),
   lastCall: 0,
@@ -2217,14 +2218,18 @@ function initBots() {
     BOT_ACTIVITY.activeBots.set(sessionId, profile);
   }
   console.log("[bots] " + BOT_ACTIVITY.activeBots.size + " bots initialized");
-  setInterval(botTick, BOT_ACTIVITY.intervalMs);
-  setTimeout(botTick, 4000);
+  if (BOT_ACTIVITY.activityEnabled) {
+    setInterval(botTick, BOT_ACTIVITY.intervalMs);
+    setTimeout(botTick, 4000);
+  } else {
+    console.log("[bots] activity timers disabled via ENABLE_BOT_ACTIVITY=false");
+  }
 }
 
 let botTickRunning = false;
 
 async function botTick() {
-  if (!BOT_ACTIVITY.enabled || botTickRunning) return;
+  if (!BOT_ACTIVITY.enabled || !BOT_ACTIVITY.activityEnabled || botTickRunning) return;
   botTickRunning = true;
   try {
     await botPublicChat();
