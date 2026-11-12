@@ -1,4 +1,6 @@
-﻿// admin.js — v21.4 ANON admin dashboard
+﻿const crypto = require("node:crypto");
+
+// admin.js — v21.4 ANON admin dashboard
 // Routes: GET /admin?token=XXX | GET /api/admin/* | POST /api/admin/reports/:id/review
 // v21.4 — adds session log export (Rule 3(1)(i))
 
@@ -7,14 +9,14 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
-function renderPage() {
+function renderPage(nonce) {
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>ANON// admin</title>
-<style>
+<style nonce="${nonce}">
   :root{--red:#e11d48;--red-hi:#ff2d55;--ink:#020104;--text:#e8dde2;--dim:#8a7276;--line:#24080f;}
   *{box-sizing:border-box}
   body{margin:0;background:#020104;color:#e8dde2;font-family:'Courier New',monospace;font-size:13px;padding:20px}
@@ -70,6 +72,7 @@ function renderPage() {
     <button id="refresh">⟳ Refresh</button>
     <button id="openExport" style="margin-left:auto;">⇩ Export Sessions</button>
   </div>
+  <div class="dim" style="margin:-6px 0 14px;line-height:1.5;">Review actions record an administrator decision only. They do not currently apply a live warning or shadow-ban to a user profile.</div>
 
   <div id="exportPanel" style="display:none;margin-bottom:14px;padding:14px;background:#0c0407;border:1px solid #24080f;border-radius:8px;">
     <div style="font-size:11px;letter-spacing:2px;color:#7c5a63;text-transform:uppercase;margin-bottom:10px;">Session Log Export — Rule 3(1)(i)</div>
@@ -97,7 +100,7 @@ function renderPage() {
   <div class="footer">auto-refresh every 30s · <span id="lastUpdate"></span></div>
   </div>
 
-<script>
+<script nonce="${nonce}">
 let TOKEN = "";
 let refreshTimer = null;
 let filter = "unreviewed";
@@ -151,7 +154,10 @@ function ago(ts) {
 async function loadStats() {
   const r = await apiFetch("/api/admin/stats");
   const j = await r.json();
-  if (!j.ok) return;
+  if (!r.ok || !j.ok) {
+    document.getElementById("stats").innerHTML = '<div class="empty">Admin statistics are unavailable. Check the database connection.</div>';
+    return;
+  }
   const s = j.stats || {};
   const live = j.live || {};
   document.getElementById("stats").innerHTML = \`
@@ -168,9 +174,12 @@ async function loadReports() {
   const q = filter === "unreviewed" ? "?unreviewed=1" : "";
   const r = await apiFetch("/api/admin/reports" + q);
   const j = await r.json();
-  if (!j.ok) return;
-  const list = j.reports || [];
   const el = document.getElementById("reports");
+  if (!r.ok || !j.ok) {
+    el.innerHTML = '<div class="empty">Reports are unavailable. Check the database connection and try again.</div>';
+    return;
+  }
+  const list = j.reports || [];
   if (!list.length) {
     el.innerHTML = '<div class="empty">No reports to review. Quiet out there.</div>';
   } else {
@@ -185,9 +194,9 @@ async function loadReports() {
         <td>\${r.reviewed ? '<span class="tag done">reviewed</span>' : '<span class="tag new">new</span>'}</td>
         <td>
           \${!r.reviewed ? \`
-            <button class="act primary" data-id="\${r.id}" data-action="dismiss">Dismiss</button>
-            <button class="act" data-id="\${r.id}" data-action="warned">Warn</button>
-            <button class="act" data-id="\${r.id}" data-action="shadow-banned">Shadow-ban</button>
+            <button class="act primary" data-id="\${r.id}" data-action="dismiss">Record dismissal</button>
+            <button class="act" data-id="\${r.id}" data-action="warned">Record warning</button>
+            <button class="act" data-id="\${r.id}" data-action="shadow-banned">Record shadow-ban</button>
           \` : \`<span class="dim">\${esc(r.actionTaken || "—")}</span>\`}
         </td>
       </tr>
@@ -198,13 +207,21 @@ async function loadReports() {
 
 async function act(id, action) {
   if (!confirm("Mark this report as: " + action + "?")) return;
-  await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action }),
-  });
-  loadReports();
-  loadStats();
+  try {
+    const response = await apiFetch("/api/admin/reports/" + encodeURIComponent(id) + "/review", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    });
+    const result = await response.json();
+    if (!response.ok || !result.ok) {
+      alert(result.error || "The review decision could not be saved. Please try again.");
+      return;
+    }
+    await Promise.all([loadReports(), loadStats()]);
+  } catch (error) {
+    alert(error instanceof Error ? error.message : "The review decision could not be saved.");
+  }
 }
 
 document.addEventListener("click", (e) => {
@@ -298,22 +315,78 @@ document.getElementById("exCsv").addEventListener("click", async () => {
 }
 
 function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN }) {
+  const authFailures = new Map();
+  const AUTH_WINDOW_MS = 5 * 60 * 1000;
+  const AUTH_MAX_FAILURES = 10;
+  const AUTH_MAX_KEYS = 5000;
+
+  function requireDatabase(_req, res, next) {
+    if (!db.isReady()) {
+      return res.status(503).json({ ok: false, error: "Database unavailable; stored records cannot be read or changed." });
+    }
+    next();
+  }
+
   function checkToken(req, res, next) {
+    res.setHeader("Cache-Control", "no-store");
     if (!ADMIN_TOKEN) return res.status(500).json({ ok: false, error: "ADMIN_TOKEN not set on server" });
+
+    const now = Date.now();
+    const clientKey = String(req.ip || req.socket?.remoteAddress || "unknown").slice(0, 100);
+    const recent = (authFailures.get(clientKey) || []).filter((at) => now - at < AUTH_WINDOW_MS);
     const authorization = String(req.headers.authorization || "");
     const bearer = authorization.match(/^Bearer\s+(.+)$/i);
-    const token = req.headers["x-admin-token"] || (bearer ? bearer[1] : "");
-    if (!token || token !== ADMIN_TOKEN) return res.status(401).json({ ok: false, error: "Unauthorized" });
-    next();
+    const token = String(req.headers["x-admin-token"] || (bearer ? bearer[1] : ""));
+    const supplied = Buffer.from(token);
+    const expected = Buffer.from(String(ADMIN_TOKEN));
+    const valid = supplied.length === expected.length && crypto.timingSafeEqual(supplied, expected);
+
+    // A correct token always succeeds; failed attempts only throttle further failures.
+    if (valid) {
+      authFailures.delete(clientKey);
+      return next();
+    }
+    if (recent.length >= AUTH_MAX_FAILURES) {
+      const retryAfter = Math.max(1, Math.ceil((recent[0] + AUTH_WINDOW_MS - now) / 1000));
+      res.setHeader("Retry-After", String(retryAfter));
+      authFailures.set(clientKey, recent);
+      return res.status(429).json({ ok: false, error: "Too many failed admin sign-in attempts. Try again later." });
+    }
+
+    recent.push(now);
+    authFailures.set(clientKey, recent);
+    if (authFailures.size > AUTH_MAX_KEYS) {
+      for (const [key, attempts] of authFailures) {
+        if (!attempts.length || now - attempts[attempts.length - 1] >= AUTH_WINDOW_MS) authFailures.delete(key);
+        if (authFailures.size <= AUTH_MAX_KEYS) break;
+      }
+      if (authFailures.size > AUTH_MAX_KEYS) authFailures.delete(authFailures.keys().next().value);
+    }
+    return res.status(401).json({ ok: false, error: "Unauthorized" });
   }
 
   app.get("/admin", (req, res) => {
     if (!ADMIN_TOKEN) return res.status(500).send("ADMIN_TOKEN not configured. Set it in .env and restart.");
+    const nonce = crypto.randomBytes(18).toString("base64");
+    const policy = [
+      "default-src 'none'",
+      `script-src 'self' 'nonce-${nonce}'`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data:",
+      "font-src 'self'",
+      "connect-src 'self'",
+      "object-src 'none'",
+      "base-uri 'none'",
+      "form-action 'self'",
+      "frame-ancestors 'none'",
+    ].join("; ");
     res.setHeader("Cache-Control", "no-store");
-    res.type("html").send(renderPage());
+    res.setHeader("Content-Security-Policy", policy);
+    res.setHeader("X-Frame-Options", "DENY");
+    res.type("html").send(renderPage(nonce));
   });
 
-  app.get("/api/admin/stats", checkToken, (_req, res) => {
+  app.get("/api/admin/stats", checkToken, requireDatabase, (_req, res) => {
     res.json({
       ok: true,
       stats: db.getStats() || {},
@@ -321,22 +394,24 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     });
   });
 
-  app.get("/api/admin/reports", checkToken, (req, res) => {
+  app.get("/api/admin/reports", checkToken, requireDatabase, (req, res) => {
     const onlyUnreviewed = req.query.unreviewed === "1";
     const limit = Math.min(500, parseInt(req.query.limit, 10) || 100);
     res.json({ ok: true, reports: db.listReports(limit, onlyUnreviewed) });
   });
 
-  app.post("/api/admin/reports/:id/review", checkToken, (req, res) => {
+  app.post("/api/admin/reports/:id/review", checkToken, requireDatabase, (req, res) => {
     const id = String(req.params.id || "");
     const action = String(req.body?.action || "").slice(0, 100);
     if (!id) return res.status(400).json({ ok: false, error: "Missing id" });
-    db.markReportReviewed(id, action);
+    if (!db.markReportReviewed(id, action)) {
+      return res.status(500).json({ ok: false, error: "Report review could not be saved." });
+    }
     res.json({ ok: true });
   });
 
   // v21.4 — session log export (Rule 3(1)(i) — lawful order response)
-  app.get("/api/admin/sessions", checkToken, (req, res) => {
+  app.get("/api/admin/sessions", checkToken, requireDatabase, (req, res) => {
     const since = parseInt(req.query.since, 10) || 0;
     const until = parseInt(req.query.until, 10) || Date.now();
     const ipHash = req.query.ip ? String(req.query.ip).slice(0, 64) : null;
@@ -347,7 +422,7 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     res.json({ ok: true, count: rows.length, sessions: rows });
   });
 
-  app.get("/api/admin/sessions.csv", checkToken, (req, res) => {
+  app.get("/api/admin/sessions.csv", checkToken, requireDatabase, (req, res) => {
     const since = parseInt(req.query.since, 10) || 0;
     const until = parseInt(req.query.until, 10) || Date.now();
     const ipHash = req.query.ip ? String(req.query.ip).slice(0, 64) : null;
