@@ -1326,22 +1326,54 @@ export default function Home() {
     setImageUploading(true);
     try {
       const b64 = await compressImage(file);
+      const socket = socketRef.current;
+      if (!socket?.connected) {
+        showToast("Reconnect before sending this image. Please select it again after reconnecting.", 4500, "error");
+        return;
+      }
       const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
+      const clientMessageId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
       if (imageTarget === "public") {
         const caption = (inputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
-          if (!ack?.ok) showToast(ack?.error || "Failed to send");
+        await new Promise<void>((resolve) => {
+          socket.timeout(10_000).emit(
+            "chat:public:image",
+            { image: b64, caption, replyTo: replyPayload, clientMessageId },
+            (error: Error | null, ack: ServerAck) => {
+              if (error) {
+                showToast("Image delivery is uncertain. Check the chat before selecting it again.", 5000, "error");
+              } else if (!ack?.ok) {
+                showToast(ack?.error || "Image was not sent.", 4000, "error");
+              } else {
+                if (inputRef.current?.value.trim() === caption) inputRef.current.value = "";
+                setReplyTo(null);
+              }
+              resolve();
+            }
+          );
         });
-        if (inputRef.current) inputRef.current.value = "";
       } else {
         if (!room) { showToast("No room"); return; }
         const caption = (privateInputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
-          if (!ack?.ok) showToast(ack?.error || "Failed to send");
+        await new Promise<void>((resolve) => {
+          socket.timeout(10_000).emit(
+            "room:image",
+            { roomId: room.roomId, image: b64, caption, replyTo: replyPayload, clientMessageId },
+            (error: Error | null, ack: ServerAck) => {
+              if (error) {
+                showToast("Image delivery is uncertain. Check the room before selecting it again.", 5000, "error");
+              } else if (!ack?.ok) {
+                showToast(ack?.error || "Image was not sent.", 4000, "error");
+              } else {
+                if (privateInputRef.current?.value.trim() === caption) privateInputRef.current.value = "";
+                setReplyTo(null);
+              }
+              resolve();
+            }
+          );
         });
-        if (privateInputRef.current) privateInputRef.current.value = "";
       }
-      setReplyTo(null);
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Image failed"); }
     finally { setImageUploading(false); }
   }
