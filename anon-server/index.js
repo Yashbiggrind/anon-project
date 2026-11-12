@@ -1018,7 +1018,7 @@ io.on("connection", (socket) => {
       createdAt: Date.now(),
       replyTo: sanitizeReply(replyTo),
     };
-    messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId: null, createdAt: Date.now() });
+    messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
       rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
@@ -1067,7 +1067,7 @@ io.on("connection", (socket) => {
       createdAt: Date.now(),
       replyTo: sanitizeReply(replyTo),
     };
-    messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId: null, createdAt: Date.now() });
+    messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
       io.to(socket.id).emit("chat:public:message", msg);
@@ -1574,7 +1574,7 @@ io.on("connection", (socket) => {
       createdAt: Date.now(),
       replyTo: sanitizeReply(replyTo),
     };
-    messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId, createdAt: Date.now() });
+    messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
       rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
@@ -1640,7 +1640,7 @@ io.on("connection", (socket) => {
       createdAt: Date.now(),
       replyTo: sanitizeReply(replyTo),
     };
-    messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId, createdAt: Date.now() });
+    messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
       const sid = findSocketBySession(s.sessionId);
@@ -1725,7 +1725,9 @@ io.on("connection", (socket) => {
     if (!messageId) return ack?.({ ok: false, error: "Missing id" });
     const meta = messageOwners.get(String(messageId));
     if (!meta) return ack?.({ ok: false, error: "Message not found" });
-    if (meta.senderSessionId !== s.sessionId) return ack?.({ ok: false, error: "Not your message" });
+    const ownsMessage = meta.senderSessionId === s.sessionId ||
+      (s.hasStableProfile && meta.senderProfileId && meta.senderProfileId === s.profileId);
+    if (!ownsMessage) return ack?.({ ok: false, error: "Not your message" });
     const text = clean(String(content ?? "").trim());
     if (!text) return ack?.({ ok: false, error: "Empty" });
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
@@ -1762,7 +1764,9 @@ io.on("connection", (socket) => {
     if (!messageId) return ack?.({ ok: false, error: "Missing id" });
     const meta = messageOwners.get(String(messageId));
     if (!meta) return ack?.({ ok: false, error: "Message not found" });
-    if (meta.senderSessionId !== s.sessionId) return ack?.({ ok: false, error: "Not your message" });
+    const ownsMessage = meta.senderSessionId === s.sessionId ||
+      (s.hasStableProfile && meta.senderProfileId && meta.senderProfileId === s.profileId);
+    if (!ownsMessage) return ack?.({ ok: false, error: "Not your message" });
     messageOwners.delete(String(messageId));
     // A deleted public message must not reappear through messages:since.
     if (!meta.roomId) {
