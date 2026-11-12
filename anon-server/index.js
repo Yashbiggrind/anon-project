@@ -862,6 +862,7 @@ io.on("connection", (socket) => {
     status: "available",
     avatarDesign: initialAvatarDesign,
     blocked: new Map(hasStableProfile ? db.loadBlocks(profileId).map((entry) => [entry.profileId, entry.username]) : []),
+    sessionOnlyBlocks: new Set(),
   };
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
@@ -2061,6 +2062,8 @@ io.on("connection", (socket) => {
     // When browser storage is unavailable, retain a session-only block rather than
     // persisting an identity that cannot survive reconnects.
     s.blocked.set(targetSession.profileId, username);
+    if (canPersist) s.sessionOnlyBlocks.delete(targetSession.profileId);
+    else s.sessionOnlyBlocks.add(targetSession.profileId);
 
     const roomId = sessionRooms.get(s.sessionId);
     if (roomId) {
@@ -2080,10 +2083,10 @@ io.on("connection", (socket) => {
     if (!/^profile_[a-z0-9]{8,64}$/.test(targetProfileId) || !s.blocked.has(targetProfileId)) {
       return ack?.({ ok: false, error: "Invalid block entry" });
     }
-    // Session-only blocks have no durable row to delete. If this is a
-    // stable profile, fail closed while SQLite is unavailable so the UI
-    // cannot claim a persistent block was removed when it will reappear.
-    if (s.hasStableProfile) {
+    // Session-only blocks have no durable row to delete. For persisted blocks,
+    // fail closed while SQLite is unavailable so they cannot silently reappear.
+    const isSessionOnly = s.sessionOnlyBlocks.has(targetProfileId) || !s.hasStableProfile;
+    if (!isSessionOnly) {
       if (db.isReady?.() !== true) {
         return ack?.({ ok: false, error: "Block storage is temporarily unavailable. Please try again." });
       }
@@ -2092,8 +2095,9 @@ io.on("connection", (socket) => {
       }
     }
     s.blocked.delete(targetProfileId);
+    s.sessionOnlyBlocks.delete(targetProfileId);
     broadcastOnline();
-    ack?.({ ok: true, persistent: s.hasStableProfile });
+    ack?.({ ok: true, persistent: !isSessionOnly });
   });
 
   socket.on("blocked:list", (_payload, ack) => {
