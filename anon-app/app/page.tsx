@@ -60,15 +60,18 @@ type ChatMessage = {
   deleted?: boolean;
   image?: string;
   localSent?: boolean;
+  isBot?: boolean;
+  deliveryStatus?: "pending" | "failed" | "unknown";
   replyTo?: { id: string; senderName: string; content: string };
 };
-type OnlineUser = { sessionId: string; profileId?: string | null; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null };
+type OnlineUser = { sessionId: string; profileId?: string | null; username: string; accent: string; status: string; avatarDesign?: AvatarDesign | null; isBot?: boolean };
 type Invite = { inviteId: string; from: { sessionId: string; username: string }; capacity: number; occupancy: number };
 type RoomParticipant = {
   sessionId: string;
   username: string;
   isAdmin: boolean;
   isHost: boolean;
+  isBot?: boolean;
   timedOutUntil: number;
 };
 type PrivateRoom = {
@@ -83,7 +86,7 @@ type PrivateRoom = {
   messageLifetime?: number;
   mode?: "ask" | "open";
 };
-type BlockedUser = { sessionId: string; username: string };
+type BlockedUser = { profileId: string; sessionId?: string; username: string };
 type RoomListing = {
   roomId: string;
   topic: string;
@@ -97,6 +100,7 @@ type RoomListing = {
 };
 type ServerAck = {
   ok?: boolean;
+  persistent?: boolean;
   error?: string;
   id?: string;
   username?: string;
@@ -203,7 +207,7 @@ export default function Home() {
   /* v22 — new feature state */
   const [recentRooms, setRecentRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
     const [favoriteRooms, setFavoriteRooms] = useState<Array<{ roomId: string; topic: string; at: number }>>([]);
-  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string } | null>(null);
+  const [profileOpen, setProfileOpen] = useState<{ sessionId: string; username: string; profileId?: string } | null>(null);
   const [toastKind, setToastKind] = useState<"info" | "success" | "error">("info");
 
   /* v20.7 — DM state */
@@ -535,13 +539,31 @@ export default function Home() {
       if (pendingMsgs.length > 0) {
         let i = 0;
         const sendNext = () => {
-          if (i >= pendingMsgs.length) { setQueued([]); return; }
+          if (i >= pendingMsgs.length) {
+            setQueued(listQueue());
+            return;
+          }
           const m = pendingMsgs[i];
-          socket.emit("chat:public:send", { content: m.content }, (ack: ServerAck) => {
-            if (ack?.ok) removeQueue(m.id);
-            i++;
-            sendNext();
-          });
+          socket.timeout(10000).emit(
+            "chat:public:send",
+            { content: m.content, clientMessageId: m.id },
+            (error: Error | null, ack: ServerAck) => {
+              if (error) {
+                setQueued(listQueue());
+                showToast("Could not confirm a queued message. It remains saved on this device.", 4500, "error");
+                return;
+              }
+              if (!ack?.ok) {
+                setQueued(listQueue());
+                showToast(ack?.error || "A queued message was not accepted. It remains saved on this device.", 4500, "error");
+                return;
+              }
+              removeQueue(m.id);
+              setQueued(listQueue());
+              i++;
+              sendNext();
+            }
+          );
         };
         sendNext();
       }
@@ -1159,7 +1181,7 @@ export default function Home() {
   const blockUser = useCallback((sessionId: string, username: string) => {
     socketRef.current?.emit("block:user", { targetSessionId: sessionId, targetUsername: username }, (res: ServerAck) => {
       if (res?.ok) {
-        showToast(t("userBlocked", { name: username }), 2000);
+        showToast(res.persistent === false ? `${username} blocked for this session only.` : t("userBlocked", { name: username }), 2500);
         socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
       } else {
         showToast(res?.error || t("couldNotBlock"));
@@ -1380,11 +1402,30 @@ export default function Home() {
       content: text,
       createdAt: Date.now(),
       localSent: true,
+      deliveryStatus: "pending",
       replyTo: replyPayload,
     };
     startTransition(() => setMessages((p) => [...p.slice(-499), tempMsg]));
     if (socketRef.current) {
-      socketRef.current.emit("chat:public:send", { content: text, replyTo: replyPayload }, () => {});
+      socketRef.current.timeout(10000).emit(
+        "chat:public:send",
+        { content: text, replyTo: replyPayload, clientMessageId: tempId },
+        (error: Error | null, ack: ServerAck) => {
+          if (error) {
+            setMessages((items) => items.map((item) =>
+              item.id === tempId ? { ...item, deliveryStatus: "unknown" } : item
+            ));
+            showToast("Message delivery could not be confirmed. Check the chat before sending it again.", 4500, "error");
+            return;
+          }
+          if (!ack?.ok) {
+            setMessages((items) => items.map((item) =>
+              item.id === tempId ? { ...item, deliveryStatus: "failed" } : item
+            ));
+            showToast(ack?.error || "Message was not sent.", 4000, "error");
+          }
+        }
+      );
     }
     setReplyTo(null);
   }
@@ -1405,10 +1446,29 @@ export default function Home() {
       content: text,
       createdAt: Date.now(),
       localSent: true,
+      deliveryStatus: "pending",
       replyTo: replyPayload,
     };
     startTransition(() => setPrivateMessages((p) => [...p.slice(-499), tempMsg]));
-    socketRef.current.emit("room:message", { roomId: room.roomId, content: text, replyTo: replyPayload }, () => {});
+    socketRef.current.timeout(10000).emit(
+      "room:message",
+      { roomId: room.roomId, content: text, replyTo: replyPayload, clientMessageId: tempId },
+      (error: Error | null, ack: ServerAck) => {
+        if (error) {
+          setPrivateMessages((items) => items.map((item) =>
+            item.id === tempId ? { ...item, deliveryStatus: "unknown" } : item
+          ));
+          showToast("Private message delivery could not be confirmed. Check the room before sending it again.", 4500, "error");
+          return;
+        }
+        if (!ack?.ok) {
+          setPrivateMessages((items) => items.map((item) =>
+            item.id === tempId ? { ...item, deliveryStatus: "failed" } : item
+          ));
+          showToast(ack?.error || "Private message was not sent.", 4000, "error");
+        }
+      }
+    );
     setReplyTo(null);
   }
 
@@ -1456,8 +1516,8 @@ export default function Home() {
     });
   }
 
-  function openProfile(sessionId: string, username: string) {
-    setProfileOpen({ sessionId, username });
+  function openProfile(sessionId: string, username: string, profileId?: string | null) {
+    setProfileOpen({ sessionId, username, profileId: profileId || undefined });
   }
 
   function createRoom(capacity: number) {
@@ -1617,20 +1677,32 @@ export default function Home() {
 
   function sendReport(reason: string) {
     if (!reportOpen) return;
-    socketRef.current?.emit("report:user", {
+    const socket = socketRef.current;
+    if (!socket?.connected) {
+      showToast("Reconnect before submitting this report.");
+      return;
+    }
+    socket.timeout(10000).emit("report:user", {
       targetSessionId: reportOpen.sessionId,
       targetUsername: reportOpen.username,
       reason,
-    }, () => {});
-    setReportOpen(null);
-    showToast(t("reportSubmitted"));
+    }, (error: Error | null, response: ServerAck) => {
+      if (error || !response?.ok) {
+        showToast(response?.error || "Report could not be submitted. Please try again.");
+        return;
+      }
+      setReportOpen(null);
+      showToast(t("reportSubmitted"));
+    });
   }
 
-  function unblockUser(sessionId: string, username: string) {
-    socketRef.current?.emit("unblock:user", { targetSessionId: sessionId }, (res: ServerAck) => {
+  function unblockUser(profileId: string, username: string) {
+    socketRef.current?.emit("unblock:user", { profileId }, (res: ServerAck) => {
       if (res?.ok) {
-        showToast(t("userUnblocked", { name: username }), 2000);
+        showToast(res.persistent === false ? "Unblocked for this session only." : t("userUnblocked", { name: username }), 2500);
         socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
+      } else {
+        showToast(res?.error || "Could not unblock this user. Please try again.", 3500, "error");
       }
     });
   }
@@ -2006,6 +2078,7 @@ export default function Home() {
                       <div className="bubble">
                         <div className="meta">
                           <b>{m.senderName}</b>
+                          {m.isBot && <span className="editedTag">AI BOT</span>}
                           <span className="timeChip">{timeShort(m.createdAt)}</span>
                           <span className="missedTag">{t("missedTag")}</span>
                         </div>
@@ -2391,6 +2464,7 @@ export default function Home() {
                                 </span>
                                 <span className="memberName">
                                   {p.username}
+                                  {p.isBot && <span className="editedTag">AI BOT</span>}
                                   {isMe && <span className="youTag">you</span>}
                                 </span>
                                 {isTimedOut && <span className="timeoutTag" title="Timed out">⏱</span>}
@@ -2458,6 +2532,7 @@ export default function Home() {
                         <div className="online-row" key={u.sessionId}>
                           <span className="dot" style={{ background: u.accent }} />
                           <span className="name">{u.username}</span>
+                          {u.isBot && <span className="editedTag">AI BOT</span>}
                           <span className={`statusTag ${u.status === "in-room" ? "busy" : ""}`}>
                             {u.status === "in-room" ? t("inAPrivateRoom") : t("available")}
                           </span>
@@ -2719,9 +2794,9 @@ export default function Home() {
             <div className="pickList">
               {blockedList.length === 0 && <div className="muted" style={{ padding: "10px 0" }}>{t("notBlockedAnyone")}</div>}
               {blockedList.map((b) => (
-                <div key={b.sessionId} className="pickRow" style={{ cursor: "default" }}>
+                <div key={b.profileId} className="pickRow" style={{ cursor: "default" }}>
                   <span className="name">{b.username}</span>
-                  <button className="miniAct" onClick={() => unblockUser(b.sessionId, b.username)}>{t("unblock")}</button>
+                  <button className="miniAct" onClick={() => unblockUser(b.profileId, b.username)}>{t("unblock")}</button>
                 </div>
               ))}
             </div>
@@ -2778,7 +2853,7 @@ export default function Home() {
       {toast && <div className={`toast show toast-${toastKind}`}>{toast}</div>}
 
       {profileOpen && (() => {
-        const isBlockedUser = blockedList.some((b) => b.sessionId === profileOpen.sessionId);
+        const isBlockedUser = Boolean(profileOpen.profileId && blockedList.some((b) => b.profileId === profileOpen.profileId));
         const isSelf = profileOpen.sessionId === identity?.sessionId;
         return (
           <div className="modalbg show" onClick={() => setProfileOpen(null)}>
@@ -2804,7 +2879,7 @@ export default function Home() {
                     <button
                       className="primary"
                       onClick={() => {
-                        unblockUser(profileOpen.sessionId, profileOpen.username);
+                        unblockUser(profileOpen.profileId || "", profileOpen.username);
                         setProfileOpen(null);
                       }}
                     >↺ Unblock</button>
@@ -3070,10 +3145,16 @@ const MessageBubble = memo(
                   title="View profile"
                 >{m.senderName}</b>
               )}
+              {m.isBot && <span className="editedTag">AI BOT</span>}
               <button type="button" className="timeChip" title={timeFull(m.createdAt)} onClick={() => onToggleTime(m.id)}>
                 {openTime[m.id] ? timeFull(m.createdAt) : timeShort(m.createdAt)}
               </button>
               {m.editedAt && !m.deleted && <span className="editedTag">(edited)</span>}
+              {m.deliveryStatus && (
+                <span className="deliveryStatus" role="status">
+                  {m.deliveryStatus === "pending" ? "Sending…" : m.deliveryStatus === "failed" ? "Not sent" : "Delivery uncertain"}
+                </span>
+              )}
               {roomId && messageLifetime > 0 && m.createdAt && !m.deleted && (() => {
                 const remaining = Math.max(0, m.createdAt + messageLifetime - nowTick);
                 if (remaining <= 0) return null;
