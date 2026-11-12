@@ -256,6 +256,13 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(roomRetryAck.ok, true);
     assert.equal(roomRetryAck.id, roomFirstAck.id);
     assert.equal(roomRetryAck.deduplicated, true, "retry must bypass slow mode after original acceptance");
+    const roomEditAck = await emitAck(a, "message:edit", {
+      messageId: roomFirstAck.id,
+      content: "Edited room message",
+    });
+    assert.equal(roomEditAck.ok, true, "room message owner can edit their message");
+    const roomDeleteAck = await emitAck(a, "message:delete", { messageId: roomFirstAck.id });
+    assert.equal(roomDeleteAck.ok, true, "room message owner can delete their message");
     await emitAck(a, "room:set-slowmode", { roomId: roomResult.room.roomId, seconds: 0 });
     const roomImagePayload = {
       roomId: roomResult.room.roomId,
