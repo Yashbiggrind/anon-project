@@ -85,6 +85,7 @@ type PrivateRoom = {
   status: string;
   messageLifetime?: number;
   mode?: "ask" | "open";
+  isBotRoom?: boolean;
 };
 type BlockedUser = { profileId: string; sessionId?: string; username: string };
 type RoomListing = {
@@ -2293,6 +2294,7 @@ export default function Home() {
                           title={isAdmin ? "Click to rename" : undefined}
                         >
                           {room.topic || t("room")}
+                          {room.isBotRoom && <span className="modeBadge open">AI ROOM</span>}
                           {isAdmin && <span className="topicEditHint">✎</span>}
                         </b>
                       )}
