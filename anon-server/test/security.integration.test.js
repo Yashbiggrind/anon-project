@@ -115,9 +115,10 @@ test("live server protects socket payloads, authorization, data flow, and persis
     env: {
       ...process.env,
       NODE_ENV: "test",
+      ENABLE_BOT_ACTIVITY: "false",
       PORT: String(port),
       CLIENT_ORIGIN: "http://localhost:3000",
-      TRUST_PROXY: "false",
+      TRUST_PROXY: "true",
       ADMIN_TOKEN: "test-admin-token-abcdefghijklmnopqrstuvwxyz012345",
       IP_HASH_SECRET: "anon-test-hmac-secret-with-at-least-32-characters",
       ANON_DB_PATH: dbPath,
@@ -153,6 +154,10 @@ test("live server protects socket payloads, authorization, data flow, and persis
     a = io(baseUrl, {
       autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
       auth: { profileToken, avatarDesign: fullResolutionAvatar },
+      extraHeaders: {
+        "user-agent": '=HYPERLINK("https://example.com")',
+        "x-real-ip": "203.0.113.25",
+      },
     });
     b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"], auth: { profileToken: profileTokenB } });
     const connectA = waitForEvent(a, "connect");
@@ -203,6 +208,18 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(idempotentDeliveryCount, 1, "retry must not broadcast a duplicate message");
     b.off("chat:public:message", countIdempotentDelivery);
 
+    const publicImagePayload = {
+      image: "data:image/png;base64," + "A".repeat(128),
+      caption: "retry-safe public image",
+      clientMessageId: "public-image-idempotency-001",
+    };
+    const publicImageFirst = await emitAck(a, "chat:public:image", publicImagePayload);
+    assert.equal(publicImageFirst.ok, true);
+    const publicImageRetry = await emitAck(a, "chat:public:image", publicImagePayload);
+    assert.equal(publicImageRetry.ok, true);
+    assert.equal(publicImageRetry.id, publicImageFirst.id);
+    assert.equal(publicImageRetry.deduplicated, true, "public image retries must not create duplicates");
+
     const createPost = await emitAck(a, "confession:create", { text: "Shared feature test", author: "ForgedAuthor123" });
     assert.equal(createPost.ok, true);
     const listResult = await emitAck(b, "confession:list", {});
@@ -239,6 +256,20 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(roomRetryAck.ok, true);
     assert.equal(roomRetryAck.id, roomFirstAck.id);
     assert.equal(roomRetryAck.deduplicated, true, "retry must bypass slow mode after original acceptance");
+    await emitAck(a, "room:set-slowmode", { roomId: roomResult.room.roomId, seconds: 0 });
+    const roomImagePayload = {
+      roomId: roomResult.room.roomId,
+      image: "data:image/png;base64," + "B".repeat(128),
+      caption: "retry-safe room image",
+      clientMessageId: "room-image-idempotency-001",
+    };
+    const roomImageFirst = await emitAck(a, "room:image", roomImagePayload);
+    assert.equal(roomImageFirst.ok, true);
+    const roomImageRetry = await emitAck(a, "room:image", roomImagePayload);
+    assert.equal(roomImageRetry.ok, true);
+    assert.equal(roomImageRetry.id, roomImageFirst.id);
+    assert.equal(roomImageRetry.deduplicated, true, "room image retries must not create duplicates");
+
     const inviteResult = await emitAck(a, "room:invite", { roomId: roomResult.room.roomId, recipientUsername: identityB.username });
     assert.equal(inviteResult.ok, true);
     const wrongDecline = await emitAck(a, "invite:decline", { inviteId: inviteResult.inviteId });
@@ -290,9 +321,41 @@ test("live server protects socket payloads, authorization, data flow, and persis
     });
     const reviewedPayload = await reviewedResponse.json();
     assert.equal(reviewedPayload.reports.find((report) => report.id === persistedReport.id).reviewed, true);
+    const sessionsResponse = await fetch(baseUrl + "/api/admin/sessions?limit=100", {
+      headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
+    });
+    assert.equal(sessionsResponse.status, 200);
+    const sessionsPayload = await sessionsResponse.json();
+    const sessionA = sessionsPayload.sessions.find((row) => row.sessionId === identityA.sessionId);
+    assert.ok(sessionA, "connected client should have a durable session record");
+    assert.equal(sessionA.ipHash, hashIp("203.0.113.25"), "trusted X-Real-IP should be used for client IP hashing");
+
+    const sessionsCsvResponse = await fetch(baseUrl + "/api/admin/sessions.csv", {
+      headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
+    });
+    assert.equal(sessionsCsvResponse.status, 200);
+    const sessionsCsv = await sessionsCsvResponse.text();
+    assert.ok(sessionsCsv.includes("'=HYPERLINK("), "CSV export must neutralize spreadsheet formula payloads");
+
     const statsResponse = await fetch(baseUrl + "/api/stats");
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
+
+    const dmOpenAck = await emitAck(a, "dm:open", { targetSessionId: identityB.sessionId });
+    assert.equal(dmOpenAck.ok, true);
+    const dmPayload = {
+      threadId: dmOpenAck.thread.threadId,
+      content: "retry-safe direct message",
+      clientMessageId: "dm-integration-test-001",
+    };
+    const dmFirstAck = await emitAck(a, "dm:send", dmPayload);
+    assert.equal(dmFirstAck.ok, true);
+    const dmRetryAck = await emitAck(a, "dm:send", dmPayload);
+    assert.equal(dmRetryAck.ok, true);
+    assert.equal(dmRetryAck.id, dmFirstAck.id);
+    assert.equal(dmRetryAck.deduplicated, true);
+    const dmThreadAfterRetry = await emitAck(a, "dm:open", { targetSessionId: identityB.sessionId });
+    assert.equal(dmThreadAfterRetry.thread.messages.length, 1, "a retried direct message must not be duplicated");
 
     const blockAck = await emitAck(a, "block:user", {
       targetSessionId: identityB.sessionId,
@@ -334,6 +397,15 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(retryAfterReconnect.ok, true);
     assert.equal(retryAfterReconnect.id, firstIdempotentAck.id, "the same profile can safely retry after reconnecting");
     assert.equal(retryAfterReconnect.deduplicated, true);
+    const editAfterReconnect = await emitAck(c, "message:edit", {
+      messageId: firstIdempotentAck.id,
+      content: "Edited after reconnect",
+    });
+    assert.equal(editAfterReconnect.ok, true, "stable profile owners can edit their earlier messages after reconnecting");
+    const deleteAfterReconnect = await emitAck(c, "message:delete", { messageId: firstIdempotentAck.id });
+    assert.equal(deleteAfterReconnect.ok, true, "stable profile owners can delete their earlier messages after reconnecting");
+    const historyAfterDelete = await emitAck(c, "messages:since", { since: 0 });
+    assert.equal(historyAfterDelete.messages.some((message) => message.id === firstIdempotentAck.id), false);
     const blockedAfterReconnect = await emitAck(c, "blocked:list", {});
     assert.equal(blockedAfterReconnect.ok, true);
     assert.ok(blockedAfterReconnect.blocked.some((entry) => entry.profileId === identityB.profileId), "blocks must survive a reconnect");
