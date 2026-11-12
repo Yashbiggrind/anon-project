@@ -4,6 +4,7 @@
 const POLLINATIONS_URL = "https://text.pollinations.ai/openai";
 const OPENROUTER_URL   = "https://openrouter.ai/api/v1/chat/completions";
 const OPENROUTER_KEY   = process.env.OPENROUTER_API_KEY || "";
+const BOT_PROVIDER_TIMEOUT_MS = 12_000;
 
 const OPENROUTER_MODELS = [
   "openrouter/free"
@@ -68,6 +69,7 @@ async function callPollinations(systemPrompt, userMessage) {
   try {
     const res = await fetch(POLLINATIONS_URL, {
       method: "POST",
+      signal: AbortSignal.timeout(BOT_PROVIDER_TIMEOUT_MS),
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         model: "openai",
@@ -95,6 +97,7 @@ async function callOpenRouter(systemPrompt, userMessage) {
     try {
       const res = await fetch(OPENROUTER_URL, {
         method: "POST",
+        signal: AbortSignal.timeout(BOT_PROVIDER_TIMEOUT_MS),
         headers: {
           "Content-Type": "application/json",
           "Authorization": "Bearer " + OPENROUTER_KEY,
