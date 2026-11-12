@@ -1234,13 +1234,36 @@ export default function Home() {
     setDmTypingFrom(null);
   }, []);
 
+  const dmPendingRef = useRef<{ threadId: string; text: string; clientMessageId: string } | null>(null);
+
   const sendDm = useCallback(() => {
     const el = dmInputRef.current;
     const text = (el?.value ?? "").trim();
-    if (!text || !dmPanel?.threadId) return;
-    if (el) el.value = "";
-    socketRef.current?.emit("dm:send", { threadId: dmPanel.threadId, content: text }, () => {});
-  }, [dmPanel]);
+    const threadId = dmPanel?.threadId;
+    const socket = socketRef.current;
+    if (!text || !threadId || !socket) return;
+    const previous = dmPendingRef.current;
+    const clientMessageId = previous?.threadId === threadId && previous.text === text
+      ? previous.clientMessageId
+      : `dm-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    dmPendingRef.current = { threadId, text, clientMessageId };
+    socket.timeout(10_000).emit(
+      "dm:send",
+      { threadId, content: text, clientMessageId },
+      (error: Error | null, ack: ServerAck) => {
+        if (error) {
+          showToast("Direct-message delivery is uncertain. The text is still in the input; retrying will use the same message ID.", 5000, "error");
+          return;
+        }
+        if (!ack?.ok) {
+          showToast(ack?.error || "Direct message was not sent.", 4000, "error");
+          return;
+        }
+        if (dmPendingRef.current?.clientMessageId === clientMessageId) dmPendingRef.current = null;
+        if (dmInputRef.current?.value.trim() === text) dmInputRef.current.value = "";
+      }
+    );
+  }, [dmPanel, showToast]);
 
   const notifyDmTyping = useCallback(() => {
     if (!dmPanel?.threadId) return;
