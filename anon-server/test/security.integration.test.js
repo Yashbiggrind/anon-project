@@ -153,6 +153,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     a = io(baseUrl, {
       autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
       auth: { profileToken, avatarDesign: fullResolutionAvatar },
+      extraHeaders: { "user-agent": '=HYPERLINK("https://example.com")' },
     });
     b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"], auth: { profileToken: profileTokenB } });
     const connectA = waitForEvent(a, "connect");
@@ -290,6 +291,13 @@ test("live server protects socket payloads, authorization, data flow, and persis
     });
     const reviewedPayload = await reviewedResponse.json();
     assert.equal(reviewedPayload.reports.find((report) => report.id === persistedReport.id).reviewed, true);
+    const sessionsCsvResponse = await fetch(baseUrl + "/api/admin/sessions.csv", {
+      headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
+    });
+    assert.equal(sessionsCsvResponse.status, 200);
+    const sessionsCsv = await sessionsCsvResponse.text();
+    assert.ok(sessionsCsv.includes("'=HYPERLINK("), "CSV export must neutralize spreadsheet formula payloads");
+
     const statsResponse = await fetch(baseUrl + "/api/stats");
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
