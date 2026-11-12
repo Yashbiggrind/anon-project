@@ -4,15 +4,9 @@ const DEFAULT_PRODUCTION_SERVER_URL =
 const isDevelopment = process.env.NODE_ENV === "development";
 
 function resolveServerUrl() {
-  // Match the browser's serverUrl(): every hosted build targets the one
-  // verified ANON production backend. Only local development may override it.
-  if (!isDevelopment) return DEFAULT_PRODUCTION_SERVER_URL;
-
+  // Keep the CSP's connect-src aligned with the URL used by browser Socket.IO.
   const configured = (process.env.NEXT_PUBLIC_SERVER_URL || "").trim();
-
-  if (!configured) {
-    return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
-  }
+  if (!configured) return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
 
   const candidate = configured.replace(/\/$/, "");
   try {
@@ -29,16 +23,10 @@ function resolveServerUrl() {
       Boolean(url.search) ||
       Boolean(url.hash);
 
-    // Production CSP must permit the same public backend the client uses.
-    // Ignore missing, invalid, private, localhost, or non-HTTPS production config.
-    if (
-      !isDevelopment &&
-      (url.protocol !== "https:" || isLocalOrPrivate || hasUnsafeParts)
-    ) {
+    if (hasUnsafeParts) return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
+    if (!isDevelopment && (url.protocol !== "https:" || isLocalOrPrivate)) {
       return DEFAULT_PRODUCTION_SERVER_URL;
     }
-
-    if (hasUnsafeParts) return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
     return candidate;
   } catch {
     return isDevelopment ? "" : DEFAULT_PRODUCTION_SERVER_URL;
