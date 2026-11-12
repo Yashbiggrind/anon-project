@@ -118,7 +118,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
       ENABLE_BOT_ACTIVITY: "false",
       PORT: String(port),
       CLIENT_ORIGIN: "http://localhost:3000",
-      TRUST_PROXY: "false",
+      TRUST_PROXY: "true",
       ADMIN_TOKEN: "test-admin-token-abcdefghijklmnopqrstuvwxyz012345",
       IP_HASH_SECRET: "anon-test-hmac-secret-with-at-least-32-characters",
       ANON_DB_PATH: dbPath,
@@ -154,7 +154,10 @@ test("live server protects socket payloads, authorization, data flow, and persis
     a = io(baseUrl, {
       autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"],
       auth: { profileToken, avatarDesign: fullResolutionAvatar },
-      extraHeaders: { "user-agent": '=HYPERLINK("https://example.com")' },
+      extraHeaders: {
+        "user-agent": '=HYPERLINK("https://example.com")',
+        "x-real-ip": "203.0.113.25",
+      },
     });
     b = io(baseUrl, { autoConnect: false, reconnection: false, timeout: 5000, transports: ["websocket"], auth: { profileToken: profileTokenB } });
     const connectA = waitForEvent(a, "connect");
@@ -318,6 +321,15 @@ test("live server protects socket payloads, authorization, data flow, and persis
     });
     const reviewedPayload = await reviewedResponse.json();
     assert.equal(reviewedPayload.reports.find((report) => report.id === persistedReport.id).reviewed, true);
+    const sessionsResponse = await fetch(baseUrl + "/api/admin/sessions?limit=100", {
+      headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
+    });
+    assert.equal(sessionsResponse.status, 200);
+    const sessionsPayload = await sessionsResponse.json();
+    const sessionA = sessionsPayload.sessions.find((row) => row.sessionId === identityA.sessionId);
+    assert.ok(sessionA, "connected client should have a durable session record");
+    assert.equal(sessionA.ipHash, hashIp("203.0.113.25"), "trusted X-Real-IP should be used for client IP hashing");
+
     const sessionsCsvResponse = await fetch(baseUrl + "/api/admin/sessions.csv", {
       headers: { "x-admin-token": "test-admin-token-abcdefghijklmnopqrstuvwxyz012345" },
     });
