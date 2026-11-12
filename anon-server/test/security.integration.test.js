@@ -115,7 +115,7 @@ test("live server protects socket payloads, authorization, data flow, and persis
     env: {
       ...process.env,
       NODE_ENV: "test",
-      ENABLE_BOTS: "false",
+      ENABLE_BOT_ACTIVITY: "false",
       PORT: String(port),
       CLIENT_ORIGIN: "http://localhost:3000",
       TRUST_PROXY: "false",
