@@ -4,6 +4,7 @@ const express = require("express");
 const http = require("http");
 const os = require("os");
 const crypto = require("crypto");
+const net = require("node:net");
 const cors = require("cors");
 const { Server } = require("socket.io");
 const db = require("./db");
@@ -139,13 +140,16 @@ function isEmoji(str) {
 }
 
 function getClientIp(socket) {
-  // Forwarded headers are client-controlled unless the ingress proxy overwrites them.
-  // Enable TRUST_PROXY only when the deployed proxy is configured to sanitize X-Forwarded-For.
+  // Trust proxy headers only when the deployment's ingress overwrites them.
+  // Railway supplies X-Real-IP; other trusted proxies may supply X-Forwarded-For.
   if (TRUST_PROXY) {
-    const fwd = socket.handshake.headers["x-forwarded-for"];
-    if (typeof fwd === "string" && fwd.length) {
-      const candidate = fwd.split(",")[0].trim();
-      if (candidate && candidate.length <= 64) return candidate;
+    const realIp = socket.handshake.headers["x-real-ip"];
+    if (typeof realIp === "string" && net.isIP(realIp.trim())) return realIp.trim();
+
+    const forwarded = socket.handshake.headers["x-forwarded-for"];
+    if (typeof forwarded === "string" && forwarded.length) {
+      const candidate = forwarded.split(",")[0].trim();
+      if (net.isIP(candidate)) return candidate;
     }
   }
   return socket.handshake.address || "unknown";
