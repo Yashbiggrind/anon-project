@@ -226,7 +226,7 @@ export default function DataPage() {
           <div className="modalBg" onClick={() => setConfirm(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
               <h3>Wipe everything?</h3>
-              <p>This clears ANON-owned localStorage and sessionStorage keys, saved chat messages in ANON IndexedDB, ANON cache entries, and ANON's service worker. Other applications' browser storage is left untouched. Another open ANON tab may temporarily prevent database deletion. This cannot be undone.</p>
+              <p>This clears ANON-owned localStorage and sessionStorage keys, saved chat messages in ANON IndexedDB, ANON cache entries, and ANON's service worker. Other applications' browser storage is left untouched. Another open ANON tab may temporarily prevent database deletion. This does not erase server-side moderation reports or retained connection metadata. This cannot be undone.</p>
               <div className="modalRow">
                 <button className="btn" onClick={() => setConfirm(false)}>CANCEL</button>
                 <button className="btn danger" onClick={wipe}>YES, WIPE</button>
