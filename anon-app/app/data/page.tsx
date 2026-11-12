@@ -13,6 +13,20 @@ type Snapshot = {
   totalBytes: number;
 };
 
+const ANON_STORAGE_PREFIXES = ["anon_", "anon."] as const;
+
+function isAnonStorageKey(key: string): boolean {
+  return ANON_STORAGE_PREFIXES.some((prefix) => key.startsWith(prefix));
+}
+
+function clearAnonStorage(storage: Storage): void {
+  // Iterate backwards because removing an item shifts the remaining indexes.
+  for (let i = storage.length - 1; i >= 0; i--) {
+    const key = storage.key(i);
+    if (key && isAnonStorageKey(key)) storage.removeItem(key);
+  }
+}
+
 function scanLocalStorage(): Snapshot {
   const keys: Snapshot["keys"] = [];
   let total = 0;
@@ -21,14 +35,16 @@ function scanLocalStorage(): Snapshot {
   }
   for (let i = 0; i < localStorage.length; i++) {
     const k = localStorage.key(i);
-    if (!k) continue;
+    if (!k || !isAnonStorageKey(k)) continue;
     const v = localStorage.getItem(k) ?? "";
     const size = new Blob([k + v]).size;
+    const sensitive = /(token|secret|password|credential|auth)/i.test(k);
     total += size;
     keys.push({
       key: k,
       sizeBytes: size,
-      preview: v.length > 80 ? v.slice(0, 80) + "…" : v,
+      // Profile tokens are bearer credentials: never expose them in previews or exports.
+      preview: sensitive ? "[REDACTED]" : (v.length > 80 ? v.slice(0, 80) + "…" : v),
     });
   }
   return {
@@ -104,10 +120,10 @@ export default function DataPage() {
     if (typeof window === "undefined") return;
     const failures: string[] = [];
 
-    // Clear first so even if deletion of the database is blocked by another tab,
-    // stored message contents are removed from the current database.
-    try { localStorage.clear(); } catch { failures.push("local storage"); }
-    try { sessionStorage.clear(); } catch { failures.push("session storage"); }
+    // Clear only ANON-owned keys. Do not erase unrelated applications' data
+    // that happen to share this browser origin.
+    try { clearAnonStorage(localStorage); } catch { failures.push("ANON local storage"); }
+    try { clearAnonStorage(sessionStorage); } catch { failures.push("ANON session storage"); }
     try {
       await clearAll();
       await destroyStore();
@@ -129,9 +145,15 @@ export default function DataPage() {
     try {
       if ("serviceWorker" in navigator) {
         const registration = await navigator.serviceWorker.getRegistration();
-        if (registration) {
+        const workerUrl = registration?.active?.scriptURL ||
+          registration?.waiting?.scriptURL ||
+          registration?.installing?.scriptURL ||
+          "";
+        // Only unregister ANON's own root service worker, never another app's worker.
+        const workerPath = workerUrl ? new URL(workerUrl).pathname : "";
+        if (registration && workerPath === "/sw.js" && new URL(workerUrl).origin === location.origin) {
           const removed = await registration.unregister();
-          if (!removed) failures.push("service worker registration");
+          if (!removed) failures.push("ANON service worker registration");
         }
       }
     } catch { failures.push("service worker registration"); }
@@ -152,8 +174,8 @@ export default function DataPage() {
       <div className="dlRoot">
         <div className="dlHead">
           <div className="eyebrow">{"// DATA LOG"}</div>
-          <h1>See what&apos;s on this device. Wipe local ANON data.</h1>
-          <p>This report lists localStorage keys only. It does not include server-side connection metadata or active in-memory chat state.</p>
+          <h1>See what&apos;s on your device. Wipe it in one click.</h1>
+          <p>This report lists ANON-prefixed localStorage keys only. Sensitive identity tokens are redacted. It does not include server-side connection metadata or active in-memory chat state.</p>
           <Link href="/" className="backBtn">← Back to chat</Link>
         </div>
 
@@ -177,7 +199,7 @@ export default function DataPage() {
           <button className="btn" onClick={exportCsv}>↓ EXPORT CSV</button>
           <button className="btn" onClick={copyAll}>⧉ COPY TO CLIPBOARD</button>
           <button className="btn refresh" onClick={refresh}>↻ REFRESH</button>
-          <button className="btn danger" onClick={() => setConfirm(true)}>✕ WIPE THIS DEVICE</button>
+          <button className="btn danger" onClick={() => setConfirm(true)}>✕ WIPE EVERYTHING</button>
         </div>
 
         {toast && <div className="toast">{toast}</div>}
@@ -203,11 +225,11 @@ export default function DataPage() {
         {confirm && (
           <div className="modalBg" onClick={() => setConfirm(false)}>
             <div className="modal" onClick={(e) => e.stopPropagation()}>
-              <h3>Wipe local ANON data?</h3>
-              <p>This clears ANON data stored in this browser on this device: localStorage, sessionStorage, saved chat messages in IndexedDB, app cache entries, and the service-worker registration. It does not delete server-side reports, blocks, or connection logs. Another open ANON tab may temporarily prevent local database deletion. This cannot be undone.</p>
+              <h3>Wipe everything?</h3>
+              <p>This clears ANON-owned localStorage and sessionStorage keys, saved chat messages in ANON IndexedDB, ANON cache entries, and ANON&apos;s service worker. Other applications&apos; browser storage is left untouched. Another open ANON tab may temporarily prevent database deletion. This does not erase server-side moderation reports or retained connection metadata. This cannot be undone.</p>
               <div className="modalRow">
                 <button className="btn" onClick={() => setConfirm(false)}>CANCEL</button>
-                <button className="btn danger" onClick={wipe}>YES, WIPE LOCAL DATA</button>
+                <button className="btn danger" onClick={wipe}>YES, WIPE</button>
               </div>
             </div>
           </div>

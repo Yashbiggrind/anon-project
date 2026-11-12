@@ -124,8 +124,13 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
     let active = true;
 
     const fetchList = () => {
-      socket.emit("confession:list", {}, (response: ConfessionListResponse) => {
+      socket.timeout(10_000).emit("confession:list", {}, (error: Error | null, response: ConfessionListResponse) => {
         if (!active) return;
+        if (error) {
+          setStatus("The live feed request timed out. Reconnect and refresh.");
+          setLoading(false);
+          return;
+        }
         if (response?.ok) {
           setPosts(Array.isArray(response.confessions) ? response.confessions : []);
           setElection(response.election || null);
@@ -189,8 +194,12 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
     if (text.length > MAX_POST_LENGTH) return;
 
     setPosting(true);
-    socket.emit("confession:create", { text }, (response: MutationResponse) => {
+    socket.timeout(10_000).emit("confession:create", { text }, (error: Error | null, response: MutationResponse) => {
       setPosting(false);
+      if (error) {
+        setStatus("Posting status is uncertain. Refresh the feed before trying again.");
+        return;
+      }
       if (response?.ok) {
         setDraft("");
         setStatus("Your confession is live. It will expire automatically within 7 days.");
@@ -204,7 +213,11 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
     const text = replyText.trim();
     if (!socket || !connected || !text) return;
 
-    socket.emit("confession:reply", { confessionId, text }, (response: MutationResponse) => {
+    socket.timeout(10_000).emit("confession:reply", { confessionId, text }, (error: Error | null, response: MutationResponse) => {
+      if (error) {
+        setStatus("Reply status is uncertain. Refresh the feed before trying again.");
+        return;
+      }
       if (response?.ok) {
         setReplyTo(null);
         setReplyText("");
@@ -218,7 +231,11 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
   const vote = (confessionId: string, dir: 1 | -1) => {
     if (!socket || !connected) return;
 
-    socket.emit("confession:vote", { confessionId, dir }, (response: MutationResponse) => {
+    socket.timeout(10_000).emit("confession:vote", { confessionId, dir }, (error: Error | null, response: MutationResponse) => {
+      if (error) {
+        setStatus("Vote status is uncertain. Refresh the feed before trying again.");
+        return;
+      }
       if (!response?.ok) {
         setStatus(response?.error || "Your vote could not be recorded.");
       } else {
@@ -229,7 +246,11 @@ export default function ConfessionTab({ socket, connected }: ConfessionTabProps)
 
   const castElectionVote = (candidate: string) => {
     if (!socket || !connected) return;
-    socket.emit("election:vote", { candidate }, (response: MutationResponse) => {
+    socket.timeout(10_000).emit("election:vote", { candidate }, (error: Error | null, response: MutationResponse) => {
+      if (error) {
+        setStatus("Vote status is uncertain. Refresh the election before trying again.");
+        return;
+      }
       if (!response?.ok) setStatus(response?.error || "Vote failed.");
       else setStatus("");
     });

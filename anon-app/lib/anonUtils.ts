@@ -20,12 +20,6 @@ function isPrivateOrLocalHost(hostname: string): boolean {
 export function serverUrl(): string {
   // NEXT_PUBLIC_* values are inlined into the frontend at build time.
   const isProduction = process.env.NODE_ENV === "production";
-
-  // All hosted ANON deployments use one verified production API.
-  // Preview-specific environment overrides previously let different Vercel
-  // deployments silently point at different or obsolete backends.
-  if (isProduction) return DEFAULT_PRODUCTION_SERVER_URL;
-
   const fromEnv = process.env.NEXT_PUBLIC_SERVER_URL;
 
   if (fromEnv && fromEnv.trim().length > 0) {
@@ -45,8 +39,7 @@ export function serverUrl(): string {
       Boolean(parsed.search) ||
       Boolean(parsed.hash);
 
-    // Never let a missing/misconfigured production variable point browser code
-    // at localhost, Railway's private network, HTTP, or a URL with credentials.
+    // Hosted builds may override the default only with a public HTTPS endpoint.
     if (
       isProduction &&
       (parsed.protocol !== "https:" ||
@@ -60,10 +53,6 @@ export function serverUrl(): string {
       throw new Error(
         "NEXT_PUBLIC_SERVER_URL must not contain credentials, query parameters, or fragments."
       );
-    }
-
-    if (isProduction && parsed.protocol !== "https:") {
-      return DEFAULT_PRODUCTION_SERVER_URL;
     }
 
     return configured;

@@ -9,6 +9,14 @@ function esc(s) {
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 }
 
+function csvCell(value) {
+  const raw = String(value == null ? "" : value);
+  // Spreadsheet programs may execute cells beginning with formula markers,
+  // even when the CSV field is correctly quoted.
+  const safe = /^\s*[=+\-@]/.test(raw) ? "'" + raw : raw;
+  return '"' + safe.replace(/"/g, '""') + '"';
+}
+
 function renderPage(nonce) {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -434,7 +442,6 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
     const body = rows.map((r) => {
       const conn = new Date(r.connectedAt).toISOString();
       const disc = r.disconnectedAt ? new Date(r.disconnectedAt).toISOString() : "";
-      const ua = String(r.userAgent || "").replace(/"/g, '""');
       return [
         r.id,
         r.ipHash,
@@ -443,8 +450,8 @@ function registerAdmin({ app, db, sessions, strikeRecords, rooms, ADMIN_TOKEN })
         r.connectedAt,
         disc,
         r.disconnectedAt || "",
-        `"${ua}"`,
-      ].join(",");
+        r.userAgent || "",
+      ].map(csvCell).join(",");
     }).join("\n");
 
     console.log(`[admin] CSV session export: ${rows.length} rows`);

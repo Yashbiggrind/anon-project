@@ -290,6 +290,7 @@ function getStats() {
       unreviewed: db.prepare("SELECT COUNT(*) AS c FROM reports WHERE reviewed = 0").get().c,
       strikes: db.prepare("SELECT COUNT(*) AS c FROM strikes").get().c,
       sessions: db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c,
+      blocks: db.prepare("SELECT COUNT(*) AS c FROM blocks").get().c,
     };
   } catch (e) { console.error("[db] getStats:", e.message); return null; }
 }

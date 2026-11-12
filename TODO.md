@@ -1,47 +1,43 @@
-﻿# ANON// — Project To-Do List
+# ANON// — Engineering Status
+Updated: 2026-11-12
 
-## 🔴 Tier 1 — Must Fix Before Launch
-- [ ] 1. Re-add /api/stats route on server (5 min)
-- [ ] 2. Persistent database PostgreSQL (1-2 hrs)
-- [ ] 3. Fix "Off (forever)" message persistence (20 min)
-- [ ] 4. CORS lockdown on backend (5 min)
-- [ ] 5. Rate limit all Socket.io events (30 min)
-- [ ] 6. HTTPS check on backend URL (2 min)
-- [ ] 7. Error tracking with Sentry (20 min)
+This file describes the current source-code state and outstanding verification. Code being present is not the same as a successful production test.
 
-## 🟠 Tier 2 — Real Product Feel
-- [ ] 8. End-to-End Encryption (E2EE) (4-6 hrs)
-- [ ] 9. Backend-enforced message deletion (1 hr)
-- [ ] 10. Push notifications (2 hrs)
-- [ ] 11. Offline message queue (1 hr)
-- [ ] 12. User identity across devices (2 hrs)
-- [ ] 13. Room persistence when empty (1 hr)
-- [ ] 14. Report review panel (1.5 hrs)
-- [ ] 15. Account deletion / data wipe (45 min)
-- [ ] 16. Legal pages content (30 min)
+## Release blockers
 
-## 🟡 Tier 3 — Polish
-- [ ] 17. Voice messages (2 hrs)
-- [ ] 18. Voice / video calls WebRTC (4-6 hrs)
-- [ ] 19. GIF picker Tenor API (1 hr)
-- [ ] 20. Link previews (1 hr)
-- [ ] 21. Custom emojis / stickers (2 hrs)
-- [ ] 22. Room themes (1 hr)
-- [ ] 23. Confession Wall public feed (3 hrs)
-- [ ] 24. Referral system (2 hrs)
-- [ ] 25. Onboarding tour (45 min)
+- [ ] **Backend availability:** the Railway production backend service was offline at the latest audit check. Its latest recorded deployment failed during a BuildKit connection error. A fresh successful deployment and health check are still required.
+- [ ] **Durable database storage:** the Railway backend currently has no attached persistent volume. SQLite supports `ANON_DB_PATH`; attach a volume at `/data` and set `ANON_DB_PATH=/data/anon.db` before relying on reports, blocks, strikes, or connection metadata surviving redeploys.
+- [ ] **Run CI on the audit branch:** backend integration tests and frontend lint/build have not yet been confirmed on this branch.
+- [ ] **No end-to-end encryption:** live chat is processed in plaintext by the backend. The Trust-page WebCrypto panel is a standalone demonstration, not real chat encryption.
 
-## 🟢 Tier 4 — Growth
-- [ ] 26. Share button story image (1 hr)
-- [ ] 27. /get download page with QR (30 min)
-- [ ] 28. PWA install prompt (30 min)
-- [ ] 29. Self-hosted analytics (45 min)
-- [ ] 30. .onion mirror (2 hrs)
-- [ ] 31. Reels / Instagram content (ongoing)
-- [ ] 32. SEO + Open Graph images (30 min)
+## Implemented in source — validation still required
 
-## 💰 Budget
-- Vercel: $0
-- Railway: $5/mo
-- Domain: ~₹1000/yr
-- Total: ~$5/mo
+- [x] Public `/api/stats` endpoint exists.
+- [x] Exact-origin CORS checks and a handled-event allowlist/rate-limiting middleware are present.
+- [x] SQLite tables cover reports, profile blocks, moderation strikes, and pseudonymized session metadata.
+- [x] Public and room text-message retries use client IDs for deduplication; message ownership can survive reconnects when the stable local profile token is available.
+- [x] Browser offline text queue and IndexedDB message cache have expiry limits.
+- [x] Confession feed uses server-memory expiry (up to 7 days); the separate `/confession` page is a browser-local preview.
+- [x] AI participants are labelled. Scheduled bot replies are limited to public chat and clearly marked AI-created rooms; ordinary user-created rooms are excluded.
+- [x] AI-provider disclosure names the external processing boundary. Relevant text and limited context may be sent when a bot replies.
+- [x] Admin dashboard includes token throttling, database-availability checks, response security headers, and spreadsheet-formula-safe CSV output.
+- [x] Local data wipe is scoped to ANON-owned browser storage, the ANON IndexedDB database, ANON caches, and ANON's service worker. It does **not** erase server-side reports or retained connection metadata.
+
+## Verification checklist
+
+- [ ] `npm test --prefix anon-server`
+- [ ] `npm run lint --prefix anon-app`
+- [ ] `npm run build --prefix anon-app`
+- [ ] Two-client manual checks: public chat, rooms, DMs, reconnects, image messages, message edits/deletes, blocks, and report review.
+- [ ] Avatar checks: custom design persistence, old-message rendering, profile token recovery, and mobile layout.
+- [ ] Privacy checks: AI-room label before joining, no bot entry into user-created rooms, local wipe, and cache/service-worker cleanup.
+- [ ] Production checks after backend deployment: root health endpoint, Socket.IO connection, exact CORS origins, database readiness, and durable-volume persistence.
+
+## Remaining product work
+
+- [ ] Cross-device identity is not provided; the stable profile token is browser-local.
+- [ ] Add production error monitoring and alerting.
+- [ ] Review and simplify the large global stylesheet after mobile regression tests.
+- [ ] Add automated frontend tests for avatar synchronization, data wipe, and responsive navigation.
+- [ ] Consider push notifications, voice/video, link previews, and other optional features only after reliability and privacy checks.
+

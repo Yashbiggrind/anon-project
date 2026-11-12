@@ -85,6 +85,7 @@ type PrivateRoom = {
   status: string;
   messageLifetime?: number;
   mode?: "ask" | "open";
+  isBotRoom?: boolean;
 };
 type BlockedUser = { profileId: string; sessionId?: string; username: string };
 type RoomListing = {
@@ -97,6 +98,7 @@ type RoomListing = {
   slowMode: number;
   createdAt: number;
   mode?: "ask" | "open";
+  isBotRoom?: boolean;
 };
 type ServerAck = {
   ok?: boolean;
@@ -432,7 +434,6 @@ export default function Home() {
     const validSavedLang = savedLang && LANGUAGES.some((l) => l.code === savedLang) ? savedLang : null;
 
     const now = Date.now();
-    const savedName = localStorage.getItem(LS_USERNAME) || "";
     const rawLastOffer = localStorage.getItem(LS_LAST_OFFER);
 
     let lastOffer: number;
@@ -1233,13 +1234,36 @@ export default function Home() {
     setDmTypingFrom(null);
   }, []);
 
+  const dmPendingRef = useRef<{ threadId: string; text: string; clientMessageId: string } | null>(null);
+
   const sendDm = useCallback(() => {
     const el = dmInputRef.current;
     const text = (el?.value ?? "").trim();
-    if (!text || !dmPanel?.threadId) return;
-    if (el) el.value = "";
-    socketRef.current?.emit("dm:send", { threadId: dmPanel.threadId, content: text }, () => {});
-  }, [dmPanel]);
+    const threadId = dmPanel?.threadId;
+    const socket = socketRef.current;
+    if (!text || !threadId || !socket) return;
+    const previous = dmPendingRef.current;
+    const clientMessageId = previous?.threadId === threadId && previous.text === text
+      ? previous.clientMessageId
+      : `dm-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+    dmPendingRef.current = { threadId, text, clientMessageId };
+    socket.timeout(10_000).emit(
+      "dm:send",
+      { threadId, content: text, clientMessageId },
+      (error: Error | null, ack: ServerAck) => {
+        if (error) {
+          showToast("Direct-message delivery is uncertain. The text is still in the input; retrying will use the same message ID.", 5000, "error");
+          return;
+        }
+        if (!ack?.ok) {
+          showToast(ack?.error || "Direct message was not sent.", 4000, "error");
+          return;
+        }
+        if (dmPendingRef.current?.clientMessageId === clientMessageId) dmPendingRef.current = null;
+        if (dmInputRef.current?.value.trim() === text) dmInputRef.current.value = "";
+      }
+    );
+  }, [dmPanel, showToast]);
 
   const notifyDmTyping = useCallback(() => {
     if (!dmPanel?.threadId) return;
@@ -1302,22 +1326,54 @@ export default function Home() {
     setImageUploading(true);
     try {
       const b64 = await compressImage(file);
+      const socket = socketRef.current;
+      if (!socket?.connected) {
+        showToast("Reconnect before sending this image. Please select it again after reconnecting.", 4500, "error");
+        return;
+      }
       const replyPayload = replyTo ? { id: replyTo.id, senderName: replyTo.senderName, content: replyTo.content } : undefined;
+      const clientMessageId = `img-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+
       if (imageTarget === "public") {
         const caption = (inputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("chat:public:image", { image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
-          if (!ack?.ok) showToast(ack?.error || "Failed to send");
+        await new Promise<void>((resolve) => {
+          socket.timeout(10_000).emit(
+            "chat:public:image",
+            { image: b64, caption, replyTo: replyPayload, clientMessageId },
+            (error: Error | null, ack: ServerAck) => {
+              if (error) {
+                showToast("Image delivery is uncertain. Check the chat before selecting it again.", 5000, "error");
+              } else if (!ack?.ok) {
+                showToast(ack?.error || "Image was not sent.", 4000, "error");
+              } else {
+                if (inputRef.current?.value.trim() === caption) inputRef.current.value = "";
+                setReplyTo(null);
+              }
+              resolve();
+            }
+          );
         });
-        if (inputRef.current) inputRef.current.value = "";
       } else {
         if (!room) { showToast("No room"); return; }
         const caption = (privateInputRef.current?.value ?? "").trim();
-        socketRef.current?.emit("room:image", { roomId: room.roomId, image: b64, caption, replyTo: replyPayload }, (ack: ServerAck) => {
-          if (!ack?.ok) showToast(ack?.error || "Failed to send");
+        await new Promise<void>((resolve) => {
+          socket.timeout(10_000).emit(
+            "room:image",
+            { roomId: room.roomId, image: b64, caption, replyTo: replyPayload, clientMessageId },
+            (error: Error | null, ack: ServerAck) => {
+              if (error) {
+                showToast("Image delivery is uncertain. Check the room before selecting it again.", 5000, "error");
+              } else if (!ack?.ok) {
+                showToast(ack?.error || "Image was not sent.", 4000, "error");
+              } else {
+                if (privateInputRef.current?.value.trim() === caption) privateInputRef.current.value = "";
+                setReplyTo(null);
+              }
+              resolve();
+            }
+          );
         });
-        if (privateInputRef.current) privateInputRef.current.value = "";
       }
-      setReplyTo(null);
     } catch (err: unknown) { showToast(err instanceof Error ? err.message : "Image failed"); }
     finally { setImageUploading(false); }
   }
@@ -1699,8 +1755,10 @@ export default function Home() {
   function unblockUser(profileId: string, username: string) {
     socketRef.current?.emit("unblock:user", { profileId }, (res: ServerAck) => {
       if (res?.ok) {
-        showToast(t("userUnblocked", { name: username }), 2000);
+        showToast(res.persistent === false ? "Unblocked for this session only." : t("userUnblocked", { name: username }), 2500);
         socketRef.current?.emit("blocked:list", {}, (r: ServerAck) => { if (r?.ok) setBlockedList(r.blocked ?? []); });
+      } else {
+        showToast(res?.error || "Could not unblock this user. Please try again.", 3500, "error");
       }
     });
   }
@@ -2112,7 +2170,9 @@ export default function Home() {
                   )}
 
                   {visibleMessages.map((m) => {
-                    const mine = m.localSent === true || m.senderSessionId === identity?.sessionId;
+                    const mine = m.localSent === true ||
+                      m.senderSessionId === identity?.sessionId ||
+                      Boolean(identity?.profileId && m.senderProfileId === identity.profileId);
                     return (
                       <MessageBubble
                         key={m.id}
@@ -2233,6 +2293,7 @@ export default function Home() {
                           title={isAdmin ? "Click to rename" : undefined}
                         >
                           {room.topic || t("room")}
+                          {room.isBotRoom && <span className="modeBadge open">AI ROOM</span>}
                           {isAdmin && <span className="topicEditHint">✎</span>}
                         </b>
                       )}
@@ -2352,7 +2413,9 @@ export default function Home() {
                         })}
 
                         {visiblePrivateMessages.map((m) => {
-                          const mine = m.localSent === true || m.senderSessionId === identity?.sessionId;
+                          const mine = m.localSent === true ||
+                      m.senderSessionId === identity?.sessionId ||
+                      Boolean(identity?.profileId && m.senderProfileId === identity.profileId);
                           return (
                             <MessageBubble
                               key={m.id}
@@ -2581,7 +2644,7 @@ export default function Home() {
                           >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
-                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{r.mode === "ask" ? "ASK" : "OPEN"}</span></div>
+                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{r.mode === "ask" ? "ASK" : "OPEN"}</span>{r.isBotRoom && <span className="modeBadge open">AI ROOM</span>}</div>
                               <div className="discoverMeta">
                                 by {r.adminName}
                                 {r.slowMode > 0 && <span className="discoverSlow"> · ⏱ {r.slowMode}s</span>}
@@ -2595,7 +2658,7 @@ export default function Home() {
                       </div>
 
                       <p className="discoverHint">
-                        Click any open room to join instantly. Or ask an admin to invite you.
+                        Click any open room to join instantly. AI ROOM messages may be sent to external AI providers when a bot replies.
                       </p>
                       {favoriteRooms.length > 0 && (
                         <>

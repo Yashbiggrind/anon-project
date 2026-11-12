@@ -1,3 +1,9 @@
-﻿User-agent: *
+User-agent: *
 Allow: /
+Disallow: /data
+Disallow: /avatar-test
+Disallow: /island-preview
+Disallow: /borderland
+Disallow: /confession
+
 Sitemap: https://anon-project-tau.vercel.app/sitemap.xml

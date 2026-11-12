@@ -1,7 +1,7 @@
 {
   "name": "ANON",
   "short_name": "ANON",
-  "description": "Anonymous, ephemeral chat. No signup. No tracking.",
+  "description": "Anonymous chat. No signup. Limited abuse-prevention metadata.",
   "id": "/",
   "start_url": "/",
   "scope": "/",

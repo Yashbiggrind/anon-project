@@ -37,3 +37,8 @@ node index.js
 
 ## Deploy
 Deploy to Railway, Render, or Fly.io. Configure all environment variables on the platform and verify the production proxy behavior before enabling `TRUST_PROXY`.
+
+
+## Durable SQLite storage
+
+SQLite defaults to a local `anon-server/anon.db` file for development. On Railway, attach a persistent volume mounted at `/data` and set `ANON_DB_PATH=/data/anon.db`. Without a mounted volume, SQLite reports, profile blocks, moderation strikes, and session metadata may be lost when the service is redeployed or replaced. The environment variable alone does not make an ephemeral filesystem durable.
