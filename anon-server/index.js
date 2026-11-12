@@ -79,6 +79,9 @@ const REACTION_TTL = 60 * 60 * 1000;
 
 const messageOwners = new Map();
 const MESSAGE_TTL = 24 * 60 * 60 * 1000;
+const idempotentMessages = new Map();
+const IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const IDEMPOTENCY_MAX_ENTRIES = 20000;
 
 // ============================================================
 // v17 â€” ANTI-SPAM ENGINE
@@ -148,6 +151,34 @@ function getClientIp(socket) {
   return socket.handshake.address || "unknown";
 }
 
+function messageIdempotencyKey(session, rawId, scope) {
+  if (rawId == null || rawId === "") return null;
+  const clientMessageId = String(rawId);
+  if (!/^[A-Za-z0-9_-]{8,100}$/.test(clientMessageId)) return false;
+  return `${session.profileId || session.sessionId}:${scope}:${clientMessageId}`;
+}
+function getIdempotentMessage(key, content, replyTo) {
+  if (!key) return null;
+  const existing = idempotentMessages.get(key);
+  if (!existing) return null;
+  if (Date.now() - existing.createdAt > IDEMPOTENCY_TTL_MS) {
+    idempotentMessages.delete(key);
+    return null;
+  }
+  const contentHash = crypto.createHash("sha256").update(JSON.stringify({ content: String(content), replyTo: replyTo || null })).digest("hex");
+  return existing.contentHash === contentHash ? existing.messageId : false;
+}
+function rememberIdempotentMessage(key, messageId, content, replyTo) {
+  if (!key) return;
+  const contentHash = crypto.createHash("sha256").update(JSON.stringify({ content: String(content), replyTo: replyTo || null })).digest("hex");
+  idempotentMessages.set(key, { messageId, contentHash, createdAt: Date.now() });
+  while (idempotentMessages.size > IDEMPOTENCY_MAX_ENTRIES) {
+    const oldestKey = idempotentMessages.keys().next().value;
+    if (oldestKey === undefined) break;
+    idempotentMessages.delete(oldestKey);
+  }
+}
+
 function rateLimit(key, limit, windowMs) {
   const now = Date.now();
   const arr = (rateBuckets.get(key) || []).filter((t) => now - t < windowMs);
@@ -168,6 +199,9 @@ setInterval(() => {
       reactions.delete(mid);
       reactionTimes.delete(mid);
     }
+  }
+  for (const [key, entry] of idempotentMessages) {
+    if (now - entry.createdAt > IDEMPOTENCY_TTL_MS) idempotentMessages.delete(key);
   }
   for (const [mid, meta] of messageOwners) {
     if (now - meta.createdAt > MESSAGE_TTL) messageOwners.delete(mid);
@@ -232,7 +266,10 @@ app.use(express.json({ limit: "200kb" }));
 app.get("/", (req, res) => res.json({ ok: true, online: sessions.size, rooms: rooms.size }));
 app.get("/api/stats", (req, res) => {
   let persistent = 0;
-  try { persistent = db.countAll ? db.countAll() : 0; } catch { persistent = 0; }
+  try {
+    const stats = db.getStats?.();
+    if (stats) persistent = Number(stats.reports || 0) + Number(stats.strikes || 0) + Number(stats.sessions || 0) + Number(stats.blocks || 0);
+  } catch { persistent = 0; }
   res.json({
     online: sessions.size,
     away: 0,
@@ -286,6 +323,7 @@ const publicUser = (s) => ({
   accent: s.accent,
   status: s.status || "available",
   avatarDesign: s.avatarDesign ?? null,
+  isBot: Boolean(s.isBot),
 });
 
 // Internal spam identifiers must never cross the Socket.IO boundary.
@@ -355,6 +393,7 @@ const publicRoom = (r) => ({
   participants: r.participants.map((p) => ({
     sessionId: p.sessionId,
     username: p.username,
+    isBot: p.sessionId.startsWith("bot_"),
     isAdmin: p.sessionId === r.admin,
     isHost: p.sessionId === r.host,
     timedOutUntil: r.timeouts.get(p.sessionId) || 0,
@@ -364,9 +403,21 @@ const publicRoom = (r) => ({
 
 const findSocketBySession = (sid) => socketBySession.get(sid) || null;
 
+function getSessionBySessionId(sessionId) {
+  const key = String(sessionId || "");
+  if (!key) return null;
+  const socketId = findSocketBySession(key);
+  return (socketId && sessions.get(socketId)) || sessions.get(key) || null;
+}
+function isSessionBlocked(session, targetSessionId) {
+  if (!session || !targetSessionId) return false;
+  const target = getSessionBySessionId(targetSessionId);
+  const targetProfileId = target?.profileId;
+  return session.blocked.has(targetProfileId || String(targetSessionId));
+}
 function isBlocked(a, b) {
-  const s = sessions.get(findSocketBySession(a) || "");
-  return s ? s.blocked.has(b) : false;
+  const session = getSessionBySessionId(a);
+  return session ? isSessionBlocked(session, b) : false;
 }
 function isMutuallyBlocked(a, b) {
   return isBlocked(a, b) || isBlocked(b, a);
@@ -377,8 +428,8 @@ function broadcastOnline() {
     const list = [];
     for (const u of sessions.values()) {
       if (u.sessionId === session.sessionId) continue;
-      if (session.blocked.has(u.sessionId)) continue;
-      if (u.blocked.has(session.sessionId)) continue;
+      if (isSessionBlocked(session, u.sessionId)) continue;
+      if (isSessionBlocked(u, session.sessionId)) continue;
       list.push(publicUser(u));
     }
     io.to(socketId).emit("online:list", list);
@@ -396,7 +447,7 @@ function broadcastPublicMessage(msg) {
   for (const [socketId, session] of sessions) {
     if (
       session.sessionId !== msg.senderSessionId &&
-      (session.blocked.has(msg.senderSessionId) || isBlocked(msg.senderSessionId, session.sessionId))
+      (isSessionBlocked(session, msg.senderSessionId) || isBlocked(msg.senderSessionId, session.sessionId))
     ) continue;
     if (shadowed && session.sessionId !== msg.senderSessionId) continue;
     io.to(socketId).emit("chat:public:message", publicChatMessage(msg));
@@ -406,7 +457,7 @@ function broadcastPublicMessage(msg) {
 function broadcastSystemFor(userSessionId, payload) {
   for (const [socketId, session] of sessions) {
     if (session.sessionId !== userSessionId &&
-      (session.blocked.has(userSessionId) || isBlocked(userSessionId, session.sessionId))) continue;
+      (isSessionBlocked(session, userSessionId) || isBlocked(userSessionId, session.sessionId))) continue;
     io.to(socketId).emit("system:public", payload);
   }
 }
@@ -462,7 +513,7 @@ function broadcastReactionPublic(messageId, actorSessionId) {
   for (const [socketId, session] of sessions) {
     if (
       session.sessionId !== actorSessionId &&
-      (session.blocked.has(actorSessionId) || isBlocked(actorSessionId, session.sessionId))
+      (isSessionBlocked(session, actorSessionId) || isBlocked(actorSessionId, session.sessionId))
     ) continue;
     io.to(socketId).emit("reaction:update", {
       messageId,
@@ -792,7 +843,8 @@ io.on("connection", (socket) => {
   const profileToken = String(socket.handshake.auth?.profileToken || "").trim().toLowerCase();
   // The random bearer token remains in the owner's browser. Only this derived,
   // non-secret profile identifier is ever shared with other clients.
-  const profileId = /^[a-f0-9]{32,64}$/.test(profileToken)
+  const hasStableProfile = /^[a-f0-9]{32,64}$/.test(profileToken);
+  const profileId = hasStableProfile
     ? "profile_" + crypto.createHash("sha256").update(profileToken).digest("hex").slice(0, 32)
     : "profile_" + makeId();
   const initialAvatarDesign = sanitizeAvatarDesign(socket.handshake.auth?.avatarDesign);
@@ -803,12 +855,13 @@ io.on("connection", (socket) => {
   const session = {
     sessionId: makeId(),
     profileId,
+    hasStableProfile,
     spamKey,
     username: validName || makeUsername(),
     accent: pick(ACCENTS),
     status: "available",
     avatarDesign: initialAvatarDesign,
-    blocked: new Map(),
+    blocked: new Map(hasStableProfile ? db.loadBlocks(profileId).map((entry) => [entry.profileId, entry.username]) : []),
   };
   sessions.set(socket.id, session);
   socketBySession.set(session.sessionId, socket.id);
@@ -925,7 +978,7 @@ io.on("connection", (socket) => {
       if (m.createdAt <= ts) continue;
       if (m.senderSessionId === s.sessionId) continue;
       if (isShadowBanned(m.senderSpamKey)) continue;
-      if (s.blocked.has(m.senderSessionId)) continue;
+      if (isSessionBlocked(s, m.senderSessionId)) continue;
       if (isBlocked(m.senderSessionId, s.sessionId)) continue;
       out.push(publicChatMessage(m));
     }
@@ -934,13 +987,18 @@ io.on("connection", (socket) => {
   });
 
   // ---------- public chat ----------
-  socket.on("chat:public:send", ({ content, replyTo } = {}, ack) => {
+  socket.on("chat:public:send", ({ content, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
 
     const text = clean(String(content ?? "").trim());
     if (!text) return ack?.({ ok: false, error: "Empty message" });
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Message too long" });
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, "public");
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text, replyTo);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
       return ack?.({ ok: false, error: "Slow down â€” too many messages." });
@@ -960,6 +1018,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
+      rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
       io.to(socket.id).emit("chat:public:message", msg);
       return ack?.({ ok: true, id: msg.id });
     }
@@ -978,6 +1037,7 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: errors[spam.reason] || "Slow down." });
     }
 
+    rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastPublicMessage(msg);
     ack?.({ ok: true, id: msg.id });
   });
@@ -1036,7 +1096,7 @@ io.on("connection", (socket) => {
     if (!s) return;
     for (const [socketId, sess] of sessions) {
       if (sess.sessionId === s.sessionId) continue;
-      if (sess.blocked.has(s.sessionId) || s.blocked.has(sess.sessionId)) continue;
+      if (isSessionBlocked(sess, s.sessionId) || isSessionBlocked(s, sess.sessionId)) continue;
       io.to(socketId).emit("typing:public", { sessionId: s.sessionId, username: s.username });
     }
   });
@@ -1347,7 +1407,7 @@ io.on("connection", (socket) => {
     }
     if (!found) return ack?.({ ok: false, error: "User is offline or not found" });
     if (sessionRooms.has(found.sessionId)) return ack?.({ ok: false, error: "That user is already in a room" });
-    if (s.blocked.has(found.sessionId) || found.blocked.has(s.sessionId)) {
+    if (isSessionBlocked(s, found.sessionId) || isSessionBlocked(found, s.sessionId)) {
       return ack?.({ ok: false, error: "Unable to send invitation." });
     }
     const targetSocketId = findSocketBySession(found.sessionId);
@@ -1459,7 +1519,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------- room message ----------
-  socket.on("room:message", ({ roomId, content, replyTo } = {}, ack) => {
+  socket.on("room:message", ({ roomId, content, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
 
@@ -1468,6 +1528,15 @@ io.on("connection", (socket) => {
     if (!room.participants.some((p) => p.sessionId === s.sessionId)) {
       return ack?.({ ok: false, error: "Not in this room" });
     }
+
+    const text = clean(String(content ?? "").trim());
+    if (!text) return ack?.({ ok: false, error: "Empty" });
+    if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `room:${roomId}`);
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text, replyTo);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     const timeoutLeft = roomTimeoutRemaining(room, s.sessionId);
     if (timeoutLeft > 0) {
@@ -1487,10 +1556,6 @@ io.on("connection", (socket) => {
       });
     }
 
-    const text = clean(String(content ?? "").trim());
-    if (!text) return ack?.({ ok: false, error: "Empty" });
-    if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
-
     if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
       return ack?.({ ok: false, error: "Slow down." });
     }
@@ -1509,6 +1574,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, roomId, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
+      rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
       const sid = findSocketBySession(s.sessionId);
       if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
@@ -1529,6 +1595,7 @@ io.on("connection", (socket) => {
     }
 
     room.lastMessageAt.set(s.sessionId, Date.now());
+    rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastRoomMessage(room, msg);
     ack?.({ ok: true, id: msg.id });
   });
@@ -1678,7 +1745,7 @@ io.on("connection", (socket) => {
       }
     } else {
       for (const [socketId, sess] of sessions) {
-        if (sess.sessionId !== s.sessionId && (sess.blocked.has(s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
+        if (sess.sessionId !== s.sessionId && (isSessionBlocked(sess, s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
         io.to(socketId).emit("message:edited", payload);
       }
     }
@@ -1713,7 +1780,7 @@ io.on("connection", (socket) => {
       }
     } else {
       for (const [socketId, sess] of sessions) {
-        if (sess.sessionId !== s.sessionId && (sess.blocked.has(s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
+        if (sess.sessionId !== s.sessionId && (isSessionBlocked(sess, s.sessionId) || isBlocked(s.sessionId, sess.sessionId))) continue;
         io.to(socketId).emit("message:deleted", payload);
       }
     }
@@ -1732,7 +1799,7 @@ io.on("connection", (socket) => {
     const targetSession = sessions.get(targetSocketId);
     if (!targetSession) return ack?.({ ok: false, error: "User offline" });
 
-    if (s.blocked.has(target) || targetSession.blocked.has(s.sessionId)) {
+    if (isSessionBlocked(s, target) || isSessionBlocked(targetSession, s.sessionId)) {
       return ack?.({ ok: false, error: "Cannot message this user" });
     }
 
@@ -1969,9 +2036,11 @@ io.on("connection", (socket) => {
       reason: clean(String(reason || "")).slice(0, 500),
       createdAt: Date.now(),
     };
+    if (!db.saveReport(report)) {
+      return ack?.({ ok: false, error: "Report could not be saved. Please try again." });
+    }
     reports.push(report);
     if (reports.length > 100) reports.shift();
-    db.saveReport(report);
     ack?.({ ok: true });
   });
 
@@ -1979,35 +2048,61 @@ io.on("connection", (socket) => {
   socket.on("block:user", ({ targetSessionId, targetUsername } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    if (!targetSessionId || targetSessionId === s.sessionId) {
-      return ack?.({ ok: false, error: "Invalid target" });
+    const target = String(targetSessionId || "");
+    const targetSession = getSessionBySessionId(target);
+    if (!targetSession || !targetSession.profileId || target === s.sessionId || targetSession.profileId === s.profileId) {
+      return ack?.({ ok: false, error: "Invalid or unavailable target" });
     }
-    s.blocked.set(String(targetSessionId), String(targetUsername || "unknown"));
+    const username = String(targetSession.username || targetUsername || "unknown").slice(0, 40);
+    const canPersist = s.hasStableProfile && targetSession.hasStableProfile && db.isReady?.() === true;
+    if (canPersist && !db.saveBlock(s.profileId, targetSession.profileId, username)) {
+      return ack?.({ ok: false, error: "Could not save block. Please try again." });
+    }
+    // When browser storage is unavailable, retain a session-only block rather than
+    // persisting an identity that cannot survive reconnects.
+    s.blocked.set(targetSession.profileId, username);
 
     const roomId = sessionRooms.get(s.sessionId);
     if (roomId) {
       const room = rooms.get(roomId);
-      if (room && room.participants.some((p) => p.sessionId === String(targetSessionId))) {
+      if (room && room.participants.some((p) => p.sessionId === target)) {
         removeFromRoom(roomId, s.sessionId, "left");
       }
     }
-
     broadcastOnline();
-    ack?.({ ok: true });
+    ack?.({ ok: true, persistent: canPersist });
   });
 
-  socket.on("unblock:user", ({ targetSessionId } = {}, ack) => {
+  socket.on("unblock:user", ({ profileId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    s.blocked.delete(String(targetSessionId));
+    const targetProfileId = String(profileId || "");
+    if (!/^profile_[a-z0-9]{8,64}$/.test(targetProfileId) || !s.blocked.has(targetProfileId)) {
+      return ack?.({ ok: false, error: "Invalid block entry" });
+    }
+    // Session-only blocks have no durable row to delete. If this is a
+    // stable profile, fail closed while SQLite is unavailable so the UI
+    // cannot claim a persistent block was removed when it will reappear.
+    if (s.hasStableProfile) {
+      if (db.isReady?.() !== true) {
+        return ack?.({ ok: false, error: "Block storage is temporarily unavailable. Please try again." });
+      }
+      if (!db.deleteBlock(s.profileId, targetProfileId)) {
+        return ack?.({ ok: false, error: "Could not remove block. Please try again." });
+      }
+    }
+    s.blocked.delete(targetProfileId);
     broadcastOnline();
-    ack?.({ ok: true });
+    ack?.({ ok: true, persistent: s.hasStableProfile });
   });
 
   socket.on("blocked:list", (_payload, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    const list = [...s.blocked.entries()].map(([sessionId, username]) => ({ sessionId, username }));
+    const list = [...s.blocked.entries()].map(([profileId, username]) => {
+      const active = [...sessions.values()].find((candidate) => candidate.profileId === profileId);
+      return { profileId, sessionId: active?.sessionId || "", username };
+    });
     ack?.({ ok: true, blocked: list });
   });
 
@@ -2097,6 +2192,8 @@ function initBots() {
     const spamKey = "bot:" + profile.name;
     sessions.set(sessionId, {
       sessionId,
+      profileId: "profile_" + crypto.createHash("sha256").update("anon-bot:" + profile.name).digest("hex").slice(0, 32),
+      hasStableProfile: true,
       spamKey,
       ip: "bot",
       username: profile.name,
