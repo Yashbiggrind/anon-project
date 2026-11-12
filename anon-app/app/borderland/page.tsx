@@ -153,7 +153,7 @@ export default function Borderland() {
   const formatTime = (sec: number) => `${Math.floor(sec/60)}:${(sec%60).toString().padStart(2, '0')}`;
 
   if (phase === "portal") return (
-    <div className="bl-portal"><style>{BL_CSS}</style><div className="bl-glitch-text">THE BORDERLAND</div><p>15 minutes. Only one survives.</p><button className="bl-enter-btn" onClick={() => { setPlayerNum(Math.floor(Math.random()*999)+1); setPhase("visa"); }}>ENTER THE PORTAL</button></div>
+    <div className="bl-portal"><style>{BL_CSS}</style><div className="bl-glitch-text">THE BORDERLAND</div><p>15 minutes. Only one survives.</p><p className="bl-simulation-note">SIMULATION · LOCAL BOT PLAYERS · NOT LIVE MULTIPLAYER</p><button className="bl-enter-btn" onClick={() => { setPlayerNum(Math.floor(Math.random()*999)+1); setPhase("visa"); }}>ENTER THE PORTAL</button></div>
   );
 
   if (phase === "visa") return (
@@ -192,6 +192,7 @@ export default function Borderland() {
       </div>
       <div className="game-ui">
         <div className="game-header">
+          <span className="bl-simulation-note">LOCAL BOT SIMULATION</span>
           <h1>{phase === "game1" ? "GAME 1: THE WEAKEST LINK" : phase === "game2" ? "GAME 2: SPAM SURVIVAL" : "GAME 3: THE TRAITOR"}</h1>
           <div className="timer-pill">{phase === "game1" || phase === "game2" ? `${gameTimer}s` : formatTime(timer)}</div>
         </div>
@@ -231,4 +232,45 @@ const BL_CSS = `
 .bl-portal{height:100vh;background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace}.bl-glitch-text{font-size:4rem;font-weight:900;color:#ff2d55;animation:glitch 1s infinite;margin-bottom:20px;letter-spacing:10px}.bl-enter-btn{padding:15px 40px;background:transparent;border:2px solid #ff2d55;color:#ff2d55;font-size:1.2rem;cursor:pointer;transition:all .3s;margin-top:30px;text-transform:uppercase;font-weight:bold}.bl-enter-btn:hover{background:#ff2d55;color:#000;box-shadow:0 0 50px #ff2d55}@keyframes glitch{0%{text-shadow:3px 0 red,-3px 0 blue}50%{text-shadow:-3px 0 red,3px 0 blue}100%{text-shadow:3px 0 red,-3px 0 blue}}
 .bl-visa-bg{height:100vh;background:#050505;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;perspective:1000px}.bl-visa-card{width:450px;height:280px;background:linear-gradient(135deg,#1a1a1a,#000);border:1px solid #444;border-radius:15px;padding:30px;color:#fff;position:relative;box-shadow:0 30px 60px rgba(0,0,0,.9),0 0 20px rgba(255,45,85,.2);display:flex;flex-direction:column;justify-content:space-between;transform:rotateY(-15deg) rotateX(5deg);transition:transform .4s}.bl-visa-card:hover{transform:rotateY(0) rotateX(0);box-shadow:0 30px 60px rgba(0,0,0,.9),0 0 40px rgba(255,45,85,.5)}.bl-visa-chip{width:60px;height:45px;background:linear-gradient(90deg,#d4af37,#ffdf00,#d4af37);border-radius:5px;box-shadow:inset 0 0 5px rgba(0,0,0,.5)}.bl-visa-header{color:#888;font-size:.9rem;letter-spacing:4px}.bl-visa-number{font-size:3.5rem;font-weight:900;letter-spacing:8px;color:#ff2d55;text-shadow:0 0 10px rgba(255,45,85,.8)}.bl-visa-timer{display:flex;flex-direction:column;font-size:1.5rem;font-weight:bold;color:#fff}.bl-visa-timer span{font-size:.7rem;color:#555;letter-spacing:2px;margin-bottom:5px}.bl-visa-barcode{font-family:monospace;font-size:2rem;letter-spacing:3px;opacity:.3}
 .bl-game-bg{height:100vh;background:#020202;color:#fff;font-family:'Courier New',monospace;overflow:hidden;display:flex;justify-content:center;align-items:center;perspective:1000px}.bl-game-bg.parallel-universe{background:#000;filter:grayscale(100%) contrast(150%)}.arena-container{position:relative;width:100vw;height:100vh;display:flex;justify-content:center;align-items:center}.arena-floor{position:absolute;width:150%;height:150%;bottom:-30%;transform:rotateX(75deg);background:radial-gradient(circle,rgba(20,20,20,1) 0%,rgba(0,0,0,1) 70%);display:flex;justify-content:center;align-items:center;border-top:2px solid #333}.grid-lines{width:100%;height:100%;background-image:linear-gradient(rgba(255,45,85,.1) 1px,transparent 1px),linear-gradient(90deg,rgba(255,45,85,.1) 1px,transparent 1px);background-size:50px 50px;animation:gridMove 5s linear infinite}@keyframes gridMove{from{background-position:0 0}to{background-position:0 50px}}.arena-players{position:relative;width:1100px;height:400px;transform-style:preserve-3d;display:flex;justify-content:center;transform:rotateX(15deg)}.player-3d{position:absolute;bottom:0;transform-style:preserve-3d;animation:float 3s ease-in-out infinite;display:flex;flex-direction:column;align-items:center;transition:all .5s}.player-3d:nth-child(2){animation-delay:.5s}.player-3d:nth-child(3){animation-delay:1s}.player-3d:nth-child(4){animation-delay:1.5s}@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-20px)}}.player-card{width:180px;height:250px;background:rgba(10,10,10,.9);border:1px solid #444;border-radius:10px;padding:15px;text-align:center;position:relative;box-shadow:0 20px 40px rgba(0,0,0,.8);display:flex;flex-direction:column;align-items:center;justify-content:center;backdrop-filter:blur(5px)}.card-glow{position:absolute;top:0;left:0;right:0;height:4px;border-radius:10px 10px 0 0;transition:background .3s}.player-card h2{font-size:1.2rem;margin-bottom:10px;text-transform:uppercase;letter-spacing:1px}.status-text{font-size:.8rem;color:#888}.vote-count{font-size:1.2rem;color:#ff2d55;font-weight:bold;margin-top:10px}.score-text{font-size:1.5rem;color:#fff;font-weight:bold;margin-top:10px}.player-shadow{width:100px;height:10px;background:rgba(0,0,0,.8);border-radius:50%;margin-top:20px;filter:blur(4px);transition:all .3s}.player-3d.dead{opacity:.3;filter:grayscale(100%);animation:none;transform:translateY(20px)}.player-3d.dead .player-shadow{width:150px;filter:blur(8px)}.dead-overlay{position:absolute;top:40%;left:0;right:0;background:#f00;color:#000;font-weight:bold;padding:5px;transform:rotate(-15deg)}.game-ui{position:absolute;top:0;left:0;width:100%;padding:30px;pointer-events:none;display:flex;flex-direction:column;align-items:center;z-index:10}.game-header{display:flex;justify-content:space-between;width:100%;max-width:1200px;border-bottom:1px solid #333;padding-bottom:15px}.game-header h1{font-size:1.5rem;color:#ff2d55;letter-spacing:2px;text-shadow:0 0 10px rgba(255,45,85,.5)}.timer-pill{background:#000;border:1px solid #ff2d55;color:#ff2d55;padding:5px 15px;border-radius:20px;font-weight:bold;font-size:1.2rem}.live-log{margin-top:10px;font-size:.9rem;color:#888;text-align:center;height:60px;width:100%}.live-log div{margin-bottom:3px}.instruction-box{margin-top:20px;background:rgba(0,0,0,.8);border:1px solid #333;padding:20px 40px;border-radius:10px;text-align:center;pointer-events:auto;backdrop-filter:blur(5px)}.instruction-box p{font-size:1.1rem;color:#aaa;margin-bottom:15px}.action-buttons{display:flex;gap:15px;margin-top:15px}.vote-btn{background:#200;border:1px solid #ff2d55;color:#ff2d55;padding:10px 20px;cursor:pointer;font-family:inherit;font-weight:bold;text-transform:uppercase}.vote-btn:hover{background:#ff2d55;color:#000}.spam-btn{background:#ff2d55;color:#000;border:none;padding:20px 60px;font-size:1.5rem;font-weight:bold;cursor:pointer;border-radius:8px;user-select:none;transition:transform .1s;box-shadow:0 0 30px rgba(255,45,85,.5)}.spam-btn:active{transform:scale(.9)}.traitor-box{border-color:#ff0000;box-shadow:0 0 40px rgba(255,0,0,.2)}.survivor-text{color:#00ffcc!important;font-weight:bold}.accuse-btn{background:#111;border:1px solid #555;color:#fff;padding:10px 20px;cursor:pointer;font-family:inherit;font-weight:bold}.accuse-btn:hover{border-color:#f00;color:#f00;box-shadow:0 0 10px rgba(255,0,0,.5)}.clue-panel{position:absolute;bottom:20px;left:20px;width:300px;background:rgba(0,0,0,.85);border:1px solid #333;border-radius:10px;padding:15px;z-index:10}.clue-panel h3{color:#ff2d55;margin-bottom:10px;border-bottom:1px solid #333;padding-bottom:5px}.clue-text{color:#aaa;font-style:italic;margin-bottom:8px;font-size:.9rem}.bl-gameover{height:100vh;background:#000;color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:monospace;text-align:center}.bl-gameover h1{font-size:4rem;color:#ff2d55;margin-bottom:10px;letter-spacing:5px}.bl-gameover h2{font-size:2rem;color:#fff;margin-bottom:40px}.logs-box{background:#111;padding:20px;border:1px solid #333;border-radius:10px;color:#888;width:500px;margin-bottom:30px}
+  .bl-simulation-note{display:block;max-width:100%;color:#ff9aae;font:700 10px/1.5 "Courier New",monospace;letter-spacing:.12em;text-align:center;overflow-wrap:anywhere}
+  @media (max-width: 900px) {
+    .bl-portal,.bl-visa-bg,.bl-gameover{min-height:100svh;height:auto;box-sizing:border-box;padding:24px 16px;overflow-x:hidden}
+    .bl-glitch-text{font-size:clamp(1.8rem,7vw,3.2rem);letter-spacing:clamp(2px,1vw,8px);text-align:center;overflow-wrap:anywhere}
+    .bl-visa-card{width:min(450px,calc(100vw - 32px));height:auto;min-height:240px;padding:clamp(18px,5vw,30px);transform:none;box-sizing:border-box}
+    .bl-visa-card:hover{transform:none}
+    .bl-visa-number{font-size:clamp(1.8rem,8vw,3.2rem);letter-spacing:clamp(2px,1.4vw,8px)}
+    .bl-visa-timer{font-size:1.25rem}
+    .bl-game-bg{height:auto;min-height:100svh;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-start;align-items:stretch;perspective:none;padding:12px 10px 24px;box-sizing:border-box}
+    .arena-container{position:relative;width:100%;height:auto;min-height:340px;overflow:hidden;box-sizing:border-box}
+    .arena-floor{width:130%;height:90%;bottom:-38%;opacity:.45}
+    .arena-players{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;width:100%;height:auto;min-height:0;padding:18px 8px 12px;box-sizing:border-box;transform:none}
+    .player-3d{position:relative!important;left:auto!important;bottom:auto;min-width:0;animation:none;transform:none}
+    .player-card{width:100%;height:150px;min-width:0;padding:10px;box-sizing:border-box}
+    .player-card h2{font-size:clamp(.75rem,2vw,1rem);overflow-wrap:anywhere}
+    .status-text{font-size:.7rem;overflow-wrap:anywhere}
+    .player-shadow{width:60%;margin-top:8px}
+    .game-ui{position:relative;inset:auto;width:100%;padding:10px 4px 0;box-sizing:border-box;align-items:stretch}
+    .game-header{width:100%;max-width:none;gap:10px;align-items:center;flex-wrap:wrap;padding-bottom:10px}
+    .game-header h1{flex:1 1 180px;min-width:0;font-size:clamp(.95rem,3.5vw,1.3rem);line-height:1.3;letter-spacing:1px;overflow-wrap:anywhere}
+    .timer-pill{font-size:1rem;flex:0 0 auto}
+    .live-log{height:auto;min-height:44px;font-size:.8rem;overflow-wrap:anywhere}
+    .instruction-box{width:100%;max-width:100%;margin:12px 0 0;padding:14px 12px;box-sizing:border-box}
+    .instruction-box p{font-size:.95rem;line-height:1.4}
+    .action-buttons{display:flex;flex-wrap:wrap;justify-content:center;gap:8px;margin-top:12px}
+    .vote-btn,.accuse-btn{min-height:44px;max-width:100%;padding:10px 12px;font-size:.8rem;overflow-wrap:anywhere}
+    .spam-btn{width:min(260px,100%);min-height:54px;padding:12px 18px;font-size:1.15rem}
+    .clue-panel{position:relative;left:auto;right:auto;bottom:auto;width:100%;max-width:100%;margin:12px 0 0;padding:12px;box-sizing:border-box}
+    .bl-gameover h1{font-size:clamp(2rem,9vw,3.5rem);letter-spacing:2px;overflow-wrap:anywhere}
+    .bl-gameover h2{font-size:1.3rem;margin-bottom:22px}
+    .logs-box{width:100%;max-width:500px;box-sizing:border-box;overflow-wrap:anywhere}
+    .bl-enter-btn{max-width:100%;padding:13px 20px;font-size:1rem;overflow-wrap:anywhere}
+  }
+  @media (max-width: 380px) {
+    .bl-visa-number{font-size:1.7rem;letter-spacing:2px}
+    .arena-players{gap:7px;padding:12px 4px}
+    .player-card{height:132px;padding:8px}
+    .game-header h1{font-size:.9rem}
+    .timer-pill{font-size:.9rem;padding:4px 10px}
+    .vote-btn,.accuse-btn{font-size:.72rem;padding:9px 8px}
+  }
 `;
