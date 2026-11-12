@@ -29,12 +29,12 @@ export default function ConsentBanner() {
   return (
     <>
       <style>{CSS}</style>
-      <div className="consentRoot" role="dialog" aria-label="Consent notice">
+      <div className="consentRoot" role="dialog" aria-label="Privacy notice">
         <div className="consentCard">
           <div className="consentText">
             <div className="consentTitle">BEFORE YOU STEP IN</div>
             <p className="consentBody">
-              ANON does not require an account, email, or phone. For abuse prevention it retains a <b>keyed hash derived from your connection IP</b>, plus an ephemeral session ID, timestamps, and user-agent data, for up to <b>180 days</b>. This hash can link repeated connections, so it is pseudonymous—not a guarantee of complete anonymity. Chat history may be cached in this browser for up to 24 hours, and offline messages may remain until sent or cleared. When an AI bot generates a reply, relevant message text and limited context may be sent to configured third-party AI providers.
+              ANON does not require an account, email, or phone. For abuse prevention it retains a <b>keyed hash derived from your connection IP</b>, plus an ephemeral session ID, timestamps, and user-agent data, for up to <b>180 days</b>. This hash can link repeated connections, so it is pseudonymous—not a guarantee of complete anonymity. Chat history may be cached in this browser for up to 24 hours, and offline messages may remain until sent or cleared. AI personas appear in public chat and clearly marked AI rooms; when a bot replies, relevant message text and limited context may be sent to configured third-party AI providers. Avoid sharing sensitive information in those spaces.
             </p>
             <div className="consentLinks">
               <Link href="/legal/terms" className="consentLink">Terms</Link>
