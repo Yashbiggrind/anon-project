@@ -980,6 +980,7 @@ io.on("connection", (socket) => {
     for (const m of publicHistory) {
       if (m.createdAt <= ts) continue;
       if (m.senderSessionId === s.sessionId) continue;
+      if (s.hasStableProfile && m.senderProfileId === s.profileId) continue;
       if (isShadowBanned(m.senderSpamKey)) continue;
       if (isSessionBlocked(s, m.senderSessionId)) continue;
       if (isBlocked(m.senderSessionId, s.sessionId)) continue;
