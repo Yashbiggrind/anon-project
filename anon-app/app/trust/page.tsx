@@ -3,19 +3,12 @@
 import { useState } from "react";
 import Link from "next/link";
 
-const CSP_CODE = `// next.config.ts (Next.js)
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  "style-src 'self' 'unsafe-inline'",
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  "connect-src 'self' ws: wss:",
-  "object-src 'none'",
-  "frame-ancestors 'none'",
-].join("; ");
+const SECURITY_HEADERS_STATUS = `ACTIVE RESPONSE HEADERS
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Referrer-Policy: no-referrer
 
-headers: [{ key: "Content-Security-Policy", value: csp }]`;
+Content-Security-Policy: NOT CONFIGURED`;
 
 const TOR_CODE = `# /etc/tor/torrc
 HiddenServiceDir /var/lib/tor/anon/
@@ -124,7 +117,7 @@ export default function TrustPage() {
           <div className="card">
             <span className="status live">LIVE IN PROTOTYPE</span>
             <h3>Delete my data</h3>
-            <p>One flow, with a receipt. Everything erasable is erased. The 180-day log is stated honestly.</p>
+            <p>The data page exports or clears local data stored by this browser on this device. It does not delete server-side reports, blocks, or connection logs; connection logs are retained for up to 180 days.</p>
             <div className="btnRow">
               <Link href="/data" className="btn sm">OPEN DATA LOG →</Link>
             </div>
@@ -140,19 +133,26 @@ export default function TrustPage() {
             </div>
           </div>
 
-          {/* ---------- CSP ---------- */}
+          {/* ---------- Security headers ---------- */}
           <div className="card">
-            <span className="status ready">READY TO SHIP</span>
-            <h3>Security headers + CSP</h3>
-            <p>Locks scripts, frames and connections to your own origin. Snippet is in the backend file.</p>
-            <pre className="code">{CSP_CODE}</pre>
+            <span className="status plan">CSP NOT ACTIVE</span>
+            <h3>Security headers</h3>
+            <p>The backend currently sends the headers listed below. A Content-Security-Policy is not configured yet; it needs compatibility testing with the Next.js app before activation.</p>
+            <pre className="code">{SECURITY_HEADERS_STATUS}</pre>
+          </div>
+
+          {/* ---------- AI participant data use ---------- */}
+          <div className="card">
+            <span className="status live">LIVE IN PROTOTYPE</span>
+            <h3>AI participant data use</h3>
+            <p>AI participants are labeled as bots. When one generates a reply, the latest relevant message from public chat or a room containing that bot may be sent to Pollinations, with OpenRouter as a fallback when configured. These are external services with their own data practices. Avoid sharing sensitive personal information in bot-enabled conversations. Operators can disable bot activity with the server setting ENABLE_BOTS=false.</p>
           </div>
 
           {/* ---------- E2E ---------- */}
           <div className="card">
-            <span className="status ready">READY TO SHIP</span>
-            <h3>End-to-end encryption</h3>
-            <p>Room messages encrypted in the browser with a key derived from the room code. Server stores only ciphertext. Try it here with WebCrypto (AES-GCM).</p>
+            <span className="status planned">DEMO ONLY</span>
+            <h3>Encryption demonstration</h3>
+            <p>This browser-only WebCrypto example encrypts and decrypts the text entered below. It is not connected to ANON chat or private rooms, and it does not encrypt real messages in transit beyond HTTPS. Do not enter private information here.</p>
             <input className="inp" value={plain} onChange={(e) => setPlain(e.target.value)} placeholder="message to encrypt" />
             <input className="inp" value={code} onChange={(e) => setCode(e.target.value)} placeholder="room code" />
             <div className="btnRow">
