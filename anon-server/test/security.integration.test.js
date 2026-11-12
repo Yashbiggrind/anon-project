@@ -205,6 +205,18 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(idempotentDeliveryCount, 1, "retry must not broadcast a duplicate message");
     b.off("chat:public:message", countIdempotentDelivery);
 
+    const publicImagePayload = {
+      image: "data:image/png;base64," + "A".repeat(128),
+      caption: "retry-safe public image",
+      clientMessageId: "public-image-idempotency-001",
+    };
+    const publicImageFirst = await emitAck(a, "chat:public:image", publicImagePayload);
+    assert.equal(publicImageFirst.ok, true);
+    const publicImageRetry = await emitAck(a, "chat:public:image", publicImagePayload);
+    assert.equal(publicImageRetry.ok, true);
+    assert.equal(publicImageRetry.id, publicImageFirst.id);
+    assert.equal(publicImageRetry.deduplicated, true, "public image retries must not create duplicates");
+
     const createPost = await emitAck(a, "confession:create", { text: "Shared feature test", author: "ForgedAuthor123" });
     assert.equal(createPost.ok, true);
     const listResult = await emitAck(b, "confession:list", {});
@@ -241,6 +253,20 @@ test("live server protects socket payloads, authorization, data flow, and persis
     assert.equal(roomRetryAck.ok, true);
     assert.equal(roomRetryAck.id, roomFirstAck.id);
     assert.equal(roomRetryAck.deduplicated, true, "retry must bypass slow mode after original acceptance");
+    await emitAck(a, "room:set-slowmode", { roomId: roomResult.room.roomId, seconds: 0 });
+    const roomImagePayload = {
+      roomId: roomResult.room.roomId,
+      image: "data:image/png;base64," + "B".repeat(128),
+      caption: "retry-safe room image",
+      clientMessageId: "room-image-idempotency-001",
+    };
+    const roomImageFirst = await emitAck(a, "room:image", roomImagePayload);
+    assert.equal(roomImageFirst.ok, true);
+    const roomImageRetry = await emitAck(a, "room:image", roomImagePayload);
+    assert.equal(roomImageRetry.ok, true);
+    assert.equal(roomImageRetry.id, roomImageFirst.id);
+    assert.equal(roomImageRetry.deduplicated, true, "room image retries must not create duplicates");
+
     const inviteResult = await emitAck(a, "room:invite", { roomId: roomResult.room.roomId, recipientUsername: identityB.username });
     assert.equal(inviteResult.ok, true);
     const wrongDecline = await emitAck(a, "invite:decline", { inviteId: inviteResult.inviteId });
