@@ -434,7 +434,6 @@ export default function Home() {
     const validSavedLang = savedLang && LANGUAGES.some((l) => l.code === savedLang) ? savedLang : null;
 
     const now = Date.now();
-    const savedName = localStorage.getItem(LS_USERNAME) || "";
     const rawLastOffer = localStorage.getItem(LS_LAST_OFFER);
 
     let lastOffer: number;
