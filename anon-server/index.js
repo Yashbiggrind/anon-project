@@ -1046,16 +1046,24 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, id: msg.id });
   });
 
-  // ---------- public image send (v21.2 spam check) ----------
-  socket.on("chat:public:image", ({ image, caption, replyTo } = {}, ack) => {
+  // ---------- public image send ----------
+  socket.on("chat:public:image", ({ image, caption, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
-      return ack?.({ ok: false, error: "Slow down." });
-    }
     if (!isImageData(image)) return ack?.({ ok: false, error: "Invalid image" });
 
     const cleanCaption = clean(String(caption || "").trim()).slice(0, 200);
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, "public-image");
+    const idempotencyContent = JSON.stringify({ image, caption: cleanCaption });
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey, idempotencyContent, replyTo);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
+
+    if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
+      return ack?.({ ok: false, error: "Slow down." });
+    }
+
     const msg = {
       id: makeId(),
       senderSessionId: s.sessionId,
@@ -1071,6 +1079,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId: null, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
+      rememberIdempotentMessage(idempotencyKey, msg.id, idempotencyContent, replyTo);
       io.to(socket.id).emit("chat:public:message", msg);
       return ack?.({ ok: true, id: msg.id });
     }
@@ -1082,14 +1091,15 @@ io.on("connection", (socket) => {
         return ack?.({ ok: false, error: `Wait ${Math.ceil((spam.cooldownMs || 0) / 1000)}s.` });
       }
       const errors = {
-        duplicate: "Duplicate image â€” please don't repeat.",
-        burst: "Too many images â€” slow down.",
+        duplicate: "Duplicate image — please don't repeat.",
+        burst: "Too many images — slow down.",
         links: "Too many links.",
         repetition: "Repetitive image detected.",
       };
       return ack?.({ ok: false, error: errors[spam.reason] || "Slow down." });
     }
 
+    rememberIdempotentMessage(idempotencyKey, msg.id, idempotencyContent, replyTo);
     broadcastPublicMessage(msg);
     ack?.({ ok: true, id: msg.id });
   });
@@ -1604,13 +1614,10 @@ io.on("connection", (socket) => {
     ack?.({ ok: true, id: msg.id });
   });
 
-  // ---------- room image send (v21.2 spam check) ----------
-  socket.on("room:image", ({ roomId, image, caption, replyTo } = {}, ack) => {
+  // ---------- room image send ----------
+  socket.on("room:image", ({ roomId, image, caption, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
-    if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
-      return ack?.({ ok: false, error: "Slow down." });
-    }
     const room = rooms.get(roomId);
     if (!room || room.status !== "active") return ack?.({ ok: false, error: "Room closed" });
     if (!room.participants.some((p) => p.sessionId === s.sessionId)) {
@@ -1627,8 +1634,18 @@ io.on("connection", (socket) => {
     }
 
     if (!isImageData(image)) return ack?.({ ok: false, error: "Invalid image" });
-
     const cleanCaption = clean(String(caption || "").trim()).slice(0, 200);
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `room-image:${roomId}`);
+    const idempotencyContent = JSON.stringify({ image, caption: cleanCaption });
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey, idempotencyContent, replyTo);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
+
+    if (!rateLimit(`msg:${s.spamKey}`, RATE_MSG, 10000)) {
+      return ack?.({ ok: false, error: "Slow down." });
+    }
+
     const msg = {
       id: makeId(),
       senderSessionId: s.sessionId,
@@ -1644,6 +1661,7 @@ io.on("connection", (socket) => {
     messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId, createdAt: Date.now() });
 
     if (isShadowBanned(s.spamKey)) {
+      rememberIdempotentMessage(idempotencyKey, msg.id, idempotencyContent, replyTo);
       const sid = findSocketBySession(s.sessionId);
       if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
       return ack?.({ ok: true, id: msg.id });
@@ -1665,6 +1683,7 @@ io.on("connection", (socket) => {
     }
 
     room.lastMessageAt.set(s.sessionId, Date.now());
+    rememberIdempotentMessage(idempotencyKey, msg.id, idempotencyContent, replyTo);
     broadcastRoomMessage(room, msg);
     ack?.({ ok: true, id: msg.id });
   });
