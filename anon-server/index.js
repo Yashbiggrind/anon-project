@@ -391,6 +391,7 @@ const publicRoom = (r) => ({
   host: r.host,
   admin: r.admin,
   topic: r.topic,
+  isBotRoom: Boolean(r.isBotRoom),
   capacity: r.capacity,
   slowMode: r.slowMode,
     messageLifetime: r.messageLifetime || 0,
