@@ -1027,6 +1027,7 @@ io.on("connection", (socket) => {
 
 
     if (isShadowBanned(s.spamKey)) {
+      messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId: null, createdAt: Date.now() });
       rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
       io.to(socket.id).emit("chat:public:message", msg);
       return ack?.({ ok: true, id: msg.id });
@@ -1046,6 +1047,7 @@ io.on("connection", (socket) => {
       return ack?.({ ok: false, error: errors[spam.reason] || "Slow down." });
     }
 
+    messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId: null, createdAt: Date.now() });
     rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastPublicMessage(msg);
     ack?.({ ok: true, id: msg.id });
@@ -1595,6 +1597,7 @@ io.on("connection", (socket) => {
 
 
     if (isShadowBanned(s.spamKey)) {
+      messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId, createdAt: Date.now() });
       rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
       const sid = findSocketBySession(s.sessionId);
       if (sid) io.to(sid).emit("room:message", publicChatMessage(msg));
@@ -1616,6 +1619,7 @@ io.on("connection", (socket) => {
     }
 
     room.lastMessageAt.set(s.sessionId, Date.now());
+    messageOwners.set(msg.id, { senderSessionId: s.sessionId, senderProfileId: s.hasStableProfile ? s.profileId : null, roomId, createdAt: Date.now() });
     rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastRoomMessage(room, msg);
     ack?.({ ok: true, id: msg.id });
