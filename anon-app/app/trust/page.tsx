@@ -5,10 +5,14 @@ import Link from "next/link";
 
 const SECURITY_HEADERS_STATUS = `ACTIVE RESPONSE HEADERS
 X-Content-Type-Options: nosniff
-X-Frame-Options: DENY
+X-Frame-Options: DENY (SAMEORIGIN for the profile editor asset)
 Referrer-Policy: no-referrer
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Strict-Transport-Security: production builds
 
-Content-Security-Policy: NOT CONFIGURED`;
+Content-Security-Policy: ACTIVE on Next.js pages and the admin dashboard
+Frontend CSP: allows unsafe-inline for framework compatibility
+Admin dashboard CSP: per-response nonce for inline scripts`;
 
 const TOR_CODE = `# /etc/tor/torrc
 HiddenServiceDir /var/lib/tor/anon/
@@ -129,15 +133,15 @@ export default function TrustPage() {
             <h3>Install as an app</h3>
             <p>Home-screen install, full screen, no browser history.</p>
             <div className="btnRow">
-              <button className="btn sm" onClick={() => alert("On Android Chrome: menu ⋮ → Install app. On iOS Safari: Share → Add to Home Screen.")}>SHOW INSTALL PROMPT</button>
+              <button className="btn sm" onClick={() => alert("On Android Chrome: menu ⋮ → Install app. On iOS Safari: Share → Add to Home Screen.")}>SHOW INSTALL STEPS</button>
             </div>
           </div>
 
           {/* ---------- Security headers ---------- */}
           <div className="card">
-            <span className="status plan">CSP NOT ACTIVE</span>
+            <span className="status plan">CSP ACTIVE — REVIEW REQUIRED</span>
             <h3>Security headers</h3>
-            <p>The backend currently sends the headers listed below. A Content-Security-Policy is not configured yet; it needs compatibility testing with the Next.js app before activation.</p>
+            <p>Next.js applies a Content-Security-Policy to frontend documents, and the admin dashboard uses a per-response nonce for inline scripts. The frontend policy still permits unsafe-inline for framework compatibility, so it is not a strict nonce-only policy. The profile-editor asset has a narrow same-origin framing exception. JSON API responses do not serve HTML documents. Verify deployed response headers after each release.</p>
             <pre className="code">{SECURITY_HEADERS_STATUS}</pre>
           </div>
 
@@ -145,7 +149,7 @@ export default function TrustPage() {
           <div className="card">
             <span className="status live">LIVE IN PROTOTYPE</span>
             <h3>AI participant data use</h3>
-            <p>AI participants are labeled as bots. When one generates a reply, the latest relevant message from public chat or a room containing that bot may be sent to Pollinations, with OpenRouter as a fallback when configured. These are external services with their own data practices. Avoid sharing sensitive personal information in bot-enabled conversations. Operators can disable bot activity with the server setting ENABLE_BOTS=false.</p>
+            <p>AI participants are labelled as bots and may appear in public chat and clearly marked AI-created rooms only. Ordinary user-created rooms are excluded from automatic bot participation. When a bot replies, relevant message text and limited context may be sent to Pollinations, with OpenRouter as a fallback when configured. These are external services with their own data practices. Avoid sharing sensitive information in bot-enabled conversations. Operators can disable bots with ENABLE_BOTS=false.</p>
           </div>
 
           {/* ---------- E2E ---------- */}
