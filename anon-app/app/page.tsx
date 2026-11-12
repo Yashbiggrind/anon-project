@@ -97,6 +97,7 @@ type RoomListing = {
   slowMode: number;
   createdAt: number;
   mode?: "ask" | "open";
+  isBotRoom?: boolean;
 };
 type ServerAck = {
   ok?: boolean;
@@ -2583,7 +2584,7 @@ export default function Home() {
                           >
                             <span className="discoverIcon">◈</span>
                             <div className="discoverInfo">
-                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{r.mode === "ask" ? "ASK" : "OPEN"}</span></div>
+                              <div className="discoverTopic">{r.topic || "Untitled room"}<span className={`modeBadge ${r.mode === "ask" ? "ask" : "open"}`}>{r.mode === "ask" ? "ASK" : "OPEN"}</span>{r.isBotRoom && <span className="modeBadge open">AI ROOM</span>}</div>
                               <div className="discoverMeta">
                                 by {r.adminName}
                                 {r.slowMode > 0 && <span className="discoverSlow"> · ⏱ {r.slowMode}s</span>}
@@ -2597,7 +2598,7 @@ export default function Home() {
                       </div>
 
                       <p className="discoverHint">
-                        Click any open room to join instantly. Or ask an admin to invite you.
+                        Click any open room to join instantly. AI ROOM messages may be sent to external AI providers when a bot replies.
                       </p>
                       {favoriteRooms.length > 0 && (
                         <>
