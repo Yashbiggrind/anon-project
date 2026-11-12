@@ -2115,7 +2115,9 @@ export default function Home() {
                   )}
 
                   {visibleMessages.map((m) => {
-                    const mine = m.localSent === true || m.senderSessionId === identity?.sessionId;
+                    const mine = m.localSent === true ||
+                      m.senderSessionId === identity?.sessionId ||
+                      Boolean(identity?.profileId && m.senderProfileId === identity.profileId);
                     return (
                       <MessageBubble
                         key={m.id}
@@ -2355,7 +2357,9 @@ export default function Home() {
                         })}
 
                         {visiblePrivateMessages.map((m) => {
-                          const mine = m.localSent === true || m.senderSessionId === identity?.sessionId;
+                          const mine = m.localSent === true ||
+                      m.senderSessionId === identity?.sessionId ||
+                      Boolean(identity?.profileId && m.senderProfileId === identity.profileId);
                           return (
                             <MessageBubble
                               key={m.id}
