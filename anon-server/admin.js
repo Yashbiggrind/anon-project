@@ -13,7 +13,7 @@ function csvCell(value) {
   const raw = String(value == null ? "" : value);
   // Spreadsheet programs may execute cells beginning with formula markers,
   // even when the CSV field is correctly quoted.
-  const safe = /^[\\u0000-\\u0020]*[=+\\-@]/.test(raw) ? "'" + raw : raw;
+  const safe = /^\s*[=+\-@]/.test(raw) ? "'" + raw : raw;
   return '"' + safe.replace(/"/g, '""') + '"';
 }
 
