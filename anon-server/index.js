@@ -1830,7 +1830,7 @@ io.on("connection", (socket) => {
   });
 
   // ---------- DM: send message ----------
-  socket.on("dm:send", ({ threadId, content, replyTo } = {}, ack) => {
+  socket.on("dm:send", ({ threadId, content, replyTo, clientMessageId } = {}, ack) => {
     const s = sessions.get(socket.id);
     if (!s) return ack?.({ ok: false, error: "No session" });
     const thread = dmThreads.get(String(threadId || ""));
@@ -1840,6 +1840,11 @@ io.on("connection", (socket) => {
     const text = clean(String(content ?? "").trim());
     if (!text) return ack?.({ ok: false, error: "Empty" });
     if (text.length > MAX_MSG) return ack?.({ ok: false, error: "Too long" });
+    const idempotencyKey = messageIdempotencyKey(s, clientMessageId, `dm:${thread.threadId}`);
+    if (idempotencyKey === false) return ack?.({ ok: false, error: "Invalid client message ID" });
+    const previousMessageId = getIdempotentMessage(idempotencyKey, text, replyTo);
+    if (previousMessageId === false) return ack?.({ ok: false, error: "Client message ID was already used for different content." });
+    if (previousMessageId) return ack?.({ ok: true, id: previousMessageId, deduplicated: true });
 
     if (!rateLimit(`dm:${s.spamKey}`, RATE_MSG, 10000)) {
       return ack?.({ ok: false, error: "Slow down." });
@@ -1877,6 +1882,7 @@ io.on("connection", (socket) => {
     }
     thread.lastAt = Date.now();
 
+    rememberIdempotentMessage(idempotencyKey, msg.id, text, replyTo);
     broadcastDmMessage(thread, msg);
     ack?.({ ok: true, id: msg.id });
   });
