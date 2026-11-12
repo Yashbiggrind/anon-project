@@ -303,6 +303,22 @@ test("live server protects socket payloads, authorization, data flow, and persis
     const statsPayload = await statsResponse.json();
     assert.ok(statsPayload.persistent_rows >= 2, "public stats should count persisted reports and strikes");
 
+    const dmOpenAck = await emitAck(a, "dm:open", { targetSessionId: identityB.sessionId });
+    assert.equal(dmOpenAck.ok, true);
+    const dmPayload = {
+      threadId: dmOpenAck.thread.threadId,
+      content: "retry-safe direct message",
+      clientMessageId: "dm-integration-test-001",
+    };
+    const dmFirstAck = await emitAck(a, "dm:send", dmPayload);
+    assert.equal(dmFirstAck.ok, true);
+    const dmRetryAck = await emitAck(a, "dm:send", dmPayload);
+    assert.equal(dmRetryAck.ok, true);
+    assert.equal(dmRetryAck.id, dmFirstAck.id);
+    assert.equal(dmRetryAck.deduplicated, true);
+    const dmThreadAfterRetry = await emitAck(a, "dm:open", { targetSessionId: identityB.sessionId });
+    assert.equal(dmThreadAfterRetry.thread.messages.length, 1, "a retried direct message must not be duplicated");
+
     const blockAck = await emitAck(a, "block:user", {
       targetSessionId: identityB.sessionId,
       targetUsername: identityB.username,
