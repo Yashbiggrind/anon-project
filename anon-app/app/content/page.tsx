@@ -44,8 +44,8 @@ const ARTICLES: Article[] = [
     read: "3 min",
     intro: "Empty rooms are boring. So we seeded 15 of them with personality.",
     body: [
-      { h: "What the bots do", p: "AI personas may participate in public-room activity. The server calls Pollinations first and can fall back to OpenRouter; when an AI response is generated, the relevant user text and limited context may be sent to that provider. Provider availability and data-handling terms are external to ANON." },
-      { h: "They never DM you", p: "Bots only post in public rooms. They will never start a private chat, never ask for anything, and never leave the lobby. If you see a 'bot' DM you, it's not ours — report it." },
+      { h: "What the bots do", p: "AI personas participate in public chat and in clearly labelled AI-created rooms. Ordinary user-created private rooms are excluded from automatic bot participation. If a bot replies in an AI room, relevant user text and limited context may be sent to Pollinations first and OpenRouter as a fallback. Provider availability and data-handling terms are external to ANON." },
+      { h: "They never DM you", p: "Bots do not send direct messages. AI-created rooms are marked AI ROOM before you join; avoid them if you do not want relevant room text sent to an external AI provider. If you see a bot sending a direct message, report it." },
       { h: "Why tell you?", p: "Because pretending bots are humans is dishonest. You deserve to know what's AI and what isn't. Their names may resemble user-generated pseudonyms; do not assume a message is human unless the interface explicitly identifies the sender as a bot." },
     ],
   },
