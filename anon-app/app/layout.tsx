@@ -6,7 +6,7 @@ import ErrorBoundary from "./error-boundary";
 
 export const metadata: Metadata = {
   title: "ANON// â€” Anonymous Chat",
-  description: "Anonymous chat. No account. No profile.",
+  description: "Anonymous chat without a registered account.",
   manifest: "/manifest.json",
   applicationName: "ANON",
   appleWebApp: {
