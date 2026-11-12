@@ -156,10 +156,11 @@ function listReports(limit = 100, onlyUnreviewed = false) {
   } catch (e) { console.error("[db] listReports:", e.message); return []; }
 }
 function markReportReviewed(id, action) {
-  if (!ready) return;
+  if (!ready) return false;
   try {
-    db.prepare("UPDATE reports SET reviewed = 1, action_taken = ? WHERE id = ?").run(action || null, id);
-  } catch (e) { console.error("[db] markReportReviewed:", e.message); }
+    const result = db.prepare("UPDATE reports SET reviewed = 1, action_taken = ? WHERE id = ?").run(action || null, id);
+    return result.changes > 0;
+  } catch (e) { console.error("[db] markReportReviewed:", e.message); return false; }
 }
 function rowToReport(r) {
   return {
