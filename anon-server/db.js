@@ -139,11 +139,12 @@ function init() {
 
 // ---------- reports ----------
 function saveReport(r) {
-  if (!ready) return;
+  if (!ready) return false;
   try {
     db.prepare("INSERT INTO reports (id, reporter, target, target_username, reason, created_at) VALUES (?, ?, ?, ?, ?, ?)")
       .run(r.id, r.reporter, r.target, r.targetUsername || null, r.reason, r.createdAt);
-  } catch (e) { console.error("[db] saveReport:", e.message); }
+    return true;
+  } catch (e) { console.error("[db] saveReport:", e.message); return false; }
 }
 function listReports(limit = 100, onlyUnreviewed = false) {
   if (!ready) return [];
@@ -155,10 +156,11 @@ function listReports(limit = 100, onlyUnreviewed = false) {
   } catch (e) { console.error("[db] listReports:", e.message); return []; }
 }
 function markReportReviewed(id, action) {
-  if (!ready) return;
+  if (!ready) return false;
   try {
-    db.prepare("UPDATE reports SET reviewed = 1, action_taken = ? WHERE id = ?").run(action || null, id);
-  } catch (e) { console.error("[db] markReportReviewed:", e.message); }
+    const result = db.prepare("UPDATE reports SET reviewed = 1, action_taken = ? WHERE id = ?").run(action || null, id);
+    return result.changes > 0;
+  } catch (e) { console.error("[db] markReportReviewed:", e.message); return false; }
 }
 function rowToReport(r) {
   return {
@@ -167,6 +169,28 @@ function rowToReport(r) {
     reason: r.reason, createdAt: r.created_at,
     reviewed: !!r.reviewed, actionTaken: r.action_taken || null,
   };
+}
+
+// ---------- persistent profile blocks ----------
+function saveBlock(blockerProfileId, blockedProfileId, username) {
+  if (!ready || !blockerProfileId || !blockedProfileId) return false;
+  try {
+    db.prepare("INSERT INTO blocks (blocker_key, blocked_key, blocked_username, created_at) VALUES (?, ?, ?, ?) ON CONFLICT(blocker_key, blocked_key) DO UPDATE SET blocked_username = excluded.blocked_username")
+      .run(String(blockerProfileId), String(blockedProfileId), String(username || "unknown").slice(0, 40), Date.now());
+    return true;
+  } catch (e) { console.error("[db] saveBlock:", e.message); return false; }
+}
+function deleteBlock(blockerProfileId, blockedProfileId) {
+  if (!ready || !blockerProfileId || !blockedProfileId) return false;
+  try { db.prepare("DELETE FROM blocks WHERE blocker_key = ? AND blocked_key = ?").run(String(blockerProfileId), String(blockedProfileId)); return true; }
+  catch (e) { console.error("[db] deleteBlock:", e.message); return false; }
+}
+function loadBlocks(blockerProfileId) {
+  if (!ready || !blockerProfileId) return [];
+  try {
+    return db.prepare("SELECT blocked_key AS profileId, blocked_username AS username FROM blocks WHERE blocker_key = ? ORDER BY created_at DESC")
+      .all(String(blockerProfileId)).map((row) => ({ profileId: row.profileId, username: row.username || "unknown" }));
+  } catch (e) { console.error("[db] loadBlocks:", e.message); return []; }
 }
 
 // ---------- strikes ----------
@@ -266,6 +290,7 @@ function getStats() {
       unreviewed: db.prepare("SELECT COUNT(*) AS c FROM reports WHERE reviewed = 0").get().c,
       strikes: db.prepare("SELECT COUNT(*) AS c FROM strikes").get().c,
       sessions: db.prepare("SELECT COUNT(*) AS c FROM sessions_log").get().c,
+      blocks: db.prepare("SELECT COUNT(*) AS c FROM blocks").get().c,
     };
   } catch (e) { console.error("[db] getStats:", e.message); return null; }
 }
@@ -275,6 +300,7 @@ module.exports = {
   isReady: () => ready,
   hashIp,
   saveReport, listReports, markReportReviewed,
+  saveBlock, deleteBlock, loadBlocks,
   saveStrike, deleteStrike, loadAllStrikes,
   logConnect, logDisconnect, purgeOldSessions,
   listSessions, getSessionCount,
