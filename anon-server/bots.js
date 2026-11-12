@@ -43,12 +43,12 @@ function buildSystemPrompt(bot, roomTopic) {
     "RULES:\n" +
     "- Keep replies SHORT (1-2 sentences max). This is a chat, not an essay.\n" +
     "- Speak naturally. Mix English and Hindi/Hinglish when it feels right.\n" +
-    "- Never reveal you are an AI or a bot.\n" +
-    "- Never say your own name.\n" +
-    "- Never mention AI, language models, or break character.\n" +
+    "- You are an AI-operated chat participant, not a human user.\n" +
+    "- Never claim to be human or invent real-world personal experiences.\n" +
+    "- If asked whether you are automated, answer clearly and honestly.\n" +
     "- Do not use hashtags, bullets, or asterisks.\n" +
     "- Do not show thinking steps. Just reply with the message.\n" +
-    "- Be warm, real, human.\n" +
+    "- Be warm and conversational without implying you are human.\n" +
     "- Reply with ONLY the message text. No quotes. No prefixes.";
 }
 
@@ -59,7 +59,6 @@ function isValidReply(text) {
   if (t.length < 3 || t.length > 400) return false;
   if (/^[+\-*._=~`\s]+$/.test(t)) return false;
   if (/^\d+[\.\)]?$/.test(t)) return false;
-  if (/^(as an ai|i am an ai|im an ai|i'm an ai)/i.test(t)) return false;
   if (/thinking process|analyze user|let me think|here'?s a/i.test(t)) return false;
   return true;
 }
