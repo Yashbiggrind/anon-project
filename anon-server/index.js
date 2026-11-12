@@ -930,7 +930,9 @@ io.on("connection", (socket) => {
       list.push({
         roomId: room.roomId,
         topic: room.topic || "",
-        adminName: adminSession?.username || "?",
+        adminName: adminSession?.username ||
+          room.participants.find((participant) => participant.sessionId === room.admin)?.username || "?",
+        isBotRoom: Boolean(room.isBotRoom),
         capacity: room.capacity,
         occupancy: room.participants.length,
         full: room.participants.length >= room.capacity,
@@ -2219,7 +2221,8 @@ async function botTick() {
   await botPublicChat();
 
   for (const room of rooms.values()) {
-    if (room.status !== "active") continue;
+    // AI providers must never receive messages from ordinary user-created rooms.
+    if (room.status !== "active" || !room.isBotRoom) continue;
     const botMembers = room.participants.filter(p => p.sessionId.startsWith("bot_"));
     if (botMembers.length === 0) continue;
     if (Math.random() > 0.3) continue;
@@ -2303,6 +2306,7 @@ async function botPublicChat() {
 function botJoinRoom() {
   const openRooms = Array.from(rooms.values()).filter(r =>
     r.status === "active" &&
+    r.isBotRoom === true &&
     r.participants.length < r.capacity &&
     r.participants.filter(p => p.sessionId.startsWith("bot_")).length < 2
   );
